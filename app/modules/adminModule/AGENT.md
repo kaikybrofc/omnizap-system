@@ -1,0 +1,2060 @@
+# AdminModule Agent Guide
+
+Este arquivo e destinado a agentes de IA para gerar respostas no contexto de comandos administrativos do WhatsApp.
+
+## Fonte de Verdade
+
+- arquivo_base: `app/modules/adminModule/commandConfig.json`
+- schema_version: `1.4.0`
+- module_enabled: `true`
+- generated_at: `2026-03-08T00:10:27.289Z`
+
+## Escopo do Modulo
+
+- module: `adminModule`
+- source_files:
+- groupCommandHandlers.js
+- groupEventHandlers.js
+- adminConfigRuntime.js
+- total_commands: `32`
+- total_enabled_commands: `32`
+
+## Configuracao AI Help
+
+- enabled: true
+- mode: hybrid_rag
+- rag_sources:
+- commandConfig.json
+- AGENT.md
+- faq.cache_file: data/cache/admin-ai-faq-cache.json
+- faq.interval_ms: 21600000
+- faq.auto_generate_on_start: true
+- llm.enabled: true
+- llm.model: gpt-5-nano
+- llm.max_agent_context_chars: 12000
+- llm.max_response_chars: 3400
+- llm.timeout_ms: 25000
+
+## Protocolo de Resposta para IA
+
+- Passo 1: identificar comando pelo token apos o prefixo.
+- Passo 2: resolver alias para nome canonico usando campo `aliases`.
+- Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
+- Passo 4: se houver erro de uso, responder com `mensagens_uso` (quando existir) ou `metodos_de_uso`.
+- Passo 5: seguir `respostas_padrao` como fallback de texto.
+- Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
+
+## Textos Globais
+
+- group_only_command_message: Este comando está disponível apenas em conversas de grupo. Execute-o em um grupo para continuar.
+- no_permission_command_message: Permissão insuficiente para executar este comando. Solicite suporte a um administrador do grupo.
+- owner_only_command_message: Você não possui permissão para executar este comando. Este recurso é exclusivo do administrador principal do bot.
+- usage_header: Formato de uso:
+
+## Eventos de Grupo (groupEventHandlers)
+
+- mensagens_padrao:
+  - welcome: 👋 Bem-vindo(a) ao grupo @groupname, @user! 🎉
+  - farewell: 😥 Adeus, @user! Sentiremos sua falta.
+  - promote: O usuário @{{participant}} foi promovido a administrador do grupo. 🎉
+  - demote: O usuário @{{participant}} não é mais um administrador do grupo. ⬇️
+  - captcha*line:
+    🤖 \_Verificação humana*
+    @{{participant}}, reaja a esta mensagem ou envie qualquer mensagem em até _{{captcha_timeout_min}} minutos_ para continuar no grupo.
+
+- placeholders_suportados:
+- @date
+- @desc
+- @admins
+- @groupname
+- @membercount
+- @owner
+- @creationtime
+- @invitecode
+- @isrestricted
+- @isannounceonly
+- @user
+- {participant}
+- auto_approve_skip_actions:
+- reject
+- rejected
+- cancel
+- canceled
+- approve
+- approved
+- accept
+- accepted
+- remove
+- removed
+
+## Catalogo de Comandos
+
+### menuadm
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Exibe menu administrativo do bot para o grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>menuadm
+- <prefix>menuadm ajuda <comando>
+- <prefix>menuadm faq
+- <prefix>menuadm perguntar <pergunta>
+- mensagens_uso (variantes):
+  - default:
+    - <prefix>menuadm
+    - <prefix>menuadm ajuda <comando>
+    - <prefix>menuadm faq
+    - <prefix>menuadm perguntar <pergunta>
+  - help:
+    - <prefix>menuadm ajuda <comando>
+  - ask:
+    - <prefix>menuadm perguntar <pergunta>
+- subcomandos:
+- ajuda
+- faq
+- perguntar
+- argumentos:
+- (nenhum)
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- contexto de grupo e validacao de permissao de admin
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_menuadm
+- tags_log: whatsapp, command, adminModule, menuadm
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### premium
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Gerencia usuarios premium do sistema.
+- permissao_necessaria: admin principal do bot
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>premium list
+- <prefix>premium add @usuario
+- <prefix>premium remove @usuario
+- mensagens_uso (variantes):
+  - invalid_action:
+    - <prefix>premium <add|remove|list> @usuario1 @usuario2 ...
+  - missing_targets:
+    - <prefix>premium <add|remove> @usuario1 @usuario2 ...
+    - Também é possível responder à mensagem do usuário desejado.
+- subcomandos:
+- add
+- remove
+- list
+- argumentos:
+- acao | tipo: string | obrigatorio | validacao: add|remove|list | default: null
+- usuarios | tipo: array<string> | opcional | validacao: menções/JIDs para add/remove | default: []
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: sim
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- participantes mencionados/reply para add/remove
+- lista atual de usuarios premium no store
+- validacao de identidade de administrador principal
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_premium
+- tags_log: whatsapp, command, adminModule, premium
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do remetente administrador
+  - identificadores dos usuários premium gerenciados
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### nsfw
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Ativa/desativa status de NSFW no grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>nsfw on
+- <prefix>nsfw off
+- <prefix>nsfw status
+- subcomandos:
+- on
+- off
+- status
+- argumentos:
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- estado NSFW atual do grupo
+- acao solicitada (on/off/status)
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_nsfw
+- tags_log: whatsapp, command, adminModule, nsfw
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### autosticker
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Ativa/desativa a geracao automatica de figurinhas no grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>autosticker on
+- <prefix>autosticker off
+- <prefix>autosticker status
+- subcomandos:
+- on
+- off
+- status
+- argumentos:
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- estado de auto figurinha no grupo
+- acao solicitada (on/off/status)
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_autosticker
+- tags_log: whatsapp, command, adminModule, autosticker
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### stickermode
+
+- aliases: smode
+- enabled: true
+- categoria: admin
+- descricao: Controla modo foco em figurinhas no grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>stickermode on
+- <prefix>stickermode off
+- <prefix>stickermode status
+- subcomandos:
+- on
+- off
+- status
+- argumentos:
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- estado atual do modo sticker no grupo
+- acao solicitada (on/off/status)
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_stickermode
+- tags_log: whatsapp, command, adminModule, stickermode
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### chatwindow
+
+- aliases: chat
+- enabled: true
+- categoria: admin
+- descricao: Abre/fecha janela temporaria de chat livre no modo sticker.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: tempo limitado por configuracao do modulo
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>chatwindow on
+- <prefix>chatwindow off
+- <prefix>chatwindow status
+- <prefix>chatwindow on 15
+- subcomandos:
+- on
+- off
+- status
+- argumentos:
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
+- minutos | tipo: integer | opcional | validacao: inteiro positivo dentro dos limites do módulo | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- acao da janela de chat (on/off/status)
+- duracao em minutos quando informada
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_chatwindow
+- tags_log: whatsapp, command, adminModule, chatwindow
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### stickermsglimit
+
+- aliases: smsglimit, stickertextlimit, stextlimit
+- enabled: true
+- categoria: admin
+- descricao: Define limite de mensagens por usuario no modo sticker.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: intervalo validado pelo modulo
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>stickermsglimit 5
+- <prefix>stickermsglimit status
+- <prefix>stickermsglimit reset
+- subcomandos:
+- <minutos>
+- status
+- reset
+- argumentos:
+- valor | tipo: string | obrigatorio | validacao: minutos|status|reset | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- minutos/acao informados para limite de mensagens
+- configuracao atual de cooldown do grupo
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_stickermsglimit
+- tags_log: whatsapp, command, adminModule, stickermsglimit
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### newgroup
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Cria um novo grupo com participantes informados.
+- permissao_necessaria: usuario comum
+- limite_de_uso: minimo de titulo e participantes
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>newgroup <titulo> <participante1> <participante2>
+- subcomandos:
+- (nenhum)
+- argumentos:
+- titulo | tipo: string | obrigatorio | validacao: texto não vazio | default: null
+- participantes | tipo: array<string> | obrigatorio | validacao: mínimo 1 participante | default: []
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- titulo do novo grupo
+- lista de participantes informados no comando
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_newgroup
+- tags_log: whatsapp, command, adminModule, newgroup
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### add
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Adiciona participantes ao grupo atual.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: depende de permissoes do WhatsApp
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>add @participante
+- mensagens_uso (variantes):
+  - missing_targets:
+    - <prefix>add @participante1 @participante2 ...
+    - Também é possível informar os JIDs dos participantes.
+- subcomandos:
+- (nenhum)
+- argumentos:
+- participantes | tipo: array<string> | obrigatorio | validacao: menções/JIDs válidos | default: []
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- lista de participantes mencionados/extraidos para adicionar
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_add
+- tags_log: whatsapp, command, adminModule, add
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### ban
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Remove participantes do grupo atual.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: depende de permissoes do WhatsApp
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>ban @participante
+- mensagens_uso (variantes):
+  - missing_targets:
+    - <prefix>ban @participante1 @participante2 ...
+    - Também é possível responder à mensagem do participante desejado.
+- subcomandos:
+- (nenhum)
+- argumentos:
+- participantes | tipo: array<string> | obrigatorio | validacao: menções/JIDs válidos | default: []
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- lista de participantes mencionados/extraidos para remover
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_ban
+- tags_log: whatsapp, command, adminModule, ban
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### up
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Promove participantes a administradores do grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: depende de permissoes do WhatsApp
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>up @participante
+- mensagens_uso (variantes):
+  - missing_targets:
+    - <prefix>up @participante1 @participante2 ...
+    - Também é possível informar os JIDs dos participantes.
+- subcomandos:
+- (nenhum)
+- argumentos:
+- participantes | tipo: array<string> | obrigatorio | validacao: menções/JIDs válidos | default: []
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- lista de participantes mencionados/extraidos para promover
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_up
+- tags_log: whatsapp, command, adminModule, up
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### down
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Rebaixa administradores para membros comuns.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: depende de permissoes do WhatsApp
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>down @participante
+- mensagens_uso (variantes):
+  - missing_targets:
+    - <prefix>down @participante1 @participante2 ...
+    - Também é possível informar os JIDs dos participantes.
+- subcomandos:
+- (nenhum)
+- argumentos:
+- participantes | tipo: array<string> | obrigatorio | validacao: menções/JIDs válidos | default: []
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- lista de participantes mencionados/extraidos para rebaixar
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_down
+- tags_log: whatsapp, command, adminModule, down
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### setsubject
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Altera assunto do grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: texto sujeito a limite do WhatsApp
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>setsubject novo assunto
+- mensagens_uso (variantes):
+  - default:
+    - <prefix>setsubject <novo_assunto>
+- subcomandos:
+- (nenhum)
+- argumentos:
+- assunto | tipo: string | obrigatorio | validacao: texto não vazio | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- novo assunto do grupo informado no comando
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_setsubject
+- tags_log: whatsapp, command, adminModule, setsubject
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### setdesc
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Altera descricao do grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: texto sujeito a limite do WhatsApp
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>setdesc nova descricao
+- mensagens_uso (variantes):
+  - default:
+    - <prefix>setdesc <nova_descricao>
+- subcomandos:
+- (nenhum)
+- argumentos:
+- descricao | tipo: string | obrigatorio | validacao: texto não vazio | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- nova descricao do grupo informada no comando
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_setdesc
+- tags_log: whatsapp, command, adminModule, setdesc
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### setgroup
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Define estado do grupo (anuncio/aberto/locked/unlocked).
+- permissao_necessaria: admin do grupo
+- limite_de_uso: apenas modos suportados
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>setgroup announcement
+- <prefix>setgroup not_announcement
+- <prefix>setgroup locked
+- <prefix>setgroup unlocked
+- mensagens_uso (variantes):
+  - default:
+    - <prefix>setgroup <announcement|not_announcement|locked|unlocked>
+- subcomandos:
+- announcement
+- not_announcement
+- locked
+- unlocked
+- argumentos:
+- modo | tipo: string | obrigatorio | validacao: announcement|not_announcement|locked|unlocked | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- modo de configuracao do grupo (announcement/locked etc.)
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_setgroup
+- tags_log: whatsapp, command, adminModule, setgroup
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### leave
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Faz o bot sair do grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>leave
+- subcomandos:
+- (nenhum)
+- argumentos:
+- (nenhum)
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- id do grupo atual para saida do bot
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_leave
+- tags_log: whatsapp, command, adminModule, leave
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### invite
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Mostra codigo de convite atual do grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>invite
+- subcomandos:
+- (nenhum)
+- argumentos:
+- (nenhum)
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- id do grupo para obter codigo de convite
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_invite
+- tags_log: whatsapp, command, adminModule, invite
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### revoke
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Revoga o codigo de convite e gera novo codigo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>revoke
+- subcomandos:
+- (nenhum)
+- argumentos:
+- (nenhum)
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- id do grupo para revogar codigo de convite
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_revoke
+- tags_log: whatsapp, command, adminModule, revoke
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### join
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Faz o bot entrar em grupo por codigo de convite.
+- permissao_necessaria: usuario comum
+- limite_de_uso: codigo valido obrigatorio
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>join <codigo_de_convite>
+- subcomandos:
+- (nenhum)
+- argumentos:
+- codigo_convite | tipo: string | obrigatorio | validacao: token de convite válido | default: null
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- codigo de convite informado no argumento
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_join
+- tags_log: whatsapp, command, adminModule, join
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### infofrominvite
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Consulta dados de um grupo usando codigo de convite.
+- permissao_necessaria: usuario comum
+- limite_de_uso: codigo valido obrigatorio
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>infofrominvite <codigo_de_convite>
+- subcomandos:
+- (nenhum)
+- argumentos:
+- codigo_convite | tipo: string | obrigatorio | validacao: token de convite válido | default: null
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- codigo de convite para consulta de metadados
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_infofrominvite
+- tags_log: whatsapp, command, adminModule, infofrominvite
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### metadata
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Retorna metadados de um grupo informado ou do grupo atual.
+- permissao_necessaria: admin do grupo alvo
+- limite_de_uso: acesso restrito por permissao
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>metadata
+- <prefix>metadata <group_jid>
+- subcomandos:
+- (nenhum)
+- argumentos:
+- group_id | tipo: string | opcional | validacao: JID de grupo válido | default: "grupo atual"
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- id do grupo alvo (argumento ou grupo atual)
+- metadados do grupo retornados pela API do WhatsApp
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_metadata
+- tags_log: whatsapp, command, adminModule, metadata
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### requests
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Lista solicitacoes pendentes para entrar no grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>requests
+- subcomandos:
+- (nenhum)
+- argumentos:
+- (nenhum)
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- lista de solicitacoes pendentes de entrada no grupo
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_requests
+- tags_log: whatsapp, command, adminModule, requests
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### updaterequests
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Aprova ou rejeita solicitacoes de entrada no grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: acao valida + mencao obrigatoria
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>updaterequests approve @participante
+- <prefix>updaterequests reject @participante
+- mensagens_uso (variantes):
+  - invalid_action:
+    - <prefix>updaterequests <approve|reject> @participante1 ...
+  - missing_targets:
+    - <prefix>updaterequests <approve|reject> @participante1 ...
+    - Mencione os usuários que devem ser aprovados ou rejeitados.
+- subcomandos:
+- approve
+- reject
+- argumentos:
+- acao | tipo: string | obrigatorio | validacao: approve|reject | default: null
+- participantes | tipo: array<string> | obrigatorio | validacao: menções/JIDs válidos | default: []
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- acao solicitada (approve/reject)
+- participantes mencionados para atualizar solicitacoes
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_updaterequests
+- tags_log: whatsapp, command, adminModule, updaterequests
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### autorequests
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Ativa/desativa auto aprovacao de solicitacoes no grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>autorequests on
+- <prefix>autorequests off
+- <prefix>autorequests status
+- subcomandos:
+- on
+- off
+- status
+- argumentos:
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- estado da aprovacao automatica do grupo
+- acao solicitada (on/off/status)
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_autorequests
+- tags_log: whatsapp, command, adminModule, autorequests
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### temp
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Define tempo de mensagens temporarias (ephemeral) no grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: duracao em segundos obrigatoria
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>temp <duracao_em_segundos>
+- subcomandos:
+- (nenhum)
+- argumentos:
+- duracao_segundos | tipo: integer | obrigatorio | validacao: inteiro positivo | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- duracao em segundos para mensagens temporarias
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_temp
+- tags_log: whatsapp, command, adminModule, temp
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### addmode
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Define quem pode adicionar participantes no grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: apenas modos validos
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>addmode all_member_add
+- <prefix>addmode admin_add
+- subcomandos:
+- (nenhum)
+- argumentos:
+- modo | tipo: string | obrigatorio | validacao: all_member_add|admin_add | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- modo de adicao de participantes (all_member_add/admin_add)
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_addmode
+- tags_log: whatsapp, command, adminModule, addmode
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### prefix
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Define prefixo personalizado de comandos para o grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: prefixo unico validado pelo modulo
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>prefix <novo_prefixo>
+- <prefix>prefix status
+- <prefix>prefix reset
+- subcomandos:
+- <novo_prefixo>
+- status
+- reset
+- argumentos:
+- valor | tipo: string | obrigatorio | validacao: novo prefixo|status|reset | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- novo prefixo informado ou acao (status/reset)
+- prefixo atual salvo na configuracao do grupo
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_prefix
+- tags_log: whatsapp, command, adminModule, prefix
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### welcome
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Configura mensagens/midia de boas-vindas no grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: set exige mensagem ou midia
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>welcome on
+- <prefix>welcome off
+- <prefix>welcome set <mensagem_ou_midia>
+- mensagens_uso (variantes):
+  - missing_content:
+    - <prefix>welcome set <mensagem ou caminho da midia>
+    - Também é possível enviar uma mídia junto ao comando.
+- subcomandos:
+- on
+- off
+- set
+- argumentos:
+- acao | tipo: string | obrigatorio | validacao: on|off|set | default: null
+- mensagem_ou_midia | tipo: string | opcional | validacao: texto, caminho local ou mídia anexada | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- subcomando (on/off/set)
+- mensagem textual ou caminho de midia informado
+- midia anexada/citada para salvar na configuracao do grupo
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_welcome
+- tags_log: whatsapp, command, adminModule, welcome
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### farewell
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Configura mensagens/midia de despedida no grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: set exige mensagem ou midia
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>farewell on
+- <prefix>farewell off
+- <prefix>farewell set <mensagem_ou_midia>
+- mensagens_uso (variantes):
+  - missing_content:
+    - <prefix>farewell set <mensagem ou caminho da midia>
+    - Também é possível enviar uma mídia junto ao comando.
+- subcomandos:
+- on
+- off
+- set
+- argumentos:
+- acao | tipo: string | obrigatorio | validacao: on|off|set | default: null
+- mensagem_ou_midia | tipo: string | opcional | validacao: texto, caminho local ou mídia anexada | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- subcomando (on/off/set)
+- mensagem textual ou caminho de midia informado
+- midia anexada/citada para salvar na configuracao do grupo
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_farewell
+- tags_log: whatsapp, command, adminModule, farewell
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### captcha
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Ativa/desativa captcha para novos membros no grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>captcha on
+- <prefix>captcha off
+- <prefix>captcha status
+- subcomandos:
+- on
+- off
+- status
+- argumentos:
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- status atual de captcha do grupo
+- acao solicitada (on/off/status)
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_captcha
+- tags_log: whatsapp, command, adminModule, captcha
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### antilink
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: admin
+- descricao: Gerencia bloqueio de links permitidos no grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: subcomandos e argumentos validados
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>antilink on
+- <prefix>antilink off
+- <prefix>antilink list
+- <prefix>antilink allow <rede>
+- <prefix>antilink disallow <rede>
+- <prefix>antilink add <dominio>
+- <prefix>antilink remove <dominio>
+- mensagens_uso (variantes):
+  - allow:
+    - <prefix>antilink allow <rede>
+  - disallow:
+    - <prefix>antilink disallow <rede>
+  - add:
+    - <prefix>antilink add <dominio>
+  - remove:
+    - <prefix>antilink remove <dominio>
+- subcomandos:
+- on
+- off
+- list
+- allow
+- disallow
+- add
+- remove
+- argumentos:
+- subcomando | tipo: string | obrigatorio | validacao: on|off|list|allow|disallow|add|remove | default: null
+- alvos | tipo: array<string> | opcional | validacao: redes ou domínios | default: []
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- subcomando e argumentos (rede/dominio)
+- listas atuais de redes e dominios permitidos no grupo
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_antilink
+- tags_log: whatsapp, command, adminModule, antilink
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### noticias
+
+- aliases: news
+- enabled: true
+- categoria: admin
+- descricao: Ativa/desativa envio automatico de noticias no grupo.
+- permissao_necessaria: admin do grupo
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- grupo
+- metodos_de_uso:
+- <prefix>noticias on
+- <prefix>noticias off
+- <prefix>noticias status
+- <prefix>news status
+- subcomandos:
+- on
+- off
+- status
+- argumentos:
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
+- pre_condicoes:
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- status atual de noticias do grupo
+- acao solicitada (on/off/status)
+- dependencias_externas:
+- API do WhatsApp (ações de grupo)
+- stores/configuração interna
+- efeitos_colaterais:
+- altera configurações de grupo e permissões
+- envia mensagens administrativas
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_noticias
+- tags_log: whatsapp, command, adminModule, noticias
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+  - identificador do chat
+  - identificador do remetente
+  - conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+## Regras de Consistencia para IA
+
+- Nunca inventar subcomando fora de `subcomandos`/`argumentos.validacao`.
+- Sempre usar os textos de erro/permissao definidos neste guia.
+- Quando houver ambiguidades, priorizar o nome canonico do comando.
+- Respeitar politicas de privacidade: responder sem expor dados sensiveis desnecessarios.

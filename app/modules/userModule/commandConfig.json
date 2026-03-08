@@ -2,15 +2,11 @@
   "schema_version": "1.1.0",
   "module": "userModule",
   "enabled": true,
-  "source_files": [
-    "userCommand.js"
-  ],
+  "source_files": ["userCommand.js"],
   "commands": [
     {
       "name": "user",
-      "aliases": [
-        "usuario"
-      ],
+      "aliases": ["usuario"],
       "descricao": "Consulta perfil e estatisticas de um usuario.",
       "metodos_de_uso": [
         "<prefix>user perfil",
@@ -19,10 +15,7 @@
       ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "consulta por um alvo por comando",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -34,10 +27,7 @@
       ],
       "enabled": true,
       "categoria": "usuario",
-      "subcomandos": [
-        "perfil",
-        "profile"
-      ],
+      "subcomandos": ["perfil", "profile"],
       "argumentos": [
         {
           "nome": "subcomando",
@@ -72,10 +62,7 @@
         "banco de dados de mensagens/perfil",
         "stores internas de premium/blocklist"
       ],
-      "efeitos_colaterais": [
-        "consulta perfil/estatísticas no banco",
-        "envia painel de usuário"
-      ],
+      "efeitos_colaterais": ["consulta perfil/estatísticas no banco", "envia painel de usuário"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -83,12 +70,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_user",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "userModule",
-          "user"
-        ],
+        "tags_log": ["whatsapp", "command", "userModule", "user"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -99,7 +81,11 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["user", "usuario", "privado", "grupo"],
+      "faq_patterns": ["como usar user", "o que faz user", "comando user"],
+      "user_phrasings": ["quero usar user", "me ajuda com user", "consulta perfil e estatisticas"],
+      "suggestion_priority": 100
     }
   ]
 }

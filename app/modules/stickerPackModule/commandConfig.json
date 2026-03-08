@@ -2,15 +2,11 @@
   "schema_version": "1.1.0",
   "module": "stickerPackModule",
   "enabled": true,
-  "source_files": [
-    "stickerPackCommandHandlers.js"
-  ],
+  "source_files": ["stickerPackCommandHandlers.js"],
   "commands": [
     {
       "name": "pack",
-      "aliases": [
-        "packs"
-      ],
+      "aliases": ["packs"],
       "descricao": "Gerencia packs de figurinhas (criar, listar, adicionar, enviar).",
       "metodos_de_uso": [
         "<prefix>pack help",
@@ -21,10 +17,7 @@
       ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "rate limit por janela e limite de itens por pack",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -82,10 +75,7 @@
         "janela_ms": 60000,
         "escopo": "usuario"
       },
-      "dependencias_externas": [
-        "banco de dados de packs",
-        "armazenamento de assets de figurinha"
-      ],
+      "dependencias_externas": ["banco de dados de packs", "armazenamento de assets de figurinha"],
       "efeitos_colaterais": [
         "cria/atualiza packs no banco",
         "pode armazenar/remover assets de figurinha"
@@ -97,12 +87,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_pack",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "stickerPackModule",
-          "pack"
-        ],
+        "tags_log": ["whatsapp", "command", "stickerPackModule", "pack"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -113,7 +98,11 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["pack", "packs", "figurinhas", "privado", "grupo"],
+      "faq_patterns": ["como usar pack", "o que faz pack", "comando pack"],
+      "user_phrasings": ["quero usar pack", "me ajuda com pack", "gerencia packs de figurinhas"],
+      "suggestion_priority": 100
     }
   ]
 }

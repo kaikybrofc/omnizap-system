@@ -1,0 +1,334 @@
+# StickerModule Agent Guide
+
+Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
+
+## Fonte de Verdade
+
+- arquivo_base: `app/modules/stickerModule/commandConfig.json`
+- schema_version: `1.1.0`
+- module_enabled: `true`
+- generated_at: `2026-03-08T00:30:28.504Z`
+
+## Escopo do Modulo
+
+- module: `stickerModule`
+- source_files:
+- stickerCommand.js
+- stickerConvertCommand.js
+- stickerTextCommand.js
+- total_commands: `5`
+- total_enabled_commands: `5`
+
+## Protocolo de Resposta para IA
+
+- Passo 1: identificar comando pelo token apos o prefixo.
+- Passo 2: resolver alias para nome canonico usando campo `aliases`.
+- Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
+- Passo 4: se houver erro de uso, responder com `mensagens_uso` (quando existir) ou `metodos_de_uso`.
+- Passo 5: seguir `respostas_padrao` como fallback de texto.
+- Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
+
+## Regras de Seguranca para IA
+
+- A IA orienta, mas nao executa acao administrativa automaticamente.
+- Nao inventar comandos, subcomandos ou permissao fora do JSON.
+- Sempre informar onde pode usar (grupo/privado) e quem pode usar.
+- Em duvida de permissao, responder com orientacao conservadora.
+
+## Catalogo de Comandos
+
+### sticker
+
+- aliases: s
+- enabled: true
+- categoria: figurinhas
+- descricao: Converte imagem/video em figurinha.
+- permissao_necessaria: usuario comum
+- limite_de_uso: midia ate 1 MB
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>sticker
+- <prefix>s
+- subcomandos:
+- (nenhum)
+- argumentos:
+- texto_extra | tipo: string | opcional | validacao: texto livre opcional | default: null
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: sim
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- metadados de midia (tipo, tamanho e origem da midia)
+- arquivo de midia baixado temporariamente para conversao
+- dependencias_externas:
+- conversão de mídia local
+- armazenamento temporário
+- efeitos_colaterais:
+- faz download/conversão temporária de mídia
+- envia figurinha
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_sticker
+- tags_log: whatsapp, command, stickerModule, sticker
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### toimg
+
+- aliases: tovideo, tovid
+- enabled: true
+- categoria: figurinhas
+- descricao: Converte figurinha para imagem ou video quando aplicavel.
+- permissao_necessaria: usuario comum
+- limite_de_uso: figurinha ate 2 MB
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>toimg
+- <prefix>tovideo
+- <prefix>tovid
+- subcomandos:
+- (nenhum)
+- argumentos:
+- (nenhum)
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: sim
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- metadados da figurinha (incluindo se e animada)
+- arquivo de figurinha baixado temporariamente para conversao
+- dependencias_externas:
+- conversão de mídia local
+- armazenamento temporário
+- efeitos_colaterais:
+- faz download/conversão temporária de figurinha
+- envia mídia convertida
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_toimg
+- tags_log: whatsapp, command, stickerModule, toimg
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### stickertext
+
+- aliases: st
+- enabled: true
+- categoria: figurinhas
+- descricao: Gera figurinha com texto (tema escuro).
+- permissao_necessaria: usuario comum
+- limite_de_uso: ate 80 caracteres e 4 linhas
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>stickertext seu texto
+- <prefix>st seu texto
+- subcomandos:
+- (nenhum)
+- argumentos:
+- texto | tipo: string | obrigatorio | validacao: até 80 caracteres, máximo 4 linhas | default: null
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- texto informado para compor a figurinha
+- opcoes de estilo/cor do texto
+- dependencias_externas:
+- conversão de mídia local
+- armazenamento temporário
+- efeitos_colaterais:
+- gera mídia temporária de figurinha com texto
+- envia figurinha
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_stickertext
+- tags_log: whatsapp, command, stickerModule, stickertext
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### stickertextwhite
+
+- aliases: stw
+- enabled: true
+- categoria: figurinhas
+- descricao: Gera figurinha com texto (tema claro).
+- permissao_necessaria: usuario comum
+- limite_de_uso: ate 80 caracteres e 4 linhas
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>stickertextwhite seu texto
+- <prefix>stw seu texto
+- subcomandos:
+- (nenhum)
+- argumentos:
+- texto | tipo: string | obrigatorio | validacao: até 80 caracteres, máximo 4 linhas | default: null
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- texto informado para compor a figurinha
+- opcoes de estilo/cor do texto
+- dependencias_externas:
+- conversão de mídia local
+- armazenamento temporário
+- efeitos_colaterais:
+- gera mídia temporária de figurinha com texto
+- envia figurinha
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_stickertextwhite
+- tags_log: whatsapp, command, stickerModule, stickertextwhite
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### stickertextblink
+
+- aliases: stb
+- enabled: true
+- categoria: figurinhas
+- descricao: Gera figurinha animada de texto piscante.
+- permissao_necessaria: usuario comum
+- limite_de_uso: ate 80 caracteres e 4 linhas
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>stickertextblink seu texto
+- <prefix>stb seu texto
+- subcomandos:
+- (nenhum)
+- argumentos:
+- texto | tipo: string | obrigatorio | validacao: até 80 caracteres, máximo 4 linhas | default: null
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- texto informado para compor a figurinha
+- parametros de animacao piscante
+- dependencias_externas:
+- conversão de mídia local
+- armazenamento temporário
+- efeitos_colaterais:
+- gera mídia temporária animada
+- envia figurinha
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_stickertextblink
+- tags_log: whatsapp, command, stickerModule, stickertextblink
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional

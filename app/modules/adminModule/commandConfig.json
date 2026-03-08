@@ -1,23 +1,22 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "1.4.0",
   "module": "adminModule",
   "enabled": true,
-  "source_files": [
-    "groupCommandHandlers.js"
-  ],
+  "source_files": ["groupCommandHandlers.js", "groupEventHandlers.js", "adminConfigRuntime.js"],
   "commands": [
     {
       "name": "menuadm",
       "aliases": [],
       "descricao": "Exibe menu administrativo do bot para o grupo.",
       "metodos_de_uso": [
-        "<prefix>menuadm"
+        "<prefix>menuadm",
+        "<prefix>menuadm ajuda <comando>",
+        "<prefix>menuadm faq",
+        "<prefix>menuadm perguntar <pergunta>"
       ],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -27,7 +26,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [],
+      "subcomandos": ["ajuda", "faq", "perguntar"],
       "argumentos": [],
       "pre_condicoes": {
         "requer_grupo": true,
@@ -43,10 +42,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -58,12 +54,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_menuadm",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "menuadm"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "menuadm"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -74,7 +65,25 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "mensagens_uso": {
+        "default": [
+          "<prefix>menuadm",
+          "<prefix>menuadm ajuda <comando>",
+          "<prefix>menuadm faq",
+          "<prefix>menuadm perguntar <pergunta>"
+        ],
+        "help": ["<prefix>menuadm ajuda <comando>"],
+        "ask": ["<prefix>menuadm perguntar <pergunta>"]
+      },
+      "capability_keywords": ["menuadm", "admin", "grupo"],
+      "faq_patterns": ["como usar menuadm", "o que faz menuadm", "comando menuadm"],
+      "user_phrasings": [
+        "quero usar menuadm",
+        "me ajuda com menuadm",
+        "exibe menu administrativo do"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "premium",
@@ -87,10 +96,7 @@
       ],
       "permissao_necessaria": "admin principal do bot",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -102,11 +108,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "add",
-        "remove",
-        "list"
-      ],
+      "subcomandos": ["add", "remove", "list"],
       "argumentos": [
         {
           "nome": "acao",
@@ -137,10 +139,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -152,12 +151,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_premium",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "premium"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "premium"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -167,22 +161,31 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "mensagens_uso": {
+        "invalid_action": ["<prefix>premium <add|remove|list> @usuario1 @usuario2 ..."],
+        "missing_targets": [
+          "<prefix>premium <add|remove> @usuario1 @usuario2 ...",
+          "Também é possível responder à mensagem do usuário desejado."
+        ]
+      },
+      "capability_keywords": ["premium", "admin", "privado", "grupo"],
+      "faq_patterns": ["como usar premium", "o que faz premium", "comando premium"],
+      "user_phrasings": [
+        "quero usar premium",
+        "me ajuda com premium",
+        "gerencia usuarios premium do"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "nsfw",
       "aliases": [],
       "descricao": "Ativa/desativa status de NSFW no grupo.",
-      "metodos_de_uso": [
-        "<prefix>nsfw on",
-        "<prefix>nsfw off",
-        "<prefix>nsfw status"
-      ],
+      "metodos_de_uso": ["<prefix>nsfw on", "<prefix>nsfw off", "<prefix>nsfw status"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -193,11 +196,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "on",
-        "off",
-        "status"
-      ],
+      "subcomandos": ["on", "off", "status"],
       "argumentos": [
         {
           "nome": "acao",
@@ -221,10 +220,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -236,12 +232,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_nsfw",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "nsfw"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "nsfw"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -252,7 +243,11 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["nsfw", "admin", "grupo"],
+      "faq_patterns": ["como usar nsfw", "o que faz nsfw", "comando nsfw"],
+      "user_phrasings": ["quero usar nsfw", "me ajuda com nsfw", "ativa/desativa status de nsfw"],
+      "suggestion_priority": 100
     },
     {
       "name": "autosticker",
@@ -265,9 +260,7 @@
       ],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -278,11 +271,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "on",
-        "off",
-        "status"
-      ],
+      "subcomandos": ["on", "off", "status"],
       "argumentos": [
         {
           "nome": "acao",
@@ -306,10 +295,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -321,12 +307,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_autosticker",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "autosticker"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "autosticker"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -337,13 +318,19 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["autosticker", "admin", "grupo"],
+      "faq_patterns": ["como usar autosticker", "o que faz autosticker", "comando autosticker"],
+      "user_phrasings": [
+        "quero usar autosticker",
+        "me ajuda com autosticker",
+        "ativa/desativa a geracao automatica"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "stickermode",
-      "aliases": [
-        "smode"
-      ],
+      "aliases": ["smode"],
       "descricao": "Controla modo foco em figurinhas no grupo.",
       "metodos_de_uso": [
         "<prefix>stickermode on",
@@ -352,9 +339,7 @@
       ],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -365,11 +350,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "on",
-        "off",
-        "status"
-      ],
+      "subcomandos": ["on", "off", "status"],
       "argumentos": [
         {
           "nome": "acao",
@@ -393,10 +374,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -408,12 +386,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_stickermode",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "stickermode"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "stickermode"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -424,13 +397,19 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["stickermode", "smode", "admin", "grupo"],
+      "faq_patterns": ["como usar stickermode", "o que faz stickermode", "comando stickermode"],
+      "user_phrasings": [
+        "quero usar stickermode",
+        "me ajuda com stickermode",
+        "controla modo foco em"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "chatwindow",
-      "aliases": [
-        "chat"
-      ],
+      "aliases": ["chat"],
       "descricao": "Abre/fecha janela temporaria de chat livre no modo sticker.",
       "metodos_de_uso": [
         "<prefix>chatwindow on",
@@ -440,9 +419,7 @@
       ],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "tempo limitado por configuracao do modulo",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -453,11 +430,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "on",
-        "off",
-        "status"
-      ],
+      "subcomandos": ["on", "off", "status"],
       "argumentos": [
         {
           "nome": "acao",
@@ -488,10 +461,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -503,12 +473,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_chatwindow",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "chatwindow"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "chatwindow"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -519,15 +484,19 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["chatwindow", "chat", "admin", "grupo"],
+      "faq_patterns": ["como usar chatwindow", "o que faz chatwindow", "comando chatwindow"],
+      "user_phrasings": [
+        "quero usar chatwindow",
+        "me ajuda com chatwindow",
+        "abre/fecha janela temporaria de"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "stickermsglimit",
-      "aliases": [
-        "smsglimit",
-        "stickertextlimit",
-        "stextlimit"
-      ],
+      "aliases": ["smsglimit", "stickertextlimit", "stextlimit"],
       "descricao": "Define limite de mensagens por usuario no modo sticker.",
       "metodos_de_uso": [
         "<prefix>stickermsglimit 5",
@@ -536,9 +505,7 @@
       ],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "intervalo validado pelo modulo",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -549,11 +516,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "<minutos>",
-        "status",
-        "reset"
-      ],
+      "subcomandos": ["<minutos>", "status", "reset"],
       "argumentos": [
         {
           "nome": "valor",
@@ -577,10 +540,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -592,12 +552,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_stickermsglimit",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "stickermsglimit"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "stickermsglimit"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -608,21 +563,35 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": [
+        "stickermsglimit",
+        "smsglimit",
+        "stickertextlimit",
+        "stextlimit",
+        "admin",
+        "grupo"
+      ],
+      "faq_patterns": [
+        "como usar stickermsglimit",
+        "o que faz stickermsglimit",
+        "comando stickermsglimit"
+      ],
+      "user_phrasings": [
+        "quero usar stickermsglimit",
+        "me ajuda com stickermsglimit",
+        "define limite de mensagens"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "newgroup",
       "aliases": [],
       "descricao": "Cria um novo grupo com participantes informados.",
-      "metodos_de_uso": [
-        "<prefix>newgroup <titulo> <participante1> <participante2>"
-      ],
+      "metodos_de_uso": ["<prefix>newgroup <titulo> <participante1> <participante2>"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "minimo de titulo e participantes",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -664,10 +633,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -679,12 +645,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_newgroup",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "newgroup"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "newgroup"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -695,20 +656,20 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["newgroup", "admin", "privado", "grupo"],
+      "faq_patterns": ["como usar newgroup", "o que faz newgroup", "comando newgroup"],
+      "user_phrasings": ["quero usar newgroup", "me ajuda com newgroup", "cria um novo grupo"],
+      "suggestion_priority": 100
     },
     {
       "name": "add",
       "aliases": [],
       "descricao": "Adiciona participantes ao grupo atual.",
-      "metodos_de_uso": [
-        "<prefix>add @participante"
-      ],
+      "metodos_de_uso": ["<prefix>add @participante"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "depende de permissoes do WhatsApp",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -742,10 +703,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -757,12 +715,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_add",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "add"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "add"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -773,20 +726,26 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "mensagens_uso": {
+        "missing_targets": [
+          "<prefix>add @participante1 @participante2 ...",
+          "Também é possível informar os JIDs dos participantes."
+        ]
+      },
+      "capability_keywords": ["add", "admin", "grupo"],
+      "faq_patterns": ["como usar add", "o que faz add", "comando add"],
+      "user_phrasings": ["quero usar add", "me ajuda com add", "adiciona participantes ao grupo"],
+      "suggestion_priority": 100
     },
     {
       "name": "ban",
       "aliases": [],
       "descricao": "Remove participantes do grupo atual.",
-      "metodos_de_uso": [
-        "<prefix>ban @participante"
-      ],
+      "metodos_de_uso": ["<prefix>ban @participante"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "depende de permissoes do WhatsApp",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -820,10 +779,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -835,12 +791,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_ban",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "ban"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "ban"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -851,20 +802,26 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "mensagens_uso": {
+        "missing_targets": [
+          "<prefix>ban @participante1 @participante2 ...",
+          "Também é possível responder à mensagem do participante desejado."
+        ]
+      },
+      "capability_keywords": ["ban", "admin", "grupo"],
+      "faq_patterns": ["como usar ban", "o que faz ban", "comando ban"],
+      "user_phrasings": ["quero usar ban", "me ajuda com ban", "remove participantes do grupo"],
+      "suggestion_priority": 100
     },
     {
       "name": "up",
       "aliases": [],
       "descricao": "Promove participantes a administradores do grupo.",
-      "metodos_de_uso": [
-        "<prefix>up @participante"
-      ],
+      "metodos_de_uso": ["<prefix>up @participante"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "depende de permissoes do WhatsApp",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -898,10 +855,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -913,12 +867,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_up",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "up"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "up"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -929,20 +878,30 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "mensagens_uso": {
+        "missing_targets": [
+          "<prefix>up @participante1 @participante2 ...",
+          "Também é possível informar os JIDs dos participantes."
+        ]
+      },
+      "capability_keywords": ["up", "admin", "grupo"],
+      "faq_patterns": ["como usar up", "o que faz up", "comando up"],
+      "user_phrasings": [
+        "quero usar up",
+        "me ajuda com up",
+        "promove participantes a administradores"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "down",
       "aliases": [],
       "descricao": "Rebaixa administradores para membros comuns.",
-      "metodos_de_uso": [
-        "<prefix>down @participante"
-      ],
+      "metodos_de_uso": ["<prefix>down @participante"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "depende de permissoes do WhatsApp",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -976,10 +935,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -991,12 +947,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_down",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "down"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "down"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -1007,20 +958,30 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "mensagens_uso": {
+        "missing_targets": [
+          "<prefix>down @participante1 @participante2 ...",
+          "Também é possível informar os JIDs dos participantes."
+        ]
+      },
+      "capability_keywords": ["down", "admin", "grupo"],
+      "faq_patterns": ["como usar down", "o que faz down", "comando down"],
+      "user_phrasings": [
+        "quero usar down",
+        "me ajuda com down",
+        "rebaixa administradores para membros"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "setsubject",
       "aliases": [],
       "descricao": "Altera assunto do grupo.",
-      "metodos_de_uso": [
-        "<prefix>setsubject novo assunto"
-      ],
+      "metodos_de_uso": ["<prefix>setsubject novo assunto"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "texto sujeito a limite do WhatsApp",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -1054,10 +1015,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -1069,12 +1027,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_setsubject",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "setsubject"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "setsubject"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -1085,20 +1038,27 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "mensagens_uso": {
+        "default": ["<prefix>setsubject <novo_assunto>"]
+      },
+      "capability_keywords": ["setsubject", "admin", "grupo"],
+      "faq_patterns": ["como usar setsubject", "o que faz setsubject", "comando setsubject"],
+      "user_phrasings": [
+        "quero usar setsubject",
+        "me ajuda com setsubject",
+        "altera assunto do grupo."
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "setdesc",
       "aliases": [],
       "descricao": "Altera descricao do grupo.",
-      "metodos_de_uso": [
-        "<prefix>setdesc nova descricao"
-      ],
+      "metodos_de_uso": ["<prefix>setdesc nova descricao"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "texto sujeito a limite do WhatsApp",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -1132,10 +1092,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -1147,12 +1104,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_setdesc",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "setdesc"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "setdesc"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -1163,7 +1115,18 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "mensagens_uso": {
+        "default": ["<prefix>setdesc <nova_descricao>"]
+      },
+      "capability_keywords": ["setdesc", "admin", "grupo"],
+      "faq_patterns": ["como usar setdesc", "o que faz setdesc", "comando setdesc"],
+      "user_phrasings": [
+        "quero usar setdesc",
+        "me ajuda com setdesc",
+        "altera descricao do grupo."
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "setgroup",
@@ -1177,9 +1140,7 @@
       ],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "apenas modos suportados",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -1189,12 +1150,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "announcement",
-        "not_announcement",
-        "locked",
-        "unlocked"
-      ],
+      "subcomandos": ["announcement", "not_announcement", "locked", "unlocked"],
       "argumentos": [
         {
           "nome": "modo",
@@ -1218,10 +1174,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -1233,12 +1186,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_setgroup",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "setgroup"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "setgroup"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -1249,20 +1197,23 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "mensagens_uso": {
+        "default": ["<prefix>setgroup <announcement|not_announcement|locked|unlocked>"]
+      },
+      "capability_keywords": ["setgroup", "admin", "grupo"],
+      "faq_patterns": ["como usar setgroup", "o que faz setgroup", "comando setgroup"],
+      "user_phrasings": ["quero usar setgroup", "me ajuda com setgroup", "define estado do grupo"],
+      "suggestion_priority": 100
     },
     {
       "name": "leave",
       "aliases": [],
       "descricao": "Faz o bot sair do grupo.",
-      "metodos_de_uso": [
-        "<prefix>leave"
-      ],
+      "metodos_de_uso": ["<prefix>leave"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -1288,10 +1239,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -1303,12 +1251,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_leave",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "leave"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "leave"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -1319,20 +1262,20 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["leave", "admin", "grupo"],
+      "faq_patterns": ["como usar leave", "o que faz leave", "comando leave"],
+      "user_phrasings": ["quero usar leave", "me ajuda com leave", "faz o bot sair"],
+      "suggestion_priority": 100
     },
     {
       "name": "invite",
       "aliases": [],
       "descricao": "Mostra codigo de convite atual do grupo.",
-      "metodos_de_uso": [
-        "<prefix>invite"
-      ],
+      "metodos_de_uso": ["<prefix>invite"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -1358,10 +1301,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -1373,12 +1313,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_invite",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "invite"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "invite"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -1389,20 +1324,20 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["invite", "admin", "grupo"],
+      "faq_patterns": ["como usar invite", "o que faz invite", "comando invite"],
+      "user_phrasings": ["quero usar invite", "me ajuda com invite", "mostra codigo de convite"],
+      "suggestion_priority": 100
     },
     {
       "name": "revoke",
       "aliases": [],
       "descricao": "Revoga o codigo de convite e gera novo codigo.",
-      "metodos_de_uso": [
-        "<prefix>revoke"
-      ],
+      "metodos_de_uso": ["<prefix>revoke"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -1428,10 +1363,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -1443,12 +1375,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_revoke",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "revoke"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "revoke"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -1459,21 +1386,20 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["revoke", "admin", "grupo"],
+      "faq_patterns": ["como usar revoke", "o que faz revoke", "comando revoke"],
+      "user_phrasings": ["quero usar revoke", "me ajuda com revoke", "revoga o codigo de"],
+      "suggestion_priority": 100
     },
     {
       "name": "join",
       "aliases": [],
       "descricao": "Faz o bot entrar em grupo por codigo de convite.",
-      "metodos_de_uso": [
-        "<prefix>join <codigo_de_convite>"
-      ],
+      "metodos_de_uso": ["<prefix>join <codigo_de_convite>"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "codigo valido obrigatorio",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -1507,10 +1433,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -1522,12 +1445,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_join",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "join"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "join"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -1538,21 +1456,20 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["join", "admin", "privado", "grupo"],
+      "faq_patterns": ["como usar join", "o que faz join", "comando join"],
+      "user_phrasings": ["quero usar join", "me ajuda com join", "faz o bot entrar"],
+      "suggestion_priority": 100
     },
     {
       "name": "infofrominvite",
       "aliases": [],
       "descricao": "Consulta dados de um grupo usando codigo de convite.",
-      "metodos_de_uso": [
-        "<prefix>infofrominvite <codigo_de_convite>"
-      ],
+      "metodos_de_uso": ["<prefix>infofrominvite <codigo_de_convite>"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "codigo valido obrigatorio",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -1586,10 +1503,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -1601,12 +1515,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_infofrominvite",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "infofrominvite"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "infofrominvite"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -1617,22 +1526,28 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["infofrominvite", "admin", "privado", "grupo"],
+      "faq_patterns": [
+        "como usar infofrominvite",
+        "o que faz infofrominvite",
+        "comando infofrominvite"
+      ],
+      "user_phrasings": [
+        "quero usar infofrominvite",
+        "me ajuda com infofrominvite",
+        "consulta dados de um"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "metadata",
       "aliases": [],
       "descricao": "Retorna metadados de um grupo informado ou do grupo atual.",
-      "metodos_de_uso": [
-        "<prefix>metadata",
-        "<prefix>metadata <group_jid>"
-      ],
+      "metodos_de_uso": ["<prefix>metadata", "<prefix>metadata <group_jid>"],
       "permissao_necessaria": "admin do grupo alvo",
       "limite_de_uso": "acesso restrito por permissao",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -1667,10 +1582,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -1682,12 +1594,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_metadata",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "metadata"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "metadata"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -1698,20 +1605,20 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["metadata", "admin", "privado", "grupo"],
+      "faq_patterns": ["como usar metadata", "o que faz metadata", "comando metadata"],
+      "user_phrasings": ["quero usar metadata", "me ajuda com metadata", "retorna metadados de um"],
+      "suggestion_priority": 100
     },
     {
       "name": "requests",
       "aliases": [],
       "descricao": "Lista solicitacoes pendentes para entrar no grupo.",
-      "metodos_de_uso": [
-        "<prefix>requests"
-      ],
+      "metodos_de_uso": ["<prefix>requests"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -1737,10 +1644,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -1752,12 +1656,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_requests",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "requests"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "requests"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -1768,7 +1667,15 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["requests", "admin", "grupo"],
+      "faq_patterns": ["como usar requests", "o que faz requests", "comando requests"],
+      "user_phrasings": [
+        "quero usar requests",
+        "me ajuda com requests",
+        "lista solicitacoes pendentes para"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "updaterequests",
@@ -1780,9 +1687,7 @@
       ],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "acao valida + mencao obrigatoria",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -1793,10 +1698,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "approve",
-        "reject"
-      ],
+      "subcomandos": ["approve", "reject"],
       "argumentos": [
         {
           "nome": "acao",
@@ -1827,10 +1729,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -1842,12 +1741,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_updaterequests",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "updaterequests"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "updaterequests"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -1858,7 +1752,26 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "mensagens_uso": {
+        "invalid_action": ["<prefix>updaterequests <approve|reject> @participante1 ..."],
+        "missing_targets": [
+          "<prefix>updaterequests <approve|reject> @participante1 ...",
+          "Mencione os usuários que devem ser aprovados ou rejeitados."
+        ]
+      },
+      "capability_keywords": ["updaterequests", "admin", "grupo"],
+      "faq_patterns": [
+        "como usar updaterequests",
+        "o que faz updaterequests",
+        "comando updaterequests"
+      ],
+      "user_phrasings": [
+        "quero usar updaterequests",
+        "me ajuda com updaterequests",
+        "aprova ou rejeita solicitacoes"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "autorequests",
@@ -1871,9 +1784,7 @@
       ],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -1884,11 +1795,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "on",
-        "off",
-        "status"
-      ],
+      "subcomandos": ["on", "off", "status"],
       "argumentos": [
         {
           "nome": "acao",
@@ -1912,10 +1819,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -1927,12 +1831,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_autorequests",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "autorequests"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "autorequests"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -1943,20 +1842,24 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["autorequests", "admin", "grupo"],
+      "faq_patterns": ["como usar autorequests", "o que faz autorequests", "comando autorequests"],
+      "user_phrasings": [
+        "quero usar autorequests",
+        "me ajuda com autorequests",
+        "ativa/desativa auto aprovacao de"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "temp",
       "aliases": [],
       "descricao": "Define tempo de mensagens temporarias (ephemeral) no grupo.",
-      "metodos_de_uso": [
-        "<prefix>temp <duracao_em_segundos>"
-      ],
+      "metodos_de_uso": ["<prefix>temp <duracao_em_segundos>"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "duracao em segundos obrigatoria",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -1990,10 +1893,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -2005,12 +1905,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_temp",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "temp"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "temp"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -2021,21 +1916,20 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["temp", "admin", "grupo"],
+      "faq_patterns": ["como usar temp", "o que faz temp", "comando temp"],
+      "user_phrasings": ["quero usar temp", "me ajuda com temp", "define tempo de mensagens"],
+      "suggestion_priority": 100
     },
     {
       "name": "addmode",
       "aliases": [],
       "descricao": "Define quem pode adicionar participantes no grupo.",
-      "metodos_de_uso": [
-        "<prefix>addmode all_member_add",
-        "<prefix>addmode admin_add"
-      ],
+      "metodos_de_uso": ["<prefix>addmode all_member_add", "<prefix>addmode admin_add"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "apenas modos validos",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -2069,10 +1963,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -2084,12 +1975,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_addmode",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "addmode"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "addmode"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -2100,7 +1986,15 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["addmode", "admin", "grupo"],
+      "faq_patterns": ["como usar addmode", "o que faz addmode", "comando addmode"],
+      "user_phrasings": [
+        "quero usar addmode",
+        "me ajuda com addmode",
+        "define quem pode adicionar"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "prefix",
@@ -2113,9 +2007,7 @@
       ],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "prefixo unico validado pelo modulo",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -2126,11 +2018,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "<novo_prefixo>",
-        "status",
-        "reset"
-      ],
+      "subcomandos": ["<novo_prefixo>", "status", "reset"],
       "argumentos": [
         {
           "nome": "valor",
@@ -2154,10 +2042,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -2169,12 +2054,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_prefix",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "prefix"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "prefix"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -2185,7 +2065,15 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["prefix", "admin", "grupo"],
+      "faq_patterns": ["como usar prefix", "o que faz prefix", "comando prefix"],
+      "user_phrasings": [
+        "quero usar prefix",
+        "me ajuda com prefix",
+        "define prefixo personalizado de"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "welcome",
@@ -2198,9 +2086,7 @@
       ],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "set exige mensagem ou midia",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -2212,11 +2098,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "on",
-        "off",
-        "set"
-      ],
+      "subcomandos": ["on", "off", "set"],
       "argumentos": [
         {
           "nome": "acao",
@@ -2247,10 +2129,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -2262,12 +2141,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_welcome",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "welcome"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "welcome"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -2278,7 +2152,21 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "mensagens_uso": {
+        "missing_content": [
+          "<prefix>welcome set <mensagem ou caminho da midia>",
+          "Também é possível enviar uma mídia junto ao comando."
+        ]
+      },
+      "capability_keywords": ["welcome", "admin", "grupo"],
+      "faq_patterns": ["como usar welcome", "o que faz welcome", "comando welcome"],
+      "user_phrasings": [
+        "quero usar welcome",
+        "me ajuda com welcome",
+        "configura mensagens/midia de boas-vindas"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "farewell",
@@ -2291,9 +2179,7 @@
       ],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "set exige mensagem ou midia",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -2305,11 +2191,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "on",
-        "off",
-        "set"
-      ],
+      "subcomandos": ["on", "off", "set"],
       "argumentos": [
         {
           "nome": "acao",
@@ -2340,10 +2222,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -2355,12 +2234,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_farewell",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "farewell"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "farewell"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -2371,22 +2245,30 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "mensagens_uso": {
+        "missing_content": [
+          "<prefix>farewell set <mensagem ou caminho da midia>",
+          "Também é possível enviar uma mídia junto ao comando."
+        ]
+      },
+      "capability_keywords": ["farewell", "admin", "grupo"],
+      "faq_patterns": ["como usar farewell", "o que faz farewell", "comando farewell"],
+      "user_phrasings": [
+        "quero usar farewell",
+        "me ajuda com farewell",
+        "configura mensagens/midia de despedida"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "captcha",
       "aliases": [],
       "descricao": "Ativa/desativa captcha para novos membros no grupo.",
-      "metodos_de_uso": [
-        "<prefix>captcha on",
-        "<prefix>captcha off",
-        "<prefix>captcha status"
-      ],
+      "metodos_de_uso": ["<prefix>captcha on", "<prefix>captcha off", "<prefix>captcha status"],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -2397,11 +2279,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "on",
-        "off",
-        "status"
-      ],
+      "subcomandos": ["on", "off", "status"],
       "argumentos": [
         {
           "nome": "acao",
@@ -2425,10 +2303,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -2440,12 +2315,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_captcha",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "captcha"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "captcha"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -2456,7 +2326,15 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["captcha", "admin", "grupo"],
+      "faq_patterns": ["como usar captcha", "o que faz captcha", "comando captcha"],
+      "user_phrasings": [
+        "quero usar captcha",
+        "me ajuda com captcha",
+        "ativa/desativa captcha para novos"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "antilink",
@@ -2473,9 +2351,7 @@
       ],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "subcomandos e argumentos validados",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -2486,15 +2362,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "on",
-        "off",
-        "list",
-        "allow",
-        "disallow",
-        "add",
-        "remove"
-      ],
+      "subcomandos": ["on", "off", "list", "allow", "disallow", "add", "remove"],
       "argumentos": [
         {
           "nome": "subcomando",
@@ -2525,10 +2393,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -2540,12 +2405,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_antilink",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "antilink"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "antilink"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -2556,13 +2416,25 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "mensagens_uso": {
+        "allow": ["<prefix>antilink allow <rede>"],
+        "disallow": ["<prefix>antilink disallow <rede>"],
+        "add": ["<prefix>antilink add <dominio>"],
+        "remove": ["<prefix>antilink remove <dominio>"]
+      },
+      "capability_keywords": ["antilink", "admin", "grupo"],
+      "faq_patterns": ["como usar antilink", "o que faz antilink", "comando antilink"],
+      "user_phrasings": [
+        "quero usar antilink",
+        "me ajuda com antilink",
+        "gerencia bloqueio de links"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "noticias",
-      "aliases": [
-        "news"
-      ],
+      "aliases": ["news"],
       "descricao": "Ativa/desativa envio automatico de noticias no grupo.",
       "metodos_de_uso": [
         "<prefix>noticias on",
@@ -2572,9 +2444,7 @@
       ],
       "permissao_necessaria": "admin do grupo",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -2585,11 +2455,7 @@
       ],
       "enabled": true,
       "categoria": "admin",
-      "subcomandos": [
-        "on",
-        "off",
-        "status"
-      ],
+      "subcomandos": ["on", "off", "status"],
       "argumentos": [
         {
           "nome": "acao",
@@ -2613,10 +2479,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "API do WhatsApp (ações de grupo)",
-        "stores/configuração interna"
-      ],
+      "dependencias_externas": ["API do WhatsApp (ações de grupo)", "stores/configuração interna"],
       "efeitos_colaterais": [
         "altera configurações de grupo e permissões",
         "envia mensagens administrativas"
@@ -2628,12 +2491,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_noticias",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "adminModule",
-          "noticias"
-        ],
+        "tags_log": ["whatsapp", "command", "adminModule", "noticias"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -2644,7 +2502,73 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["noticias", "news", "admin", "grupo"],
+      "faq_patterns": ["como usar noticias", "o que faz noticias", "comando noticias"],
+      "user_phrasings": [
+        "quero usar noticias",
+        "me ajuda com noticias",
+        "ativa/desativa envio automatico de"
+      ],
+      "suggestion_priority": 100
     }
-  ]
+  ],
+  "textos": {
+    "group_only_command_message": "Este comando está disponível apenas em conversas de grupo. Execute-o em um grupo para continuar.",
+    "no_permission_command_message": "Permissão insuficiente para executar este comando. Solicite suporte a um administrador do grupo.",
+    "owner_only_command_message": "Você não possui permissão para executar este comando. Este recurso é exclusivo do administrador principal do bot.",
+    "usage_header": "Formato de uso:"
+  },
+  "events": {
+    "placeholders_suportados": [
+      "@date",
+      "@desc",
+      "@admins",
+      "@groupname",
+      "@membercount",
+      "@owner",
+      "@creationtime",
+      "@invitecode",
+      "@isrestricted",
+      "@isannounceonly",
+      "@user",
+      "{participant}"
+    ],
+    "mensagens_padrao": {
+      "welcome": "👋 Bem-vindo(a) ao grupo @groupname, @user! 🎉",
+      "farewell": "😥 Adeus, @user! Sentiremos sua falta.",
+      "promote": "O usuário @{{participant}} foi promovido a administrador do grupo. 🎉",
+      "demote": "O usuário @{{participant}} não é mais um administrador do grupo. ⬇️",
+      "captcha_line": "\n🤖 *Verificação humana*\n@{{participant}}, reaja a esta mensagem ou envie qualquer mensagem em até *{{captcha_timeout_min}} minutos* para continuar no grupo.\n\n"
+    },
+    "auto_approve_skip_actions": [
+      "reject",
+      "rejected",
+      "cancel",
+      "canceled",
+      "approve",
+      "approved",
+      "accept",
+      "accepted",
+      "remove",
+      "removed"
+    ]
+  },
+  "ai_help": {
+    "enabled": true,
+    "mode": "hybrid_rag",
+    "rag_sources": ["commandConfig.json", "AGENT.md"],
+    "faq": {
+      "cache_file": "data/cache/admin-ai-faq-cache.json",
+      "interval_ms": 21600000,
+      "auto_generate_on_start": true
+    },
+    "llm": {
+      "enabled": true,
+      "model": "gpt-5-nano",
+      "max_agent_context_chars": 12000,
+      "max_response_chars": 3400,
+      "timeout_ms": 25000
+    }
+  }
 }

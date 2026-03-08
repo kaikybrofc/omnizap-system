@@ -2,25 +2,16 @@
   "schema_version": "1.1.0",
   "module": "menuModule",
   "enabled": true,
-  "source_files": [
-    "menus.js"
-  ],
+  "source_files": ["menus.js"],
   "commands": [
     {
       "name": "menu",
       "aliases": [],
       "descricao": "Exibe o menu principal ou um menu por categoria.",
-      "metodos_de_uso": [
-        "<prefix>menu",
-        "<prefix>menu anime",
-        "<prefix>menu stats"
-      ],
+      "metodos_de_uso": ["<prefix>menu", "<prefix>menu anime", "<prefix>menu stats"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -67,12 +58,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "URL de imagem do menu (quando configurada)"
-      ],
-      "efeitos_colaterais": [
-        "envia menu no chat"
-      ],
+      "dependencias_externas": ["URL de imagem do menu (quando configurada)"],
+      "efeitos_colaterais": ["envia menu no chat"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -80,12 +67,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_menu",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "menuModule",
-          "menu"
-        ],
+        "tags_log": ["whatsapp", "command", "menuModule", "menu"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -96,7 +78,11 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["menu", "privado", "grupo"],
+      "faq_patterns": ["como usar menu", "o que faz menu", "comando menu"],
+      "user_phrasings": ["quero usar menu", "me ajuda com menu", "exibe o menu principal"],
+      "suggestion_priority": 100
     }
   ]
 }

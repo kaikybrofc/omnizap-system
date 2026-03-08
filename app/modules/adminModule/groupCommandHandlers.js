@@ -51,57 +51,27 @@ import {
   clampStickerFocusMessageCooldownMinutes,
   resolveStickerFocusState,
 } from '../../services/stickerFocusService.js';
-
-const ADMIN_COMMANDS = new Set([
-  'menuadm',
-  'newgroup',
-  'add',
-  'ban',
-  'up',
-  'down',
-  'setsubject',
-  'setdesc',
-  'setgroup',
-  'leave',
-  'invite',
-  'revoke',
-  'join',
-  'infofrominvite',
-  'metadata',
-  'requests',
-  'updaterequests',
-  'autorequests',
-  'temp',
-  'addmode',
-  'welcome',
-  'farewell',
-  'captcha',
-  'antilink',
-  'premium',
-  'nsfw',
-  'autosticker',
-  'noticias',
-  'news',
-  'prefix',
-  'stickermode',
-  'smode',
-  'chatwindow',
-  'chat',
-  'stickermsglimit',
-  'smsglimit',
-  'stickertextlimit',
-  'stextlimit',
-]);
+import {
+  getAdminTextConfig,
+  getAdminUsageText,
+  isAdminCommandName,
+  resolveAdminCommandName,
+} from './adminConfigRuntime.js';
+import {
+  explicarComando,
+  gerarFaqAutomatica,
+  responderPergunta,
+  startAdminAiHelpScheduler,
+} from './adminAiHelpService.js';
 const OWNER_JID = getAdminJid();
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
-const GROUP_ONLY_COMMAND_MESSAGE =
-  'Este comando está disponível apenas em conversas de grupo. Execute-o em um grupo para continuar.';
-const NO_PERMISSION_COMMAND_MESSAGE =
-  'Permissão insuficiente para executar este comando. Solicite suporte a um administrador do grupo.';
-const OWNER_ONLY_COMMAND_MESSAGE =
-  'Você não possui permissão para executar este comando. Este recurso é exclusivo do administrador principal do bot.';
+const ADMIN_TEXTS = getAdminTextConfig();
+const GROUP_ONLY_COMMAND_MESSAGE = ADMIN_TEXTS.group_only_command_message;
+const NO_PERMISSION_COMMAND_MESSAGE = ADMIN_TEXTS.no_permission_command_message;
+const OWNER_ONLY_COMMAND_MESSAGE = ADMIN_TEXTS.owner_only_command_message;
 const USER_JID_SERVERS = new Set([...WHATSAPP_USER_JID_SERVERS, ...LID_USER_JID_SERVERS]);
 const normalizePhoneDigits = (value) => String(value || '').replace(/\D+/g, '');
+startAdminAiHelpScheduler();
 
 const normalizeParticipantJid = (value) => {
   const raw = String(value || '').trim();
@@ -232,7 +202,7 @@ const buildStickerFocusStatusText = ({ state, commandPrefix }) => {
   ].join('\n');
 };
 
-export const isAdminCommand = (command) => ADMIN_COMMANDS.has(command);
+export const isAdminCommand = (command) => isAdminCommandName(command);
 
 export async function handleAdminCommand({
   command,
@@ -247,7 +217,8 @@ export async function handleAdminCommand({
   expirationMessage,
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 }) {
-  if (!isAdminCommand(command)) {
+  const normalizedCommand = resolveAdminCommandName(command);
+  if (!normalizedCommand) {
     return false;
   }
   const senderIdentity = {
@@ -257,7 +228,7 @@ export async function handleAdminCommand({
     remoteJidAlt: messageInfo?.key?.remoteJidAlt || null,
   };
 
-  switch (command) {
+  switch (normalizedCommand) {
     case 'menuadm': {
       if (!isGroupMessage) {
         await sendAndStore(
@@ -277,7 +248,101 @@ export async function handleAdminCommand({
         );
         break;
       }
-      await handleMenuAdmCommand(sock, remoteJid, messageInfo, expirationMessage, commandPrefix);
+      const subAction = String(args?.[0] || '')
+        .trim()
+        .toLowerCase();
+      const isOwner = Boolean(OWNER_JID && (await isAdminSenderAsync(senderIdentity)));
+
+      if (!subAction) {
+        await handleMenuAdmCommand(sock, remoteJid, messageInfo, expirationMessage, commandPrefix);
+        break;
+      }
+
+      if (subAction === 'ajuda' || subAction === 'help') {
+        const targetCommand = String(args?.[1] || '')
+          .trim()
+          .toLowerCase();
+        if (!targetCommand) {
+          await sendAndStore(
+            sock,
+            remoteJid,
+            {
+              text: getAdminUsageText('menuadm', { commandPrefix, variant: 'help' }),
+            },
+            { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+          );
+          break;
+        }
+
+        const explanation = await explicarComando(targetCommand, {
+          commandPrefix,
+          isGroupMessage,
+          isSenderAdmin: true,
+          isSenderOwner: isOwner,
+        });
+        await sendAndStore(
+          sock,
+          remoteJid,
+          { text: explanation.text },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      if (subAction === 'faq') {
+        const faqResult = await gerarFaqAutomatica({
+          commandPrefix,
+          force: true,
+          reason: 'menuadm_faq',
+        });
+        await sendAndStore(
+          sock,
+          remoteJid,
+          {
+            text: faqResult?.text || 'Nao foi possivel gerar a FAQ agora.',
+          },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      if (subAction === 'perguntar' || subAction === 'ask' || subAction === 'pergunta') {
+        const question = args.slice(1).join(' ').trim();
+        if (!question) {
+          await sendAndStore(
+            sock,
+            remoteJid,
+            {
+              text: getAdminUsageText('menuadm', { commandPrefix, variant: 'ask' }),
+            },
+            { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+          );
+          break;
+        }
+
+        const answer = await responderPergunta(question, {
+          commandPrefix,
+          isGroupMessage,
+          isSenderAdmin: true,
+          isSenderOwner: isOwner,
+        });
+        await sendAndStore(
+          sock,
+          remoteJid,
+          { text: answer.text },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      await sendAndStore(
+        sock,
+        remoteJid,
+        {
+          text: getAdminUsageText('menuadm', { commandPrefix, variant: 'default' }),
+        },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
       break;
     }
 
@@ -299,8 +364,7 @@ export async function handleAdminCommand({
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}premium <add|remove|list> @usuario1 @usuario2 ...`,
+            text: getAdminUsageText('premium', { commandPrefix, variant: 'invalid_action' }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -330,8 +394,7 @@ ${commandPrefix}premium <add|remove|list> @usuario1 @usuario2 ...`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}premium <add|remove> @usuario1 @usuario2 ...\nTambém é possível responder à mensagem do usuário desejado.`,
+            text: getAdminUsageText('premium', { commandPrefix, variant: 'missing_targets' }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -388,8 +451,7 @@ ${commandPrefix}premium <add|remove> @usuario1 @usuario2 ...\nTambém é possív
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}nsfw <on|off|status>`,
+            text: getAdminUsageText('nsfw', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -449,8 +511,7 @@ ${commandPrefix}nsfw <on|off|status>`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}autosticker <on|off|status>`,
+            text: getAdminUsageText('autosticker', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -488,8 +549,7 @@ ${commandPrefix}autosticker <on|off|status>`,
       break;
     }
 
-    case 'stickermode':
-    case 'smode': {
+    case 'stickermode': {
       if (!isGroupMessage) {
         await sendAndStore(
           sock,
@@ -515,7 +575,7 @@ ${commandPrefix}autosticker <on|off|status>`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:\n${commandPrefix}stickermode <on|off|status>`,
+            text: getAdminUsageText('stickermode', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -569,8 +629,7 @@ ${commandPrefix}autosticker <on|off|status>`,
       break;
     }
 
-    case 'chatwindow':
-    case 'chat': {
+    case 'chatwindow': {
       if (!isGroupMessage) {
         await sendAndStore(
           sock,
@@ -596,7 +655,7 @@ ${commandPrefix}autosticker <on|off|status>`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:\n${commandPrefix}chatwindow <on|off|status> [minutos]`,
+            text: getAdminUsageText('chatwindow', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -694,10 +753,7 @@ ${commandPrefix}autosticker <on|off|status>`,
       break;
     }
 
-    case 'stickermsglimit':
-    case 'smsglimit':
-    case 'stickertextlimit':
-    case 'stextlimit': {
+    case 'stickermsglimit': {
       if (!isGroupMessage) {
         await sendAndStore(
           sock,
@@ -762,7 +818,7 @@ ${commandPrefix}autosticker <on|off|status>`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:\n${commandPrefix}stickermsglimit <minutos|status|reset>`,
+            text: getAdminUsageText('stickermsglimit', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -811,8 +867,7 @@ ${commandPrefix}autosticker <on|off|status>`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}newgroup <titulo> <participante1> <participante2> ...`,
+            text: getAdminUsageText('newgroup', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -865,8 +920,7 @@ ${commandPrefix}newgroup <titulo> <participante1> <participante2> ...`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}add @participante1 @participante2 ...\nTambém é possível informar os JIDs dos participantes.`,
+            text: getAdminUsageText('add', { commandPrefix, variant: 'missing_targets' }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -917,8 +971,7 @@ ${commandPrefix}add @participante1 @participante2 ...\nTambém é possível info
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}ban @participante1 @participante2 ...\nTambém é possível responder à mensagem do participante desejado.`,
+            text: getAdminUsageText('ban', { commandPrefix, variant: 'missing_targets' }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -984,8 +1037,7 @@ ${commandPrefix}ban @participante1 @participante2 ...\nTambém é possível resp
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}up @participante1 @participante2 ...\nTambém é possível informar os JIDs dos participantes.`,
+            text: getAdminUsageText('up', { commandPrefix, variant: 'missing_targets' }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1045,8 +1097,7 @@ ${commandPrefix}up @participante1 @participante2 ...\nTambém é possível infor
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}down @participante1 @participante2 ...\nTambém é possível informar os JIDs dos participantes.`,
+            text: getAdminUsageText('down', { commandPrefix, variant: 'missing_targets' }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1105,8 +1156,7 @@ ${commandPrefix}down @participante1 @participante2 ...\nTambém é possível inf
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}setsubject <novo_assunto>`,
+            text: getAdminUsageText('setsubject', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1157,8 +1207,7 @@ ${commandPrefix}setsubject <novo_assunto>`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}setdesc <nova_descricao>`,
+            text: getAdminUsageText('setdesc', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1212,8 +1261,7 @@ ${commandPrefix}setdesc <nova_descricao>`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}setgroup <announcement|not_announcement|locked|unlocked>`,
+            text: getAdminUsageText('setgroup', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1364,8 +1412,7 @@ ${code}`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}join <codigo_de_convite>`,
+            text: getAdminUsageText('join', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1397,8 +1444,7 @@ ${commandPrefix}join <codigo_de_convite>`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}infofrominvite <codigo_de_convite>`,
+            text: getAdminUsageText('infofrominvite', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1527,8 +1573,10 @@ ${JSON.stringify(response, null, 2)}`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}updaterequests <approve|reject> @participante1 ...`,
+            text: getAdminUsageText('updaterequests', {
+              commandPrefix,
+              variant: 'invalid_action',
+            }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1541,8 +1589,10 @@ ${commandPrefix}updaterequests <approve|reject> @participante1 ...`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}updaterequests <approve|reject> @participante1 ...\nMencione os usuários que devem ser aprovados ou rejeitados.`,
+            text: getAdminUsageText('updaterequests', {
+              commandPrefix,
+              variant: 'missing_targets',
+            }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1602,7 +1652,7 @@ ${JSON.stringify(response, null, 2)}`,
         await sendAndStore(
           sock,
           remoteJid,
-          { text: `Formato de uso:\n${commandPrefix}autorequests <on|off|status>` },
+          { text: getAdminUsageText('autorequests', { commandPrefix }) },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1666,8 +1716,7 @@ ${JSON.stringify(response, null, 2)}`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}temp <duracao_em_segundos>`,
+            text: getAdminUsageText('temp', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1718,8 +1767,7 @@ ${commandPrefix}temp <duracao_em_segundos>`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}addmode <all_member_add|admin_add>`,
+            text: getAdminUsageText('addmode', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1769,12 +1817,7 @@ ${commandPrefix}addmode <all_member_add|admin_add>`,
 
       const rawPrefix = args[0]?.trim();
       const normalizedKeyword = rawPrefix?.toLowerCase();
-      const usageText = [
-        'Formato de uso do comando:',
-        `${commandPrefix}prefix <novo_prefixo>`,
-        `${commandPrefix}prefix status`,
-        `${commandPrefix}prefix reset`,
-      ].join('\n');
+      const usageText = getAdminUsageText('prefix', { commandPrefix });
 
       if (!rawPrefix) {
         await sendAndStore(
@@ -1886,8 +1929,7 @@ ${commandPrefix}addmode <all_member_add|admin_add>`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}welcome <on|off|set> [mensagem ou caminho da midia]`,
+            text: getAdminUsageText('welcome', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1930,8 +1972,10 @@ ${commandPrefix}welcome <on|off|set> [mensagem ou caminho da midia]`,
               sock,
               remoteJid,
               {
-                text: `Formato de uso:
-${commandPrefix}welcome set <mensagem ou caminho da midia>\nTambém é possível enviar uma mídia junto ao comando.`,
+                text: getAdminUsageText('welcome', {
+                  commandPrefix,
+                  variant: 'missing_content',
+                }),
               },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
@@ -2052,8 +2096,7 @@ ${commandPrefix}welcome set <mensagem ou caminho da midia>\nTambém é possível
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}farewell <on|off|set> [mensagem ou caminho da midia]`,
+            text: getAdminUsageText('farewell', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -2086,8 +2129,10 @@ ${commandPrefix}farewell <on|off|set> [mensagem ou caminho da midia]`,
               sock,
               remoteJid,
               {
-                text: `Formato de uso:
-${commandPrefix}farewell set <mensagem ou caminho da midia>\nTambém é possível enviar uma mídia junto ao comando.`,
+                text: getAdminUsageText('farewell', {
+                  commandPrefix,
+                  variant: 'missing_content',
+                }),
               },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
@@ -2203,7 +2248,7 @@ ${commandPrefix}farewell set <mensagem ou caminho da midia>\nTambém é possíve
         await sendAndStore(
           sock,
           remoteJid,
-          { text: `Formato de uso:\n${commandPrefix}captcha <on|off|status>` },
+          { text: getAdminUsageText('captcha', { commandPrefix }) },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -2305,8 +2350,9 @@ ${commandPrefix}farewell set <mensagem ou caminho da midia>\nTambém é possíve
               sock,
               remoteJid,
               {
-                text: `Formato de uso:
-${commandPrefix}antilink ${subCommand} <rede>\nRedes disponíveis: ${availableNetworks.join(', ')}`,
+                text:
+                  `${getAdminUsageText('antilink', { commandPrefix, variant: subCommand })}\n` +
+                  `Redes disponíveis: ${availableNetworks.join(', ')}`,
               },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
@@ -2352,8 +2398,7 @@ ${commandPrefix}antilink ${subCommand} <rede>\nRedes disponíveis: ${availableNe
               sock,
               remoteJid,
               {
-                text: `Formato de uso:
-${commandPrefix}antilink ${subCommand} <dominio>`,
+                text: getAdminUsageText('antilink', { commandPrefix, variant: subCommand }),
               },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
@@ -2427,8 +2472,7 @@ ${commandPrefix}antilink ${subCommand} <dominio>`,
       break;
     }
 
-    case 'noticias':
-    case 'news': {
+    case 'noticias': {
       if (!isGroupMessage) {
         await sendAndStore(
           sock,
@@ -2454,8 +2498,7 @@ ${commandPrefix}antilink ${subCommand} <dominio>`,
           sock,
           remoteJid,
           {
-            text: `Formato de uso:
-${commandPrefix}noticias <on|off|status>`,
+            text: getAdminUsageText('noticias', { commandPrefix }),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );

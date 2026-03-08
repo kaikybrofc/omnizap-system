@@ -2,24 +2,16 @@
   "schema_version": "1.1.0",
   "module": "aiModule",
   "enabled": true,
-  "source_files": [
-    "catCommand.js"
-  ],
+  "source_files": ["catCommand.js"],
   "commands": [
     {
       "name": "cat",
       "aliases": [],
       "descricao": "Perguntas para IA com suporte opcional a resposta em audio.",
-      "metodos_de_uso": [
-        "<prefix>cat sua pergunta",
-        "<prefix>cat --audio sua pergunta"
-      ],
+      "metodos_de_uso": ["<prefix>cat sua pergunta", "<prefix>cat --audio sua pergunta"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "texto sujeito a limites da API",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -63,12 +55,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "OpenAI API"
-      ],
-      "efeitos_colaterais": [
-        "envia resposta textual/áudio de IA"
-      ],
+      "dependencias_externas": ["OpenAI API"],
+      "efeitos_colaterais": ["envia resposta textual/áudio de IA"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -76,12 +64,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_cat",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "aiModule",
-          "cat"
-        ],
+        "tags_log": ["whatsapp", "command", "aiModule", "cat"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -93,24 +76,20 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["cat", "ia", "privado", "grupo"],
+      "faq_patterns": ["como usar cat", "o que faz cat", "comando cat"],
+      "user_phrasings": ["quero usar cat", "me ajuda com cat", "perguntas para ia com"],
+      "suggestion_priority": 100
     },
     {
       "name": "catimg",
-      "aliases": [
-        "catimage"
-      ],
+      "aliases": ["catimage"],
       "descricao": "Gera/edita imagem com IA por prompt.",
-      "metodos_de_uso": [
-        "<prefix>catimg seu prompt",
-        "<prefix>catimg --size 1536x1024 seu prompt"
-      ],
+      "metodos_de_uso": ["<prefix>catimg seu prompt", "<prefix>catimg --size 1536x1024 seu prompt"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "imagem de entrada ate OPENAI_MAX_IMAGE_MB (padrao 50 MB)",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -167,12 +146,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "OpenAI API"
-      ],
-      "efeitos_colaterais": [
-        "envia imagem gerada/editada por IA"
-      ],
+      "dependencias_externas": ["OpenAI API"],
+      "efeitos_colaterais": ["envia imagem gerada/editada por IA"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -180,12 +155,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_catimg",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "aiModule",
-          "catimg"
-        ],
+        "tags_log": ["whatsapp", "command", "aiModule", "catimg"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -197,25 +167,20 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["catimg", "catimage", "ia", "privado", "grupo"],
+      "faq_patterns": ["como usar catimg", "o que faz catimg", "comando catimg"],
+      "user_phrasings": ["quero usar catimg", "me ajuda com catimg", "gera/edita imagem com ia"],
+      "suggestion_priority": 100
     },
     {
       "name": "catprompt",
-      "aliases": [
-        "iaprompt",
-        "promptia"
-      ],
+      "aliases": ["iaprompt", "promptia"],
       "descricao": "Define ou reseta o prompt personalizado da IA para o usuario.",
-      "metodos_de_uso": [
-        "<prefix>catprompt novo prompt",
-        "<prefix>catprompt reset"
-      ],
+      "metodos_de_uso": ["<prefix>catprompt novo prompt", "<prefix>catprompt reset"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "1 prompt por usuario (atualizavel)",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -226,9 +191,7 @@
       ],
       "enabled": true,
       "categoria": "ia",
-      "subcomandos": [
-        "reset"
-      ],
+      "subcomandos": ["reset"],
       "argumentos": [
         {
           "nome": "conteudo",
@@ -252,12 +215,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "store interno de prompt de IA"
-      ],
-      "efeitos_colaterais": [
-        "salva ou reseta prompt personalizado do usuário"
-      ],
+      "dependencias_externas": ["store interno de prompt de IA"],
+      "efeitos_colaterais": ["salva ou reseta prompt personalizado do usuário"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -265,12 +224,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_catprompt",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "aiModule",
-          "catprompt"
-        ],
+        "tags_log": ["whatsapp", "command", "aiModule", "catprompt"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -280,7 +234,11 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["catprompt", "iaprompt", "promptia", "ia", "privado", "grupo"],
+      "faq_patterns": ["como usar catprompt", "o que faz catprompt", "comando catprompt"],
+      "user_phrasings": ["quero usar catprompt", "me ajuda com catprompt", "define ou reseta o"],
+      "suggestion_priority": 100
     }
   ]
 }

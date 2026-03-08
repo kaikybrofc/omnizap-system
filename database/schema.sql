@@ -1047,4 +1047,27 @@ CREATE TABLE IF NOT EXISTS `web_visit_event` (
   KEY `idx_web_visit_session_created` (`session_key`,`created_at`),
   KEY `idx_web_visit_source_created` (`source`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `ai_help_response_cache` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `module_key` varchar(64) NOT NULL,
+  `scope` varchar(32) NOT NULL DEFAULT 'question',
+  `question_hash` char(64) NOT NULL,
+  `normalized_question` varchar(512) NOT NULL,
+  `original_question` varchar(512) DEFAULT NULL,
+  `command_name` varchar(64) DEFAULT NULL,
+  `answer_text` mediumtext NOT NULL,
+  `source` varchar(32) NOT NULL DEFAULT 'deterministic',
+  `model_name` varchar(80) DEFAULT NULL,
+  `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),
+  `hit_count` int(10) unsigned NOT NULL DEFAULT 1,
+  `last_used_at` timestamp NULL DEFAULT current_timestamp(),
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_ai_help_response_cache_lookup` (`module_key`,`scope`,`question_hash`),
+  KEY `idx_ai_help_response_cache_module_command_used` (`module_key`,`command_name`,`last_used_at`),
+  KEY `idx_ai_help_response_cache_used` (`last_used_at`),
+  KEY `idx_ai_help_response_cache_source_used` (`source`,`last_used_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 SET FOREIGN_KEY_CHECKS = 1;

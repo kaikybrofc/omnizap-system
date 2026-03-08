@@ -2,9 +2,7 @@
   "schema_version": "1.1.0",
   "module": "rpgPokemonModule",
   "enabled": true,
-  "source_files": [
-    "rpgPokemonCommand.js"
-  ],
+  "source_files": ["rpgPokemonCommand.js"],
   "commands": [
     {
       "name": "rpg",
@@ -18,10 +16,7 @@
       ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "subcomandos permitidos pelo modulo",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -95,13 +90,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "serviços internos de RPG"
-      ],
-      "efeitos_colaterais": [
-        "altera estado de jogo no backend",
-        "envia retorno de ação"
-      ],
+      "dependencias_externas": ["serviços internos de RPG"],
+      "efeitos_colaterais": ["altera estado de jogo no backend", "envia retorno de ação"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -109,12 +99,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_rpg",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "rpgPokemonModule",
-          "rpg"
-        ],
+        "tags_log": ["whatsapp", "command", "rpgPokemonModule", "rpg"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -125,7 +110,11 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["rpg", "jogos", "privado", "grupo"],
+      "faq_patterns": ["como usar rpg", "o que faz rpg", "comando rpg"],
+      "user_phrasings": ["quero usar rpg", "me ajuda com rpg", "comando principal do rpg"],
+      "suggestion_priority": 100
     }
   ]
 }

@@ -2,28 +2,16 @@
   "schema_version": "1.1.0",
   "module": "statsModule",
   "enabled": true,
-  "source_files": [
-    "rankingCommand.js",
-    "globalRankingCommand.js"
-  ],
+  "source_files": ["rankingCommand.js", "globalRankingCommand.js"],
   "commands": [
     {
       "name": "ranking",
-      "aliases": [
-        "rank",
-        "top5"
-      ],
+      "aliases": ["rank", "top5"],
       "descricao": "Mostra top 5 mais ativos do grupo.",
-      "metodos_de_uso": [
-        "<prefix>ranking",
-        "<prefix>rank",
-        "<prefix>top5"
-      ],
+      "metodos_de_uso": ["<prefix>ranking", "<prefix>rank", "<prefix>top5"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "retorna top 5",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -51,13 +39,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "banco de dados de mensagens"
-      ],
-      "efeitos_colaterais": [
-        "consulta agregações no banco",
-        "envia ranking"
-      ],
+      "dependencias_externas": ["banco de dados de mensagens"],
+      "efeitos_colaterais": ["consulta agregações no banco", "envia ranking"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -65,12 +48,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_ranking",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "statsModule",
-          "ranking"
-        ],
+        "tags_log": ["whatsapp", "command", "statsModule", "ranking"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -81,26 +59,20 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["ranking", "rank", "top5", "estatisticas", "grupo"],
+      "faq_patterns": ["como usar ranking", "o que faz ranking", "comando ranking"],
+      "user_phrasings": ["quero usar ranking", "me ajuda com ranking", "mostra top 5 mais"],
+      "suggestion_priority": 100
     },
     {
       "name": "rankingglobal",
-      "aliases": [
-        "rankglobal",
-        "globalrank",
-        "globalranking"
-      ],
+      "aliases": ["rankglobal", "globalrank", "globalranking"],
       "descricao": "Mostra top 5 global de atividade.",
-      "metodos_de_uso": [
-        "<prefix>rankingglobal",
-        "<prefix>globalrank"
-      ],
+      "metodos_de_uso": ["<prefix>rankingglobal", "<prefix>globalrank"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "retorna top 5",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -127,13 +99,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "banco de dados de mensagens"
-      ],
-      "efeitos_colaterais": [
-        "consulta agregações no banco",
-        "envia ranking"
-      ],
+      "dependencias_externas": ["banco de dados de mensagens"],
+      "efeitos_colaterais": ["consulta agregações no banco", "envia ranking"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -141,12 +108,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_rankingglobal",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "statsModule",
-          "rankingglobal"
-        ],
+        "tags_log": ["whatsapp", "command", "statsModule", "rankingglobal"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -157,7 +119,27 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": [
+        "rankingglobal",
+        "rankglobal",
+        "globalrank",
+        "globalranking",
+        "estatisticas",
+        "privado",
+        "grupo"
+      ],
+      "faq_patterns": [
+        "como usar rankingglobal",
+        "o que faz rankingglobal",
+        "comando rankingglobal"
+      ],
+      "user_phrasings": [
+        "quero usar rankingglobal",
+        "me ajuda com rankingglobal",
+        "mostra top 5 global"
+      ],
+      "suggestion_priority": 100
     }
   ]
 }

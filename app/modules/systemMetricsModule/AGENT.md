@@ -1,0 +1,94 @@
+# SystemMetricsModule Agent Guide
+
+Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
+
+## Fonte de Verdade
+
+- arquivo_base: `app/modules/systemMetricsModule/commandConfig.json`
+- schema_version: `1.1.0`
+- module_enabled: `true`
+- generated_at: `2026-03-08T00:30:28.504Z`
+
+## Escopo do Modulo
+
+- module: `systemMetricsModule`
+- source_files:
+- pingCommand.js
+- total_commands: `1`
+- total_enabled_commands: `1`
+
+## Protocolo de Resposta para IA
+
+- Passo 1: identificar comando pelo token apos o prefixo.
+- Passo 2: resolver alias para nome canonico usando campo `aliases`.
+- Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
+- Passo 4: se houver erro de uso, responder com `mensagens_uso` (quando existir) ou `metodos_de_uso`.
+- Passo 5: seguir `respostas_padrao` como fallback de texto.
+- Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
+
+## Regras de Seguranca para IA
+
+- A IA orienta, mas nao executa acao administrativa automaticamente.
+- Nao inventar comandos, subcomandos ou permissao fora do JSON.
+- Sempre informar onde pode usar (grupo/privado) e quem pode usar.
+- Em duvida de permissao, responder com orientacao conservadora.
+
+## Catalogo de Comandos
+
+### ping
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: sistema
+- descricao: Exibe latencia e estado de saude do servidor.
+- permissao_necessaria: usuario comum
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>ping
+- subcomandos:
+- (nenhum)
+- argumentos:
+- (nenhum)
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- metricas do sistema operacional (cpu, memoria, uptime)
+- metricas avancadas do endpoint Prometheus (quando disponivel)
+- dependencias_externas:
+- coleta local de métricas
+- endpoint Prometheus (opcional)
+- efeitos_colaterais:
+- consulta estado do servidor
+- envia diagnóstico no chat
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_ping
+- tags_log: whatsapp, command, systemMetricsModule, ping
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional

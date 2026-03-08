@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS ai_help_response_cache (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  module_key VARCHAR(64) NOT NULL,
+  scope VARCHAR(32) NOT NULL DEFAULT 'question',
+  question_hash CHAR(64) NOT NULL,
+  normalized_question VARCHAR(512) NOT NULL,
+  original_question VARCHAR(512) DEFAULT NULL,
+  command_name VARCHAR(64) DEFAULT NULL,
+  answer_text MEDIUMTEXT NOT NULL,
+  source VARCHAR(32) NOT NULL DEFAULT 'deterministic',
+  model_name VARCHAR(80) DEFAULT NULL,
+  metadata JSON DEFAULT NULL,
+  hit_count INT UNSIGNED NOT NULL DEFAULT 1,
+  last_used_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_ai_help_response_cache_lookup (module_key, scope, question_hash),
+  KEY idx_ai_help_response_cache_module_command_used (module_key, command_name, last_used_at),
+  KEY idx_ai_help_response_cache_used (last_used_at),
+  KEY idx_ai_help_response_cache_source_used (source, last_used_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

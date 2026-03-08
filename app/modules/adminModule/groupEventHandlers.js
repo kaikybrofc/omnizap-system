@@ -18,6 +18,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import moment from 'moment-timezone';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { getAdminEventConfig } from './adminConfigRuntime.js';
+
+const ADMIN_EVENT_CONFIG = getAdminEventConfig();
+const ADMIN_EVENT_MESSAGES = ADMIN_EVENT_CONFIG.mensagens_padrao || {};
+
+const renderTemplate = (template, variables = {}) =>
+  String(template || '').replace(/\{\{(\w+)\}\}/g, (_, token) =>
+    Object.prototype.hasOwnProperty.call(variables, token) ? String(variables[token]) : '',
+  );
 
 const replacePlaceholders = async (message, sock, groupId) => {
   logger.debug('Iniciando substituição de placeholders para a mensagem.', { groupId });
@@ -118,20 +127,16 @@ const replacePlaceholders = async (message, sock, groupId) => {
 };
 
 const buildCaptchaLine = (participantName) =>
-  `\n🤖 *Verificação humana*\n@${participantName}, reaja a esta mensagem ou envie qualquer mensagem em até *${CAPTCHA_TIMEOUT_MINUTES} minutos* para continuar no grupo.\n\n`;
+  renderTemplate(ADMIN_EVENT_MESSAGES.captcha_line, {
+    participant: participantName,
+    captcha_timeout_min: CAPTCHA_TIMEOUT_MINUTES,
+  });
 
-const ACTIONS_TO_SKIP_AUTO_APPROVE = new Set([
-  'reject',
-  'rejected',
-  'cancel',
-  'canceled',
-  'approve',
-  'approved',
-  'accept',
-  'accepted',
-  'remove',
-  'removed',
-]);
+const ACTIONS_TO_SKIP_AUTO_APPROVE = new Set(
+  Array.isArray(ADMIN_EVENT_CONFIG.auto_approve_skip_actions)
+    ? ADMIN_EVENT_CONFIG.auto_approve_skip_actions
+    : [],
+);
 
 const shouldAutoApproveAction = (action) => {
   if (!action) return true;
@@ -238,8 +243,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
             }
 
             if (groupConfig.welcomeMessageEnabled) {
-              const welcomeMsg =
-                groupConfig.welcomeMessage || '👋 Bem-vindo(a) ao grupo @groupname, @user! 🎉';
+              const welcomeMsg = groupConfig.welcomeMessage || ADMIN_EVENT_MESSAGES.welcome;
               let msg = welcomeMsg.replace('{participant}', `@${participantName}`);
               msg = msg.replace(/@user/g, `@${participantName}`);
               if (shouldRequestCaptcha) {
@@ -256,8 +260,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
             clearCaptchaForUser(groupId, jid, 'remove');
           }
           if (groupConfig.farewellMessageEnabled) {
-            const farewellMsg =
-              groupConfig.farewellMessage || '😥 Adeus, @user! Sentiremos sua falta.';
+            const farewellMsg = groupConfig.farewellMessage || ADMIN_EVENT_MESSAGES.farewell;
             let msg = farewellMsg.replace('{participant}', `@${participantName}`);
             msg = msg.replace(/@user/g, `@${participantName}`);
             message += `${msg}\n`;
@@ -265,12 +268,12 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
           break;
         case 'promote':
           if (groupConfig.welcomeMessageEnabled) {
-            message += `O usuário @${participantName} foi promovido a administrador do grupo. 🎉\n`;
+            message += `${renderTemplate(ADMIN_EVENT_MESSAGES.promote, { participant: participantName })}\n`;
           }
           break;
         case 'demote':
           if (groupConfig.welcomeMessageEnabled) {
-            message += `O usuário @${participantName} não é mais um administrador do grupo. ⬇️\n`;
+            message += `${renderTemplate(ADMIN_EVENT_MESSAGES.demote, { participant: participantName })}\n`;
           }
           break;
       }

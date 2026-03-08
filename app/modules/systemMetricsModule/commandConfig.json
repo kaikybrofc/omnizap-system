@@ -2,23 +2,16 @@
   "schema_version": "1.1.0",
   "module": "systemMetricsModule",
   "enabled": true,
-  "source_files": [
-    "pingCommand.js"
-  ],
+  "source_files": ["pingCommand.js"],
   "commands": [
     {
       "name": "ping",
       "aliases": [],
       "descricao": "Exibe latencia e estado de saude do servidor.",
-      "metodos_de_uso": [
-        "<prefix>ping"
-      ],
+      "metodos_de_uso": ["<prefix>ping"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -45,14 +38,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "coleta local de métricas",
-        "endpoint Prometheus (opcional)"
-      ],
-      "efeitos_colaterais": [
-        "consulta estado do servidor",
-        "envia diagnóstico no chat"
-      ],
+      "dependencias_externas": ["coleta local de métricas", "endpoint Prometheus (opcional)"],
+      "efeitos_colaterais": ["consulta estado do servidor", "envia diagnóstico no chat"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -60,12 +47,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_ping",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "systemMetricsModule",
-          "ping"
-        ],
+        "tags_log": ["whatsapp", "command", "systemMetricsModule", "ping"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -76,7 +58,11 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["ping", "sistema", "privado", "grupo"],
+      "faq_patterns": ["como usar ping", "o que faz ping", "comando ping"],
+      "user_phrasings": ["quero usar ping", "me ajuda com ping", "exibe latencia e estado"],
+      "suggestion_priority": 100
     }
   ]
 }

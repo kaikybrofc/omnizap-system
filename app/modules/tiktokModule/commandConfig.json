@@ -2,26 +2,16 @@
   "schema_version": "1.1.0",
   "module": "tiktokModule",
   "enabled": true,
-  "source_files": [
-    "tiktokCommand.js"
-  ],
+  "source_files": ["tiktokCommand.js"],
   "commands": [
     {
       "name": "tiktok",
-      "aliases": [
-        "tt"
-      ],
+      "aliases": ["tt"],
       "descricao": "Baixa midia do TikTok sem marca d'agua.",
-      "metodos_de_uso": [
-        "<prefix>tiktok <url>",
-        "<prefix>tt <url1> <url2>"
-      ],
+      "metodos_de_uso": ["<prefix>tiktok <url>", "<prefix>tt <url1> <url2>"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "ate 5 URLs por comando e ate 80 MB por arquivo (padrao)",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -57,13 +47,8 @@
         "janela_ms": null,
         "escopo": "por_execucao"
       },
-      "dependencias_externas": [
-        "serviço extractor de TikTok"
-      ],
-      "efeitos_colaterais": [
-        "baixa mídia temporária",
-        "envia vídeo/imagens no chat"
-      ],
+      "dependencias_externas": ["serviço extractor de TikTok"],
+      "efeitos_colaterais": ["baixa mídia temporária", "envia vídeo/imagens no chat"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -71,12 +56,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_tiktok",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "tiktokModule",
-          "tiktok"
-        ],
+        "tags_log": ["whatsapp", "command", "tiktokModule", "tiktok"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -87,7 +67,11 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["tiktok", "tt", "midia", "privado", "grupo"],
+      "faq_patterns": ["como usar tiktok", "o que faz tiktok", "comando tiktok"],
+      "user_phrasings": ["quero usar tiktok", "me ajuda com tiktok", "baixa midia do tiktok"],
+      "suggestion_priority": 100
     }
   ]
 }

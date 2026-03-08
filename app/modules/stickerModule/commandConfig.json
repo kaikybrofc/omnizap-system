@@ -2,28 +2,16 @@
   "schema_version": "1.1.0",
   "module": "stickerModule",
   "enabled": true,
-  "source_files": [
-    "stickerCommand.js",
-    "stickerConvertCommand.js",
-    "stickerTextCommand.js"
-  ],
+  "source_files": ["stickerCommand.js", "stickerConvertCommand.js", "stickerTextCommand.js"],
   "commands": [
     {
       "name": "sticker",
-      "aliases": [
-        "s"
-      ],
+      "aliases": ["s"],
       "descricao": "Converte imagem/video em figurinha.",
-      "metodos_de_uso": [
-        "<prefix>sticker",
-        "<prefix>s"
-      ],
+      "metodos_de_uso": ["<prefix>sticker", "<prefix>s"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "midia ate 1 MB",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -58,14 +46,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "conversão de mídia local",
-        "armazenamento temporário"
-      ],
-      "efeitos_colaterais": [
-        "faz download/conversão temporária de mídia",
-        "envia figurinha"
-      ],
+      "dependencias_externas": ["conversão de mídia local", "armazenamento temporário"],
+      "efeitos_colaterais": ["faz download/conversão temporária de mídia", "envia figurinha"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -73,12 +55,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_sticker",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "stickerModule",
-          "sticker"
-        ],
+        "tags_log": ["whatsapp", "command", "stickerModule", "sticker"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -89,26 +66,24 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["sticker", "s", "figurinhas", "privado", "grupo"],
+      "faq_patterns": ["como usar sticker", "o que faz sticker", "comando sticker"],
+      "user_phrasings": [
+        "quero usar sticker",
+        "me ajuda com sticker",
+        "converte imagem/video em figurinha."
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "toimg",
-      "aliases": [
-        "tovideo",
-        "tovid"
-      ],
+      "aliases": ["tovideo", "tovid"],
       "descricao": "Converte figurinha para imagem ou video quando aplicavel.",
-      "metodos_de_uso": [
-        "<prefix>toimg",
-        "<prefix>tovideo",
-        "<prefix>tovid"
-      ],
+      "metodos_de_uso": ["<prefix>toimg", "<prefix>tovideo", "<prefix>tovid"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "figurinha ate 2 MB",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -135,10 +110,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "conversão de mídia local",
-        "armazenamento temporário"
-      ],
+      "dependencias_externas": ["conversão de mídia local", "armazenamento temporário"],
       "efeitos_colaterais": [
         "faz download/conversão temporária de figurinha",
         "envia mídia convertida"
@@ -150,12 +122,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_toimg",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "stickerModule",
-          "toimg"
-        ],
+        "tags_log": ["whatsapp", "command", "stickerModule", "toimg"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -166,24 +133,24 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["toimg", "tovideo", "tovid", "figurinhas", "privado", "grupo"],
+      "faq_patterns": ["como usar toimg", "o que faz toimg", "comando toimg"],
+      "user_phrasings": [
+        "quero usar toimg",
+        "me ajuda com toimg",
+        "converte figurinha para imagem"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "stickertext",
-      "aliases": [
-        "st"
-      ],
+      "aliases": ["st"],
       "descricao": "Gera figurinha com texto (tema escuro).",
-      "metodos_de_uso": [
-        "<prefix>stickertext seu texto",
-        "<prefix>st seu texto"
-      ],
+      "metodos_de_uso": ["<prefix>stickertext seu texto", "<prefix>st seu texto"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "ate 80 caracteres e 4 linhas",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -218,14 +185,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "conversão de mídia local",
-        "armazenamento temporário"
-      ],
-      "efeitos_colaterais": [
-        "gera mídia temporária de figurinha com texto",
-        "envia figurinha"
-      ],
+      "dependencias_externas": ["conversão de mídia local", "armazenamento temporário"],
+      "efeitos_colaterais": ["gera mídia temporária de figurinha com texto", "envia figurinha"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -233,12 +194,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_stickertext",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "stickerModule",
-          "stickertext"
-        ],
+        "tags_log": ["whatsapp", "command", "stickerModule", "stickertext"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -249,24 +205,24 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["stickertext", "st", "figurinhas", "privado", "grupo"],
+      "faq_patterns": ["como usar stickertext", "o que faz stickertext", "comando stickertext"],
+      "user_phrasings": [
+        "quero usar stickertext",
+        "me ajuda com stickertext",
+        "gera figurinha com texto"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "stickertextwhite",
-      "aliases": [
-        "stw"
-      ],
+      "aliases": ["stw"],
       "descricao": "Gera figurinha com texto (tema claro).",
-      "metodos_de_uso": [
-        "<prefix>stickertextwhite seu texto",
-        "<prefix>stw seu texto"
-      ],
+      "metodos_de_uso": ["<prefix>stickertextwhite seu texto", "<prefix>stw seu texto"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "ate 80 caracteres e 4 linhas",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -301,14 +257,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "conversão de mídia local",
-        "armazenamento temporário"
-      ],
-      "efeitos_colaterais": [
-        "gera mídia temporária de figurinha com texto",
-        "envia figurinha"
-      ],
+      "dependencias_externas": ["conversão de mídia local", "armazenamento temporário"],
+      "efeitos_colaterais": ["gera mídia temporária de figurinha com texto", "envia figurinha"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -316,12 +266,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_stickertextwhite",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "stickerModule",
-          "stickertextwhite"
-        ],
+        "tags_log": ["whatsapp", "command", "stickerModule", "stickertextwhite"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -332,24 +277,28 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["stickertextwhite", "stw", "figurinhas", "privado", "grupo"],
+      "faq_patterns": [
+        "como usar stickertextwhite",
+        "o que faz stickertextwhite",
+        "comando stickertextwhite"
+      ],
+      "user_phrasings": [
+        "quero usar stickertextwhite",
+        "me ajuda com stickertextwhite",
+        "gera figurinha com texto"
+      ],
+      "suggestion_priority": 100
     },
     {
       "name": "stickertextblink",
-      "aliases": [
-        "stb"
-      ],
+      "aliases": ["stb"],
       "descricao": "Gera figurinha animada de texto piscante.",
-      "metodos_de_uso": [
-        "<prefix>stickertextblink seu texto",
-        "<prefix>stb seu texto"
-      ],
+      "metodos_de_uso": ["<prefix>stickertextblink seu texto", "<prefix>stb seu texto"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "ate 80 caracteres e 4 linhas",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -384,14 +333,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "conversão de mídia local",
-        "armazenamento temporário"
-      ],
-      "efeitos_colaterais": [
-        "gera mídia temporária animada",
-        "envia figurinha"
-      ],
+      "dependencias_externas": ["conversão de mídia local", "armazenamento temporário"],
+      "efeitos_colaterais": ["gera mídia temporária animada", "envia figurinha"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -399,12 +342,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_stickertextblink",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "stickerModule",
-          "stickertextblink"
-        ],
+        "tags_log": ["whatsapp", "command", "stickerModule", "stickertextblink"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -415,7 +353,19 @@
         ],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
-      }
+      },
+      "capability_keywords": ["stickertextblink", "stb", "figurinhas", "privado", "grupo"],
+      "faq_patterns": [
+        "como usar stickertextblink",
+        "o que faz stickertextblink",
+        "comando stickertextblink"
+      ],
+      "user_phrasings": [
+        "quero usar stickertextblink",
+        "me ajuda com stickertextblink",
+        "gera figurinha animada de"
+      ],
+      "suggestion_priority": 100
     }
   ]
 }

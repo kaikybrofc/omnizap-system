@@ -1,0 +1,208 @@
+# WaifuPicsModule Agent Guide
+
+Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
+
+## Fonte de Verdade
+
+- arquivo_base: `app/modules/waifuPicsModule/commandConfig.json`
+- schema_version: `1.1.0`
+- module_enabled: `true`
+- generated_at: `2026-03-08T00:30:28.504Z`
+
+## Escopo do Modulo
+
+- module: `waifuPicsModule`
+- source_files:
+- waifuPicsCommand.js
+- total_commands: `3`
+- total_enabled_commands: `3`
+
+## Protocolo de Resposta para IA
+
+- Passo 1: identificar comando pelo token apos o prefixo.
+- Passo 2: resolver alias para nome canonico usando campo `aliases`.
+- Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
+- Passo 4: se houver erro de uso, responder com `mensagens_uso` (quando existir) ou `metodos_de_uso`.
+- Passo 5: seguir `respostas_padrao` como fallback de texto.
+- Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
+
+## Regras de Seguranca para IA
+
+- A IA orienta, mas nao executa acao administrativa automaticamente.
+- Nao inventar comandos, subcomandos ou permissao fora do JSON.
+- Sempre informar onde pode usar (grupo/privado) e quem pode usar.
+- Em duvida de permissao, responder com orientacao conservadora.
+
+## Catalogo de Comandos
+
+### wp
+
+- aliases: waifupics
+- enabled: true
+- categoria: anime
+- descricao: Envia imagem SFW da API Waifu.pics por categoria.
+- permissao_necessaria: usuario comum
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>wp <categoria>
+- <prefix>waifupics neko
+- subcomandos:
+- (nenhum)
+- argumentos:
+- categoria | tipo: string | obrigatorio | validacao: categoria SFW suportada | default: null
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- categoria solicitada na API waifu.pics
+- configuracao do grupo para validar politicas de conteudo
+- dependencias_externas:
+- Waifu.pics API
+- efeitos_colaterais:
+- consulta API externa
+- envia imagem no chat
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_wp
+- tags_log: whatsapp, command, waifuPicsModule, wp
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### wpnsfw
+
+- aliases: waifupicsnsfw
+- enabled: true
+- categoria: anime
+- descricao: Envia imagem NSFW da API Waifu.pics por categoria.
+- permissao_necessaria: usuario comum com NSFW habilitado no grupo
+- limite_de_uso: depende de configuracao global e do grupo
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>wpnsfw <categoria>
+- <prefix>waifupicsnsfw waifu
+- subcomandos:
+- (nenhum)
+- argumentos:
+- categoria | tipo: string | obrigatorio | validacao: categoria NSFW suportada | default: null
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: sim
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- categoria NSFW solicitada na API waifu.pics
+- status NSFW global e por grupo para permitir bloqueio/liberacao
+- dependencias_externas:
+- Waifu.pics API
+- configuração de NSFW por grupo
+- efeitos_colaterais:
+- consulta API externa
+- envia imagem NSFW no chat
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_wpnsfw
+- tags_log: whatsapp, command, waifuPicsModule, wpnsfw
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional
+
+### wppicshelp
+
+- aliases: (nenhum)
+- enabled: true
+- categoria: anime
+- descricao: Mostra ajuda e categorias disponiveis de Waifu.pics.
+- permissao_necessaria: usuario comum
+- limite_de_uso: sem limite especifico
+- local_de_uso:
+- privado
+- grupo
+- metodos_de_uso:
+- <prefix>wppicshelp
+- subcomandos:
+- (nenhum)
+- argumentos:
+- (nenhum)
+- pre_condicoes:
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
+- rate_limit:
+- max: null
+- janela_ms: null
+- escopo: sem_rate_limit_explicito
+- informacoes_coletadas:
+- identificador do chat (remoteJid)
+- identificador do remetente (senderJid)
+- texto do comando e argumentos
+- contexto da mensagem (citacao e mencoes, quando existir)
+- prefixo/categoria para montar texto de ajuda dinamico
+- dependencias_externas:
+- Waifu.pics API
+- efeitos_colaterais:
+- envia mensagem de ajuda
+- respostas_padrao:
+- sucesso: Comando executado com sucesso.
+- erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
+- erro_permissao: Permissão insuficiente para executar este comando.
+- observabilidade:
+- evento_analytics: whatsapp_command_wppicshelp
+- tags_log: whatsapp, command, waifuPicsModule, wppicshelp
+- nivel_log: info
+- privacidade:
+- dados_sensiveis:
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
+- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
+- base_legal: execução do serviço solicitado e legítimo interesse operacional

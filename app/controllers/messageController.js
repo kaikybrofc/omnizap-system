@@ -3,6 +3,11 @@ import 'dotenv/config';
 import { handleMenuCommand } from '../modules/menuModule/menus.js';
 import { handleAdminCommand, isAdminCommand } from '../modules/adminModule/groupCommandHandlers.js';
 import {
+  buildGlobalUnknownCommandSuggestion,
+  explicarComandoGlobal,
+  registerGlobalHelpCommandExecution,
+} from '../services/globalModuleAiHelpService.js';
+import {
   extractSupportedStickerMediaDetails,
   processSticker,
 } from '../modules/stickerModule/stickerCommand.js';
@@ -56,6 +61,7 @@ import { extractSenderInfoFromMessage, resolveUserId } from '../services/lidMapS
 import { buildWhatsAppGoogleLoginUrl } from '../services/whatsappLoginLinkService.js';
 import { isWhatsAppUserLinkedToGoogleWebAccount } from '../services/googleWebLinkService.js';
 import { createMessageAnalysisEvent } from '../modules/analyticsModule/messageAnalysisEventRepository.js';
+import { routeConversationMessage } from '../services/conversationRouterService.js';
 import {
   canSendMessageInStickerFocus,
   registerMessageUsageInStickerFocus,
@@ -458,6 +464,42 @@ const normalizeAnalysisErrorCode = (error) =>
     .replace(/[^a-z0-9_-]/g, '_')
     .slice(0, 96) || 'processing_error';
 
+const buildCommandErrorHelpText = async ({
+  command,
+  commandRoute,
+  commandPrefix,
+  isGroupMessage,
+  isSenderAdmin,
+  isSenderOwner,
+}) => {
+  const normalizedCommand = String(command || '')
+    .trim()
+    .toLowerCase();
+  if (!normalizedCommand) return '';
+
+  if (commandRoute === 'unknown') {
+    return '';
+  }
+
+  try {
+    const helpResult = await explicarComandoGlobal(normalizedCommand, {
+      commandPrefix,
+      isGroupMessage,
+      isSenderAdmin,
+      isSenderOwner,
+    });
+    return String(helpResult?.text || '').trim();
+  } catch (error) {
+    logger.warn('Falha ao gerar ajuda IA para erro de comando.', {
+      action: 'command_error_ai_help_failed',
+      command: normalizedCommand,
+      commandRoute,
+      error: error?.message,
+    });
+    return '';
+  }
+};
+
 const persistMessageAnalysisEvent = (payload) => {
   if (!MESSAGE_ANALYTICS_ENABLED) return;
   void createMessageAnalysisEvent(payload).catch((error) => {
@@ -772,6 +814,48 @@ export const handleMessages = async (update, sock) => {
                   });
                 }
               }
+            }
+          }
+
+          if (!isCommandMessage && !isMessageFromBot && isNotifyUpsert) {
+            try {
+              const conversationResult = await routeConversationMessage({
+                messageInfo,
+                extractedText,
+                isCommandMessage,
+                mediaEntries,
+                isGroupMessage,
+                remoteJid,
+                senderJid,
+                botJid,
+                commandPrefix,
+              });
+
+              if (conversationResult?.handled && conversationResult?.text) {
+                await sendReply(sock, remoteJid, messageInfo, expirationMessage, {
+                  text: conversationResult.text,
+                });
+
+                analysisPayload.processingResult = 'conversation_reply';
+                analysisPayload.metadata = {
+                  ...analysisPayload.metadata,
+                  conversation_router: true,
+                  conversation_reason: conversationResult.reason || null,
+                  conversation_trigger_kind: conversationResult?.metadata?.trigger_kind || null,
+                  conversation_intent_type: conversationResult?.metadata?.intent_type || null,
+                  conversation_module_key: conversationResult?.metadata?.module_key || null,
+                  conversation_command_name: conversationResult?.metadata?.command_name || null,
+                };
+                continue;
+              }
+            } catch (error) {
+              logger.warn('Falha ao processar rota conversacional global.', {
+                action: 'conversation_router_failed',
+                remoteJid,
+                senderJid,
+                isGroupMessage,
+                error: error?.message,
+              });
             }
           }
 
@@ -1147,7 +1231,7 @@ export const handleMessages = async (update, sock) => {
                   }),
                 );
                 break;
-              default:
+              default: {
                 if (isAdminCommandRoute) {
                   commandRoute = 'admin';
                   commandResult = await runCommand('admin', () =>
@@ -1171,9 +1255,24 @@ export const handleMessages = async (update, sock) => {
                 commandRoute = 'unknown';
                 analysisPayload.processingResult = 'unknown_command';
                 logger.info(`Comando desconhecido recebido: ${command}`);
+                const globalSuggestion = buildGlobalUnknownCommandSuggestion(command, {
+                  commandPrefix,
+                });
                 commandResult = await runCommand('unknown', () =>
                   sendReply(sock, remoteJid, messageInfo, expirationMessage, {
-                    text: `❌ *Comando não reconhecido*
+                    text: globalSuggestion
+                      ? `❌ *Comando não reconhecido*
+
+O comando *${command}* não está configurado ou ainda não existe.
+
+${globalSuggestion}
+
+ℹ️ *Dica:*  
+Digite *${commandPrefix}menu* para ver a lista geral de comandos.
+
+🚧 *Fase Beta*  
+O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.`
+                      : `❌ *Comando não reconhecido*
 
 O comando *${command}* não está configurado ou ainda não existe.
 
@@ -1185,6 +1284,7 @@ O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo ad
                   }),
                 );
                 break;
+              }
             }
 
             analysisPayload.metadata = {
@@ -1198,8 +1298,60 @@ O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo ad
                 : 'command_error';
             }
 
+            if (commandResult.ok && commandRoute !== 'unknown') {
+              try {
+                await registerGlobalHelpCommandExecution({
+                  chatId: remoteJid,
+                  userId: senderJid,
+                  isGroupMessage,
+                  executedCommand: command,
+                });
+              } catch (error) {
+                logger.warn('Falha ao registrar feedback de sugestao global.', {
+                  action: 'global_help_feedback_register_failed',
+                  command,
+                  commandRoute,
+                  remoteJid,
+                  senderJid,
+                  error: error?.message,
+                });
+              }
+            }
+
             if (!commandResult.ok) {
               analysisPayload.errorCode = normalizeAnalysisErrorCode(commandResult.error);
+              let senderIsAdminForHelp = false;
+              if (isGroupMessage) {
+                try {
+                  senderIsAdminForHelp = await isUserAdmin(remoteJid, senderIdentity);
+                } catch (error) {
+                  logger.warn('Falha ao resolver permissao de admin para ajuda de comando.', {
+                    action: 'command_error_help_admin_check_failed',
+                    command,
+                    remoteJid,
+                    senderJid,
+                    error: error?.message,
+                  });
+                }
+              }
+
+              const commandErrorHelpText = await buildCommandErrorHelpText({
+                command,
+                commandRoute,
+                commandPrefix,
+                isGroupMessage,
+                isSenderAdmin: senderIsAdminForHelp,
+              });
+
+              const fallbackErrorText = commandErrorHelpText
+                ? `❌ Houve um erro ao processar *${commandPrefix}${command}*.\n\n${commandErrorHelpText}`
+                : `❌ Houve um erro ao processar *${commandPrefix}${command}*.\n\nTente novamente ou use *${commandPrefix}menu* para validar o formato de uso.`;
+
+              await runCommand('command-error-help', () =>
+                sendReply(sock, remoteJid, messageInfo, expirationMessage, {
+                  text: fallbackErrorText,
+                }),
+              );
             }
           }
 
