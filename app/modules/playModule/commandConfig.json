@@ -2,19 +2,32 @@
   "schema_version": "1.1.0",
   "module": "playModule",
   "enabled": true,
-  "source_files": ["playCommand.js"],
+  "source_files": [
+    "playCommand.js"
+  ],
   "commands": [
     {
-      "name": "play",
-      "aliases": [],
+      "name": "tocar",
+      "aliases": [
+        "musica",
+        "play"
+      ],
       "descricao": "Baixa/gera audio a partir de link ou busca no YouTube.",
-      "metodos_de_uso": ["<prefix>play <link>", "<prefix>play <termo de busca>"],
+      "metodos_de_uso": [
+        "<prefix>tocar <link>",
+        "<prefix>tocar <termo de busca>"
+      ],
       "mensagens_uso": {
-        "default": ["🎵 Uso: <prefix>play <link do YouTube ou termo de busca>"]
+        "default": [
+          "🎵 Uso: <prefix>tocar <link do YouTube ou termo de busca>"
+        ]
       },
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "arquivo ate PLAY_MAX_MB (padrao 100 MB)",
-      "local_de_uso": ["privado", "grupo"],
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -50,8 +63,15 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": ["serviço YTDLS/Downloader", "ffmpeg", "ffprobe"],
-      "efeitos_colaterais": ["baixa mídia temporária", "envia áudio no chat"],
+      "dependencias_externas": [
+        "serviço YTDLS/Downloader",
+        "ffmpeg",
+        "ffprobe"
+      ],
+      "efeitos_colaterais": [
+        "baixa mídia temporária",
+        "envia áudio no chat"
+      ],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -59,7 +79,12 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_play",
-        "tags_log": ["whatsapp", "command", "playModule", "play"],
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "playModule",
+          "play"
+        ],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -71,13 +96,29 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": ["play", "midia", "privado", "grupo"],
-      "faq_patterns": ["como usar play", "o que faz play", "comando play"],
-      "user_phrasings": ["quero usar play", "me ajuda com play", "baixa/gera audio a partir"],
+      "capability_keywords": [
+        "tocar",
+        "midia",
+        "privado",
+        "grupo"
+      ],
+      "faq_patterns": [
+        "como usar tocar",
+        "o que faz tocar",
+        "comando tocar"
+      ],
+      "user_phrasings": [
+        "quero usar tocar",
+        "me ajuda com tocar",
+        "baixa/gera audio a partir"
+      ],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
-        "planos_permitidos": ["comum", "premium"]
+        "planos_permitidos": [
+          "comum",
+          "premium"
+        ]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -93,16 +134,26 @@
       }
     },
     {
-      "name": "playvid",
-      "aliases": [],
+      "name": "tocarvideo",
+      "aliases": [
+        "playvid"
+      ],
       "descricao": "Baixa video a partir de link ou busca no YouTube.",
-      "metodos_de_uso": ["<prefix>playvid <link>", "<prefix>playvid <termo de busca>"],
+      "metodos_de_uso": [
+        "<prefix>tocarvideo <link>",
+        "<prefix>tocarvideo <termo de busca>"
+      ],
       "mensagens_uso": {
-        "default": ["🎬 Uso: <prefix>playvid <link do YouTube ou termo de busca>"]
+        "default": [
+          "🎬 Uso: <prefix>tocarvideo <link do YouTube ou termo de busca>"
+        ]
       },
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "arquivo ate PLAY_MAX_MB (padrao 100 MB)",
-      "local_de_uso": ["privado", "grupo"],
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -138,8 +189,15 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": ["serviço YTDLS/Downloader", "ffmpeg", "ffprobe"],
-      "efeitos_colaterais": ["baixa mídia temporária", "envia vídeo no chat"],
+      "dependencias_externas": [
+        "serviço YTDLS/Downloader",
+        "ffmpeg",
+        "ffprobe"
+      ],
+      "efeitos_colaterais": [
+        "baixa mídia temporária",
+        "envia vídeo no chat"
+      ],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -147,7 +205,12 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_playvid",
-        "tags_log": ["whatsapp", "command", "playModule", "playvid"],
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "playModule",
+          "playvid"
+        ],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -159,13 +222,28 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": ["playvid", "midia", "privado", "grupo"],
-      "faq_patterns": ["como usar playvid", "o que faz playvid", "comando playvid"],
-      "user_phrasings": ["quero usar playvid", "me ajuda com playvid", "baixa video a partir"],
+      "capability_keywords": [
+        "tocarvideo",
+        "midia",
+        "privado",
+        "grupo"
+      ],
+      "faq_patterns": [
+        "como usar tocarvideo",
+        "o que faz tocarvideo",
+        "comando tocarvideo"
+      ],
+      "user_phrasings": [
+        "quero usar tocarvideo",
+        "me ajuda com tocarvideo",
+        "baixa video a partir"
+      ],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": true,
-        "planos_permitidos": ["premium"]
+        "planos_permitidos": [
+          "premium"
+        ]
       },
       "limite_uso_por_plano": {
         "comum": {

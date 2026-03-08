@@ -7,11 +7,13 @@
   ],
   "commands": [
     {
-      "name": "ping",
-      "aliases": [],
+      "name": "statusbot",
+      "aliases": [
+        "ping"
+      ],
       "descricao": "Exibe latencia e estado de saude do servidor.",
       "metodos_de_uso": [
-        "<prefix>ping"
+        "<prefix>statusbot"
       ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "sem limite especifico",
@@ -78,19 +80,19 @@
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": [
-        "ping",
+        "statusbot",
         "sistema",
         "privado",
         "grupo"
       ],
       "faq_patterns": [
-        "como usar ping",
-        "o que faz ping",
-        "comando ping"
+        "como usar statusbot",
+        "o que faz statusbot",
+        "comando statusbot"
       ],
       "user_phrasings": [
-        "quero usar ping",
-        "me ajuda com ping",
+        "quero usar statusbot",
+        "me ajuda com statusbot",
         "exibe latencia e estado"
       ],
       "suggestion_priority": 100,
@@ -115,7 +117,7 @@
       },
       "mensagens_uso": {
         "default": [
-          "<prefix>ping"
+          "<prefix>statusbot"
         ]
       }
     }

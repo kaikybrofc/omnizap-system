@@ -1,37 +1,104 @@
 import { handleMenuCommand } from '../modules/menuModule/menus.js';
+import { resolveMenuCommandName } from '../modules/menuModule/menuConfigRuntime.js';
 import { handleAdminCommand } from '../modules/adminModule/groupCommandHandlers.js';
 import { buildGlobalUnknownCommandSuggestion } from './globalModuleAiHelpService.js';
 import { processSticker } from '../modules/stickerModule/stickerCommand.js';
+import { resolveStickerCommandName } from '../modules/stickerModule/stickerConfigRuntime.js';
 import {
   processBlinkingTextSticker,
   processTextSticker,
 } from '../modules/stickerModule/stickerTextCommand.js';
 import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/playCommand.js';
+import { resolvePlayCommandName } from '../modules/playModule/playConfigRuntime.js';
 import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
 import { handleGlobalRankingCommand } from '../modules/statsModule/globalRankingCommand.js';
+import { resolveStatsCommandName } from '../modules/statsModule/statsConfigRuntime.js';
 import { handlePingCommand } from '../modules/systemMetricsModule/pingCommand.js';
+import { resolveSystemMetricsCommandName } from '../modules/systemMetricsModule/systemMetricsConfigRuntime.js';
 import {
   handleCatCommand,
   handleCatImageCommand,
   handleCatPromptCommand,
 } from '../modules/aiModule/catCommand.js';
+import { resolveAiCommandName } from '../modules/aiModule/aiConfigRuntime.js';
 import { handleQuoteCommand } from '../modules/quoteModule/quoteCommand.js';
+import { resolveQuoteCommandName } from '../modules/quoteModule/quoteConfigRuntime.js';
 import { handleStickerConvertCommand } from '../modules/stickerModule/stickerConvertCommand.js';
 import {
   handleWaifuPicsCommand,
   getWaifuPicsUsageText,
 } from '../modules/waifuPicsModule/waifuPicsCommand.js';
+import { resolveWaifuPicsCommandName } from '../modules/waifuPicsModule/waifuPicsConfigRuntime.js';
 import { handlePackCommand } from '../modules/stickerPackModule/stickerPackCommandHandlers.js';
+import { resolveStickerPackCommandName } from '../modules/stickerPackModule/stickerPackConfigRuntime.js';
 import { handleUserCommand } from '../modules/userModule/userCommand.js';
+import { resolveUserCommandName } from '../modules/userModule/userConfigRuntime.js';
 import { handleDiceCommand } from '../modules/gameModule/diceCommand.js';
+import { resolveGameCommandName } from '../modules/gameModule/gameConfigRuntime.js';
 import { handleTikTokCommand } from '../modules/tiktokModule/tiktokCommand.js';
+import { resolveTikTokCommandName } from '../modules/tiktokModule/tiktokConfigRuntime.js';
 import { handleRpgPokemonCommand } from '../modules/rpgPokemonModule/rpgPokemonCommand.js';
+import { resolveRpgPokemonCommandName } from '../modules/rpgPokemonModule/rpgPokemonConfigRuntime.js';
 import logger from '../../utils/logger/loggerModule.js';
 
 const normalizeCommand = (value) =>
   String(value || '')
     .trim()
     .toLowerCase();
+
+const NON_ADMIN_COMMAND_RESOLVERS = [
+  resolveMenuCommandName,
+  resolveStickerCommandName,
+  resolveStickerPackCommandName,
+  resolvePlayCommandName,
+  resolveTikTokCommandName,
+  resolveAiCommandName,
+  resolveQuoteCommandName,
+  resolveWaifuPicsCommandName,
+  resolveStatsCommandName,
+  resolveSystemMetricsCommandName,
+  resolveGameCommandName,
+  resolveUserCommandName,
+  resolveRpgPokemonCommandName,
+];
+
+const LEGACY_NON_ADMIN_ROUTE_BY_CANONICAL = {
+  ia: 'cat',
+  iaimagem: 'catimg',
+  pergunteia: 'catprompt',
+  tocar: 'play',
+  tocarvideo: 'playvid',
+  citar: 'quote',
+  classificacao: 'ranking',
+  classificacaoglobal: 'rankingglobal',
+  figurinha: 'sticker',
+  paraimagem: 'toimg',
+  figurinhatexto: 'stickertext',
+  figurinhatextobranco: 'stickertextwhite',
+  figurinhatextopisca: 'stickertextblink',
+  pacote: 'pack',
+  statusbot: 'ping',
+  baixartiktok: 'tiktok',
+  perfil: 'user',
+  waifu: 'wp',
+  waifunsfw: 'wpnsfw',
+  waifuajuda: 'wppicshelp',
+  pokemon: 'rpg',
+};
+
+export const resolveNonAdminCommandName = (command) => {
+  const normalized = normalizeCommand(command);
+  if (!normalized) return null;
+
+  for (const resolver of NON_ADMIN_COMMAND_RESOLVERS) {
+    const canonical = resolver(normalized);
+    if (canonical) return canonical;
+  }
+
+  return null;
+};
+
+export const isKnownNonAdminCommand = (command) => Boolean(resolveNonAdminCommandName(command));
 
 export const executeMessageCommandRoute = async ({
   command,
@@ -59,13 +126,16 @@ export const executeMessageCommandRoute = async ({
   }
 
   const normalizedCommand = normalizeCommand(command);
+  const canonicalNonAdminCommand = resolveNonAdminCommandName(normalizedCommand);
+  const resolvedCommand = canonicalNonAdminCommand || normalizedCommand;
+  const routeCommand = LEGACY_NON_ADMIN_ROUTE_BY_CANONICAL[resolvedCommand] || resolvedCommand;
   const safeArgs = Array.isArray(args) ? args : [];
   const safeText = String(text || '');
 
   let commandResult = { ok: true };
-  let commandRoute = normalizedCommand || 'unknown';
+  let commandRoute = resolvedCommand || 'unknown';
 
-  switch (normalizedCommand) {
+  switch (routeCommand) {
     case 'menu':
       commandResult = await runCommand('menu', () =>
         handleMenuCommand(
@@ -80,7 +150,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'sticker':
-    case 's':
       commandResult = await runCommand('sticker', () =>
         processSticker(
           sock,
@@ -95,7 +164,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'pack':
-    case 'packs':
       commandResult = await runCommand('pack', () =>
         handlePackCommand({
           sock,
@@ -110,8 +178,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'toimg':
-    case 'tovideo':
-    case 'tovid':
       commandResult = await runCommand('toimg', () =>
         handleStickerConvertCommand({
           sock,
@@ -141,7 +207,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'tiktok':
-    case 'tt':
       commandResult = await runCommand('tiktok', () =>
         handleTikTokCommand({
           sock,
@@ -167,7 +232,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'catimg':
-    case 'catimage':
       commandResult = await runCommand('catimg', () =>
         handleCatImageCommand({
           sock,
@@ -181,8 +245,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'catprompt':
-    case 'iaprompt':
-    case 'promptia':
       commandResult = await runCommand('catprompt', () =>
         handleCatPromptCommand({
           sock,
@@ -196,7 +258,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'quote':
-    case 'qc':
       commandResult = await runCommand('quote', () =>
         handleQuoteCommand({
           sock,
@@ -211,7 +272,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'wp':
-    case 'waifupics':
       commandResult = await runCommand('waifupics', () =>
         handleWaifuPicsCommand({
           sock,
@@ -225,7 +285,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'wpnsfw':
-    case 'waifupicsnsfw':
       commandResult = await runCommand('waifupicsnsfw', () =>
         handleWaifuPicsCommand({
           sock,
@@ -246,7 +305,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'stickertext':
-    case 'st':
       commandResult = await runCommand('stickertext', () =>
         processTextSticker({
           sock,
@@ -264,7 +322,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'stickertextwhite':
-    case 'stw':
       commandResult = await runCommand('stickertextwhite', () =>
         processTextSticker({
           sock,
@@ -282,7 +339,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'stickertextblink':
-    case 'stb':
       commandResult = await runCommand('stickertextblink', () =>
         processBlinkingTextSticker({
           sock,
@@ -300,8 +356,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'ranking':
-    case 'rank':
-    case 'top5':
       commandResult = await runCommand('ranking', () =>
         handleRankingCommand({
           sock,
@@ -313,9 +367,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'rankingglobal':
-    case 'rankglobal':
-    case 'globalrank':
-    case 'globalranking':
       commandResult = await runCommand('rankingglobal', () =>
         handleGlobalRankingCommand({
           sock,
@@ -332,7 +383,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'dado':
-    case 'dice':
       commandResult = await runCommand('dado', () =>
         handleDiceCommand({
           sock,
@@ -345,7 +395,6 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'user':
-    case 'usuario':
       commandResult = await runCommand('user', () =>
         handleUserCommand({
           sock,

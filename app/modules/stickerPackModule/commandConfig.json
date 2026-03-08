@@ -7,17 +7,19 @@
   ],
   "commands": [
     {
-      "name": "pack",
+      "name": "pacote",
       "aliases": [
-        "packs"
+        "packs",
+        "pacotes",
+        "pack"
       ],
       "descricao": "Gerencia packs de figurinhas (criar, listar, adicionar, enviar).",
       "metodos_de_uso": [
-        "<prefix>pack help",
-        "<prefix>pack create meupack",
-        "<prefix>pack list",
-        "<prefix>pack add <pack>",
-        "<prefix>pack send <pack>"
+        "<prefix>pacote help",
+        "<prefix>pacote create meupack",
+        "<prefix>pacote list",
+        "<prefix>pacote add <pacote>",
+        "<prefix>pacote send <pacote>"
       ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "rate limit por janela e limite de itens por pack",
@@ -115,20 +117,20 @@
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": [
-        "pack",
+        "pacote",
         "packs",
         "figurinhas",
         "privado",
         "grupo"
       ],
       "faq_patterns": [
-        "como usar pack",
-        "o que faz pack",
-        "comando pack"
+        "como usar pacote",
+        "o que faz pacote",
+        "comando pacote"
       ],
       "user_phrasings": [
-        "quero usar pack",
-        "me ajuda com pack",
+        "quero usar pacote",
+        "me ajuda com pacote",
         "gerencia packs de figurinhas"
       ],
       "suggestion_priority": 100,
@@ -153,11 +155,11 @@
       },
       "mensagens_uso": {
         "default": [
-          "<prefix>pack help",
-          "<prefix>pack create meupack",
-          "<prefix>pack list",
-          "<prefix>pack add <pack>",
-          "<prefix>pack send <pack>"
+          "<prefix>pacote help",
+          "<prefix>pacote create meupack",
+          "<prefix>pacote list",
+          "<prefix>pacote add <pacote>",
+          "<prefix>pacote send <pacote>"
         ]
       }
     }

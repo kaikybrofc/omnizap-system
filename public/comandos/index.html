@@ -237,7 +237,7 @@
         margin-top: 14px;
         display: grid;
         gap: 12px;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        grid-template-columns: 1fr;
       }
 
       .command-card {
@@ -258,7 +258,8 @@
         padding: 0;
         list-style: none;
         display: grid;
-        gap: 7px;
+        gap: 9px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       }
 
       .command-list li {
@@ -330,6 +331,129 @@
         color: #8fafda;
         font-size: 13px;
       }
+
+      .catalog-toolbar {
+        margin-top: 14px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .catalog-search {
+        width: 100%;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        background: #0b1220;
+        color: var(--text);
+        font-size: 15px;
+        padding: 10px 12px;
+      }
+
+      .catalog-search::placeholder {
+        color: #7f95b5;
+      }
+
+      .catalog-status {
+        font-size: 13px;
+        color: #9bb2d2;
+      }
+
+      .command-item {
+        margin: 0;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 10px;
+        background: #111827a8;
+        padding: 10px;
+      }
+
+      .command-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 7px;
+      }
+
+      .command-head code {
+        word-break: break-word;
+      }
+
+      .command-module {
+        display: inline-flex;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        background: #1e293b;
+        color: #d8e7ff;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .command-item p {
+        margin: 0 0 6px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #bfd1ea;
+        overflow-wrap: anywhere;
+      }
+
+      .command-item p:last-child {
+        margin-bottom: 0;
+      }
+
+      .command-item .command-usage {
+        color: #a9c0e2;
+      }
+
+      .module-grid {
+        margin: 0;
+        margin-top: 12px;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+
+      .module-item {
+        margin: 0;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 12px;
+        background: #111827ac;
+        padding: 10px 12px;
+      }
+
+      .module-item strong {
+        display: block;
+        color: #edf5ff;
+        margin-bottom: 4px;
+      }
+
+      .module-item span {
+        font-size: 13px;
+        color: #9fb7d8;
+      }
+
+      @media (max-width: 860px) {
+        .wrap {
+          width: min(1120px, 95vw);
+        }
+
+        .command-list {
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+      }
+
+      @media (max-width: 640px) {
+        .command-list {
+          grid-template-columns: 1fr;
+        }
+
+        .command-head {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 5px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -352,69 +476,39 @@
           <a class="btn primary" href="/login/">Adicionar ao meu grupo</a>
           <a class="btn" href="/">Voltar para Home</a>
         </div>
-        <p class="meta">
-          Os comandos podem variar conforme permissões de admin e configuração do grupo.
-        </p>
+        <p class="meta" id="catalog-summary">Carregando catálogo de comandos...</p>
       </header>
 
       <section class="card" aria-labelledby="comandos-categorias">
-        <h2 id="comandos-categorias">Categorias de comandos mais usados</h2>
-        <div class="commands-grid">
+        <h2 id="comandos-categorias">Catálogo de comandos por categoria</h2>
+        <div class="catalog-toolbar">
+          <input
+            id="command-search"
+            class="catalog-search"
+            type="search"
+            placeholder="Buscar por comando, descrição, alias ou módulo (ex.: ban, sticker, admin)"
+            autocomplete="off"
+          />
+          <p class="catalog-status" id="catalog-status">
+            Dados carregados dos arquivos <code>commandConfig.json</code> dos módulos.
+          </p>
+        </div>
+        <div class="commands-grid" id="commands-grid">
           <article class="command-card">
-            <h3>🛡️ Moderação</h3>
-            <ul class="command-list">
-              <li><code>/ban</code>Remove membros problemáticos</li>
-              <li><code>/captcha</code>Proteção contra bots</li>
-              <li><code>/setgroup</code>Ativa modo restrito</li>
-              <li><code>/welcome</code>Mensagem automática de boas-vindas</li>
-              <li><code>/farewell</code>Aviso quando alguém sai</li>
-            </ul>
-          </article>
-
-          <article class="command-card">
-            <h3>🎨 Figurinhas</h3>
-            <ul class="command-list">
-              <li><code>/sticker</code>Cria figurinha rapidamente</li>
-              <li><code>/stickertext</code>Figurinha com texto</li>
-              <li><code>/pack create</code>Cria pack próprio</li>
-              <li><code>/pack send</code>Envia pack no grupo</li>
-              <li><code>/toimg</code>Converte figurinha em imagem</li>
-            </ul>
-          </article>
-
-          <article class="command-card">
-            <h3>🎮 Engajamento</h3>
-            <ul class="command-list">
-              <li><code>/ranking</code>Ranking de atividade do grupo</li>
-              <li><code>/rankingglobal</code>Ranking global</li>
-              <li><code>/dado</code>Jogo de dados</li>
-              <li><code>/quote</code>Gera citação de mensagem</li>
-              <li><code>/user perfil</code>Resumo de perfil</li>
-            </ul>
-          </article>
-
-          <article class="command-card">
-            <h3>🎵 Mídia</h3>
-            <ul class="command-list">
-              <li><code>/play</code>Reprodução de música</li>
-              <li><code>/playvid</code>Reprodução de vídeo</li>
-              <li><code>/tiktok</code>Download de vídeo TikTok</li>
-              <li><code>/down</code>Download de mídia</li>
-              <li><code>/menu</code>Lista geral de comandos</li>
-            </ul>
-          </article>
-
-          <article class="command-card">
-            <h3>🤖 Utilidades inteligentes</h3>
-            <ul class="command-list">
-              <li><code>/menu ia</code>Recursos de IA</li>
-              <li><code>/autorequests</code>Respostas automáticas</li>
-              <li><code>/noticias</code>Notícias no grupo</li>
-              <li><code>/metadata</code>Informações técnicas</li>
-              <li><code>/ping</code>Status do bot</li>
-            </ul>
+            <h3>Carregando...</h3>
+            <p>Buscando dados atuais dos comandos para montar as categorias.</p>
           </article>
         </div>
+      </section>
+
+      <section class="card" aria-labelledby="modulos-comandos">
+        <h2 id="modulos-comandos">Módulos mapeados</h2>
+        <ul class="module-grid" id="module-grid">
+          <li class="module-item">
+            <strong>Carregando...</strong>
+            <span>Sincronizando módulos disponíveis.</span>
+          </li>
+        </ul>
       </section>
 
       <section class="card">
@@ -456,5 +550,182 @@
         </div>
       </section>
     </main>
+
+    <script>
+      (function () {
+        const catalogUrl = '/comandos/commands-catalog.json';
+        const commandGrid = document.getElementById('commands-grid');
+        const moduleGrid = document.getElementById('module-grid');
+        const searchInput = document.getElementById('command-search');
+        const statusNode = document.getElementById('catalog-status');
+        const summaryNode = document.getElementById('catalog-summary');
+
+        const escapeHtml = (value) =>
+          String(value || '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+
+        const asList = (value) => (Array.isArray(value) ? value : []);
+
+        const buildCommandSearchIndex = (command) => {
+          const parts = [
+            command.name,
+            ...(asList(command.aliases) || []),
+            command.descricao,
+            command.permissao_necessaria,
+            command.module_label,
+            ...(asList(command.local_de_uso) || []),
+            ...(asList(command.subcomandos) || []),
+            ...(asList(command.metodos_de_uso) || []),
+          ];
+          return parts.join(' ').toLowerCase();
+        };
+
+        const renderModules = (modules) => {
+          const safeModules = asList(modules);
+          if (!safeModules.length) {
+            moduleGrid.innerHTML = `
+              <li class="module-item">
+                <strong>Nenhum módulo encontrado</strong>
+                <span>Não há módulos com commandConfig disponíveis neste ambiente.</span>
+              </li>
+            `;
+            return;
+          }
+
+          moduleGrid.innerHTML = safeModules
+            .map(
+              (moduleItem) => `
+                <li class="module-item">
+                  <strong>${escapeHtml(moduleItem.label)}</strong>
+                  <span>${Number(moduleItem.command_count || 0)} comandos mapeados</span>
+                </li>
+              `,
+            )
+            .join('');
+        };
+
+        const renderCategories = (categories, filter = '') => {
+          const normalizedFilter = String(filter || '').trim().toLowerCase();
+          let matchedCommands = 0;
+
+          const categoryCards = [];
+          for (const category of asList(categories)) {
+            const commands = asList(category.commands).filter((command) => {
+              if (!normalizedFilter) return true;
+              return buildCommandSearchIndex(command).includes(normalizedFilter);
+            });
+
+            if (!commands.length) continue;
+            matchedCommands += commands.length;
+
+            const commandItems = commands
+              .map((command) => {
+                const usage = asList(command.metodos_de_uso);
+                const usageText = usage.length ? usage[0] : `/${command.name}`;
+                const permission = String(command.permissao_necessaria || '').trim();
+                const location = asList(command.local_de_uso).join(', ');
+
+                return `
+                  <li class="command-item">
+                    <div class="command-head">
+                      <code>/${escapeHtml(command.name)}</code>
+                      <span class="command-module">${escapeHtml(command.module_label || command.module)}</span>
+                    </div>
+                    <p>${escapeHtml(command.descricao || 'Sem descrição cadastrada.')}</p>
+                    <p class="command-usage"><strong>Uso:</strong> ${escapeHtml(usageText)}</p>
+                    ${
+                      permission || location
+                        ? `<p><strong>Permissão:</strong> ${escapeHtml(permission || 'não informado')} • <strong>Local:</strong> ${escapeHtml(location || 'não informado')}</p>`
+                        : ''
+                    }
+                  </li>
+                `;
+              })
+              .join('');
+
+            categoryCards.push(`
+              <article class="command-card">
+                <h3>${escapeHtml(category.icon || '🧩')} ${escapeHtml(category.label)} (${commands.length})</h3>
+                <ul class="command-list">${commandItems}</ul>
+              </article>
+            `);
+          }
+
+          if (!categoryCards.length) {
+            commandGrid.innerHTML = `
+              <article class="command-card">
+                <h3>Nenhum comando encontrado</h3>
+                <p>Tente outro termo na busca para localizar comandos por nome, módulo ou descrição.</p>
+              </article>
+            `;
+            statusNode.textContent = 'Nenhum comando corresponde ao filtro informado.';
+            return;
+          }
+
+          commandGrid.innerHTML = categoryCards.join('');
+          statusNode.textContent = normalizedFilter
+            ? `${matchedCommands} comandos encontrados para "${normalizedFilter}".`
+            : `${matchedCommands} comandos carregados a partir dos commandConfig dos módulos.`;
+        };
+
+        const renderSummary = (totals, generatedAt) => {
+          const totalCommands = Number(totals?.commands || 0);
+          const totalModules = Number(totals?.modules || 0);
+          const totalCategories = Number(totals?.categories || 0);
+          const updatedAt = generatedAt ? new Date(generatedAt) : null;
+          const updatedLabel =
+            updatedAt && Number.isFinite(updatedAt.getTime())
+              ? updatedAt.toLocaleString('pt-BR')
+              : 'agora';
+
+          summaryNode.textContent =
+            `${totalCommands} comandos ativos em ${totalModules} módulos e ${totalCategories} categorias. ` +
+            `Catálogo atualizado em ${updatedLabel}.`;
+        };
+
+        const renderError = () => {
+          commandGrid.innerHTML = `
+            <article class="command-card">
+              <h3>Falha ao carregar catálogo</h3>
+              <p>Não foi possível ler o arquivo de comandos neste momento. Tente novamente em instantes.</p>
+            </article>
+          `;
+          moduleGrid.innerHTML = `
+            <li class="module-item">
+              <strong>Catálogo indisponível</strong>
+              <span>Sem dados para listar módulos agora.</span>
+            </li>
+          `;
+          statusNode.textContent = 'Falha ao carregar dados de commandConfig.';
+          summaryNode.textContent =
+            'Os comandos podem variar conforme permissões de admin e configuração do grupo.';
+        };
+
+        fetch(catalogUrl, { cache: 'no-cache' })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+          })
+          .then((payload) => {
+            const categories = asList(payload.categories);
+            renderSummary(payload.totals || {}, payload.generated_at);
+            renderModules(payload.modules);
+            renderCategories(categories, '');
+
+            searchInput.addEventListener('input', () => {
+              renderCategories(categories, searchInput.value || '');
+            });
+          })
+          .catch(() => {
+            renderError();
+          });
+      })();
+    </script>
   </body>
 </html>

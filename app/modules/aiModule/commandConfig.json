@@ -2,16 +2,26 @@
   "schema_version": "1.1.0",
   "module": "aiModule",
   "enabled": true,
-  "source_files": ["catCommand.js"],
+  "source_files": [
+    "catCommand.js"
+  ],
   "commands": [
     {
-      "name": "cat",
-      "aliases": [],
+      "name": "ia",
+      "aliases": [
+        "cat"
+      ],
       "descricao": "Perguntas para IA com suporte opcional a resposta em audio.",
-      "metodos_de_uso": ["<prefix>cat sua pergunta", "<prefix>cat --audio sua pergunta"],
+      "metodos_de_uso": [
+        "<prefix>ia sua pergunta",
+        "<prefix>ia --audio sua pergunta"
+      ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "texto sujeito a limites da API",
-      "local_de_uso": ["privado", "grupo"],
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -55,8 +65,12 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": ["OpenAI API"],
-      "efeitos_colaterais": ["envia resposta textual/áudio de IA"],
+      "dependencias_externas": [
+        "OpenAI API"
+      ],
+      "efeitos_colaterais": [
+        "envia resposta textual/áudio de IA"
+      ],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -64,7 +78,12 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_cat",
-        "tags_log": ["whatsapp", "command", "aiModule", "cat"],
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "aiModule",
+          "cat"
+        ],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -77,13 +96,29 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": ["cat", "ia", "privado", "grupo"],
-      "faq_patterns": ["como usar cat", "o que faz cat", "comando cat"],
-      "user_phrasings": ["quero usar cat", "me ajuda com cat", "perguntas para ia com"],
+      "capability_keywords": [
+        "ia",
+        "ia",
+        "privado",
+        "grupo"
+      ],
+      "faq_patterns": [
+        "como usar ia",
+        "o que faz ia",
+        "comando ia"
+      ],
+      "user_phrasings": [
+        "quero usar ia",
+        "me ajuda com ia",
+        "perguntas para ia com"
+      ],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
-        "planos_permitidos": ["comum", "premium"]
+        "planos_permitidos": [
+          "comum",
+          "premium"
+        ]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -99,16 +134,16 @@
       },
       "mensagens_uso": {
         "default": [
-          "*<prefix>cat* [--audio] sua pergunta",
-          "*<prefix>cat* (responda ou envie uma imagem com legenda)",
+          "*<prefix>ia* [--audio] sua pergunta",
+          "*<prefix>ia* (responda ou envie uma imagem com legenda)",
           "",
           "Opções:",
           "--audio | --texto",
           "--detail low | high | auto",
           "",
           "Exemplo:",
-          "*<prefix>cat* Explique como funciona a fotossíntese.",
-          "*<prefix>cat* --audio Resuma a imagem."
+          "*<prefix>ia* Explique como funciona a fotossíntese.",
+          "*<prefix>ia* --audio Resuma a imagem."
         ]
       },
       "mensagens_sistema": {
@@ -123,8 +158,18 @@
       },
       "opcoes": {
         "parse": {
-          "audio_flags": ["--audio", "--voz", "--voice", "--tts", "-a"],
-          "text_flags": ["--texto", "--text", "--txt"],
+          "audio_flags": [
+            "--audio",
+            "--voz",
+            "--voice",
+            "--tts",
+            "-a"
+          ],
+          "text_flags": [
+            "--texto",
+            "--text",
+            "--txt"
+          ],
           "image_detail_aliases": {
             "low": "low",
             "high": "high",
@@ -140,13 +185,22 @@
       }
     },
     {
-      "name": "catimg",
-      "aliases": ["catimage"],
+      "name": "iaimagem",
+      "aliases": [
+        "catimage",
+        "catimg"
+      ],
       "descricao": "Gera/edita imagem com IA por prompt.",
-      "metodos_de_uso": ["<prefix>catimg seu prompt", "<prefix>catimg --size 1536x1024 seu prompt"],
+      "metodos_de_uso": [
+        "<prefix>iaimagem seu prompt",
+        "<prefix>iaimagem --size 1536x1024 seu prompt"
+      ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "imagem de entrada ate OPENAI_MAX_IMAGE_MB (padrao 50 MB)",
-      "local_de_uso": ["privado", "grupo"],
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -203,8 +257,12 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": ["OpenAI API"],
-      "efeitos_colaterais": ["envia imagem gerada/editada por IA"],
+      "dependencias_externas": [
+        "OpenAI API"
+      ],
+      "efeitos_colaterais": [
+        "envia imagem gerada/editada por IA"
+      ],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -212,7 +270,12 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_catimg",
-        "tags_log": ["whatsapp", "command", "aiModule", "catimg"],
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "aiModule",
+          "catimg"
+        ],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -225,13 +288,29 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": ["catimg", "catimage", "ia", "privado", "grupo"],
-      "faq_patterns": ["como usar catimg", "o que faz catimg", "comando catimg"],
-      "user_phrasings": ["quero usar catimg", "me ajuda com catimg", "gera/edita imagem com ia"],
+      "capability_keywords": [
+        "iaimagem",
+        "catimage",
+        "ia",
+        "privado",
+        "grupo"
+      ],
+      "faq_patterns": [
+        "como usar iaimagem",
+        "o que faz iaimagem",
+        "comando iaimagem"
+      ],
+      "user_phrasings": [
+        "quero usar iaimagem",
+        "me ajuda com iaimagem",
+        "gera/edita imagem com ia"
+      ],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": true,
-        "planos_permitidos": ["premium"]
+        "planos_permitidos": [
+          "premium"
+        ]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -247,8 +326,8 @@
       },
       "mensagens_uso": {
         "default": [
-          "*<prefix>catimg* seu prompt",
-          "*<prefix>catimg* (responda uma imagem com legenda para editar)",
+          "*<prefix>iaimagem* seu prompt",
+          "*<prefix>iaimagem* (responda uma imagem com legenda para editar)",
           "",
           "Opções:",
           "--size 1024x1024 | 1024x1536 | 1536x1024 | auto",
@@ -258,7 +337,7 @@
           "--compression 0-100",
           "",
           "Exemplo:",
-          "*<prefix>catimg* --size 1536x1024 Um gato astronauta em aquarela."
+          "*<prefix>iaimagem* --size 1536x1024 Um gato astronauta em aquarela."
         ]
       },
       "mensagens_sistema": {
@@ -272,7 +351,12 @@
       },
       "opcoes": {
         "geracao_imagem": {
-          "size_options": ["auto", "1024x1024", "1024x1536", "1536x1024"],
+          "size_options": [
+            "auto",
+            "1024x1024",
+            "1024x1536",
+            "1536x1024"
+          ],
           "size_aliases": {
             "1024": "1024x1024",
             "square": "1024x1024",
@@ -283,7 +367,12 @@
             "paisagem": "1536x1024",
             "auto": "auto"
           },
-          "quality_options": ["auto", "low", "medium", "high"],
+          "quality_options": [
+            "auto",
+            "low",
+            "medium",
+            "high"
+          ],
           "quality_aliases": {
             "baixa": "low",
             "baixo": "low",
@@ -295,14 +384,22 @@
             "alto": "high",
             "auto": "auto"
           },
-          "format_options": ["png", "jpeg", "webp"],
+          "format_options": [
+            "png",
+            "jpeg",
+            "webp"
+          ],
           "format_aliases": {
             "jpg": "jpeg",
             "jpeg": "jpeg",
             "png": "png",
             "webp": "webp"
           },
-          "background_options": ["auto", "transparent", "opaque"],
+          "background_options": [
+            "auto",
+            "transparent",
+            "opaque"
+          ],
           "background_aliases": {
             "auto": "auto",
             "transparent": "transparent",
@@ -312,11 +409,27 @@
             "opaca": "opaque"
           },
           "flag_aliases": {
-            "size": ["--size", "--tamanho"],
-            "quality": ["--quality", "--qualidade"],
-            "format": ["--format", "--formato"],
-            "background": ["--background", "--fundo"],
-            "compression": ["--compression", "--compressao", "--compressão"]
+            "size": [
+              "--size",
+              "--tamanho"
+            ],
+            "quality": [
+              "--quality",
+              "--qualidade"
+            ],
+            "format": [
+              "--format",
+              "--formato"
+            ],
+            "background": [
+              "--background",
+              "--fundo"
+            ],
+            "compression": [
+              "--compression",
+              "--compressao",
+              "--compressão"
+            ]
           },
           "compression": {
             "min": 0,
@@ -326,13 +439,23 @@
       }
     },
     {
-      "name": "catprompt",
-      "aliases": ["iaprompt", "promptia"],
+      "name": "pergunteia",
+      "aliases": [
+        "iaprompt",
+        "promptia",
+        "catprompt"
+      ],
       "descricao": "Define ou reseta o prompt personalizado da IA para o usuario.",
-      "metodos_de_uso": ["<prefix>catprompt novo prompt", "<prefix>catprompt reset"],
+      "metodos_de_uso": [
+        "<prefix>pergunteia novo prompt",
+        "<prefix>pergunteia reset"
+      ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "1 prompt por usuario (atualizavel)",
-      "local_de_uso": ["privado", "grupo"],
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -343,7 +466,9 @@
       ],
       "enabled": true,
       "categoria": "ia",
-      "subcomandos": ["reset"],
+      "subcomandos": [
+        "reset"
+      ],
       "argumentos": [
         {
           "nome": "conteudo",
@@ -367,8 +492,12 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": ["store interno de prompt de IA"],
-      "efeitos_colaterais": ["salva ou reseta prompt personalizado do usuário"],
+      "dependencias_externas": [
+        "store interno de prompt de IA"
+      ],
+      "efeitos_colaterais": [
+        "salva ou reseta prompt personalizado do usuário"
+      ],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -376,7 +505,12 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_catprompt",
-        "tags_log": ["whatsapp", "command", "aiModule", "catprompt"],
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "aiModule",
+          "catprompt"
+        ],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -387,13 +521,31 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": ["catprompt", "iaprompt", "promptia", "ia", "privado", "grupo"],
-      "faq_patterns": ["como usar catprompt", "o que faz catprompt", "comando catprompt"],
-      "user_phrasings": ["quero usar catprompt", "me ajuda com catprompt", "define ou reseta o"],
+      "capability_keywords": [
+        "pergunteia",
+        "iaprompt",
+        "promptia",
+        "ia",
+        "privado",
+        "grupo"
+      ],
+      "faq_patterns": [
+        "como usar pergunteia",
+        "o que faz pergunteia",
+        "comando pergunteia"
+      ],
+      "user_phrasings": [
+        "quero usar pergunteia",
+        "me ajuda com pergunteia",
+        "define ou reseta o"
+      ],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
-        "planos_permitidos": ["comum", "premium"]
+        "planos_permitidos": [
+          "comum",
+          "premium"
+        ]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -409,10 +561,10 @@
       },
       "mensagens_uso": {
         "default": [
-          "*<prefix>catprompt* seu novo prompt",
+          "*<prefix>pergunteia* seu novo prompt",
           "",
           "Para voltar ao padrão:",
-          "*<prefix>catprompt reset*"
+          "*<prefix>pergunteia reset*"
         ]
       },
       "mensagens_sistema": {

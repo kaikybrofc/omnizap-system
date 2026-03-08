@@ -7,13 +7,14 @@
   ],
   "commands": [
     {
-      "name": "wp",
+      "name": "waifu",
       "aliases": [
-        "waifupics"
+        "waifupics",
+        "wp"
       ],
       "descricao": "Envia imagem SFW da API Waifu.pics por categoria.",
       "metodos_de_uso": [
-        "<prefix>wp <categoria>",
+        "<prefix>waifu <categoria>",
         "<prefix>waifupics neko"
       ],
       "permissao_necessaria": "usuario comum",
@@ -88,20 +89,20 @@
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": [
-        "wp",
+        "waifu",
         "waifupics",
         "anime",
         "privado",
         "grupo"
       ],
       "faq_patterns": [
-        "como usar wp",
-        "o que faz wp",
-        "comando wp"
+        "como usar waifu",
+        "o que faz waifu",
+        "comando waifu"
       ],
       "user_phrasings": [
-        "quero usar wp",
-        "me ajuda com wp",
+        "quero usar waifu",
+        "me ajuda com waifu",
         "envia imagem sfw da"
       ],
       "suggestion_priority": 100,
@@ -126,19 +127,20 @@
       },
       "mensagens_uso": {
         "default": [
-          "<prefix>wp <categoria>",
+          "<prefix>waifu <categoria>",
           "<prefix>waifupics neko"
         ]
       }
     },
     {
-      "name": "wpnsfw",
+      "name": "waifunsfw",
       "aliases": [
-        "waifupicsnsfw"
+        "waifupicsnsfw",
+        "wpnsfw"
       ],
       "descricao": "Envia imagem NSFW da API Waifu.pics por categoria.",
       "metodos_de_uso": [
-        "<prefix>wpnsfw <categoria>",
+        "<prefix>waifunsfw <categoria>",
         "<prefix>waifupicsnsfw waifu"
       ],
       "permissao_necessaria": "usuario comum com NSFW habilitado no grupo",
@@ -214,20 +216,20 @@
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": [
-        "wpnsfw",
+        "waifunsfw",
         "waifupicsnsfw",
         "anime",
         "privado",
         "grupo"
       ],
       "faq_patterns": [
-        "como usar wpnsfw",
-        "o que faz wpnsfw",
-        "comando wpnsfw"
+        "como usar waifunsfw",
+        "o que faz waifunsfw",
+        "comando waifunsfw"
       ],
       "user_phrasings": [
-        "quero usar wpnsfw",
-        "me ajuda com wpnsfw",
+        "quero usar waifunsfw",
+        "me ajuda com waifunsfw",
         "envia imagem nsfw da"
       ],
       "suggestion_priority": 100,
@@ -251,17 +253,19 @@
       },
       "mensagens_uso": {
         "default": [
-          "<prefix>wpnsfw <categoria>",
+          "<prefix>waifunsfw <categoria>",
           "<prefix>waifupicsnsfw waifu"
         ]
       }
     },
     {
-      "name": "wppicshelp",
-      "aliases": [],
+      "name": "waifuajuda",
+      "aliases": [
+        "wppicshelp"
+      ],
       "descricao": "Mostra ajuda e categorias disponiveis de Waifu.pics.",
       "metodos_de_uso": [
-        "<prefix>wppicshelp"
+        "<prefix>waifuajuda"
       ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "sem limite especifico",
@@ -325,19 +329,19 @@
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": [
-        "wppicshelp",
+        "waifuajuda",
         "anime",
         "privado",
         "grupo"
       ],
       "faq_patterns": [
-        "como usar wppicshelp",
-        "o que faz wppicshelp",
-        "comando wppicshelp"
+        "como usar waifuajuda",
+        "o que faz waifuajuda",
+        "comando waifuajuda"
       ],
       "user_phrasings": [
-        "quero usar wppicshelp",
-        "me ajuda com wppicshelp",
+        "quero usar waifuajuda",
+        "me ajuda com waifuajuda",
         "mostra ajuda e categorias"
       ],
       "suggestion_priority": 100,
@@ -362,7 +366,7 @@
       },
       "mensagens_uso": {
         "default": [
-          "<prefix>wppicshelp"
+          "<prefix>waifuajuda"
         ]
       }
     }

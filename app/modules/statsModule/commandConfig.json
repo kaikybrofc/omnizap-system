@@ -8,14 +8,15 @@
   ],
   "commands": [
     {
-      "name": "ranking",
+      "name": "classificacao",
       "aliases": [
         "rank",
-        "top5"
+        "top5",
+        "ranking"
       ],
       "descricao": "Mostra top 5 mais ativos do grupo.",
       "metodos_de_uso": [
-        "<prefix>ranking",
+        "<prefix>classificacao",
         "<prefix>rank",
         "<prefix>top5"
       ],
@@ -83,20 +84,20 @@
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": [
-        "ranking",
+        "classificacao",
         "rank",
         "top5",
         "estatisticas",
         "grupo"
       ],
       "faq_patterns": [
-        "como usar ranking",
-        "o que faz ranking",
-        "comando ranking"
+        "como usar classificacao",
+        "o que faz classificacao",
+        "comando classificacao"
       ],
       "user_phrasings": [
-        "quero usar ranking",
-        "me ajuda com ranking",
+        "quero usar classificacao",
+        "me ajuda com classificacao",
         "mostra top 5 mais"
       ],
       "suggestion_priority": 100,
@@ -121,22 +122,23 @@
       },
       "mensagens_uso": {
         "default": [
-          "<prefix>ranking",
+          "<prefix>classificacao",
           "<prefix>rank",
           "<prefix>top5"
         ]
       }
     },
     {
-      "name": "rankingglobal",
+      "name": "classificacaoglobal",
       "aliases": [
         "rankglobal",
         "globalrank",
-        "globalranking"
+        "globalranking",
+        "rankingglobal"
       ],
       "descricao": "Mostra top 5 global de atividade.",
       "metodos_de_uso": [
-        "<prefix>rankingglobal",
+        "<prefix>classificacaoglobal",
         "<prefix>globalrank"
       ],
       "permissao_necessaria": "usuario comum",
@@ -203,7 +205,7 @@
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": [
-        "rankingglobal",
+        "classificacaoglobal",
         "rankglobal",
         "globalrank",
         "globalranking",
@@ -212,13 +214,13 @@
         "grupo"
       ],
       "faq_patterns": [
-        "como usar rankingglobal",
-        "o que faz rankingglobal",
-        "comando rankingglobal"
+        "como usar classificacaoglobal",
+        "o que faz classificacaoglobal",
+        "comando classificacaoglobal"
       ],
       "user_phrasings": [
-        "quero usar rankingglobal",
-        "me ajuda com rankingglobal",
+        "quero usar classificacaoglobal",
+        "me ajuda com classificacaoglobal",
         "mostra top 5 global"
       ],
       "suggestion_priority": 100,
@@ -243,7 +245,7 @@
       },
       "mensagens_uso": {
         "default": [
-          "<prefix>rankingglobal",
+          "<prefix>classificacaoglobal",
           "<prefix>globalrank"
         ]
       }

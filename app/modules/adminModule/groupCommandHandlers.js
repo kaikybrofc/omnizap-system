@@ -71,6 +71,36 @@ const NO_PERMISSION_COMMAND_MESSAGE = ADMIN_TEXTS.no_permission_command_message;
 const OWNER_ONLY_COMMAND_MESSAGE = ADMIN_TEXTS.owner_only_command_message;
 const USER_JID_SERVERS = new Set([...WHATSAPP_USER_JID_SERVERS, ...LID_USER_JID_SERVERS]);
 const normalizePhoneDigits = (value) => String(value || '').replace(/\D+/g, '');
+
+const LEGACY_ADMIN_ROUTE_BY_CANONICAL = {
+  menuadmin: 'menuadm',
+  autofigurinha: 'autosticker',
+  modofigurinha: 'stickermode',
+  janelachat: 'chatwindow',
+  limitefigurinha: 'stickermsglimit',
+  novogrupo: 'newgroup',
+  adicionar: 'add',
+  banir: 'ban',
+  promover: 'up',
+  rebaixar: 'down',
+  assunto: 'setsubject',
+  descricao: 'setdesc',
+  configgrupo: 'setgroup',
+  sair: 'leave',
+  convite: 'invite',
+  revogarconvite: 'revoke',
+  entrar: 'join',
+  infoconvite: 'infofrominvite',
+  metadados: 'metadata',
+  solicitacoes: 'requests',
+  atualizarsolicitacoes: 'updaterequests',
+  autosolicitacoes: 'autorequests',
+  temporarias: 'temp',
+  modoadicao: 'addmode',
+  prefixo: 'prefix',
+  boasvindas: 'welcome',
+  despedida: 'farewell',
+};
 startAdminAiHelpScheduler();
 
 const normalizeParticipantJid = (value) => {
@@ -221,6 +251,7 @@ export async function handleAdminCommand({
   if (!normalizedCommand) {
     return false;
   }
+  const routeCommand = LEGACY_ADMIN_ROUTE_BY_CANONICAL[normalizedCommand] || normalizedCommand;
   const senderIdentity = {
     jid: senderJid || null,
     participant: messageInfo?.key?.participant || null,
@@ -228,7 +259,7 @@ export async function handleAdminCommand({
     remoteJidAlt: messageInfo?.key?.remoteJidAlt || null,
   };
 
-  switch (normalizedCommand) {
+  switch (routeCommand) {
     case 'menuadm': {
       if (!isGroupMessage) {
         await sendAndStore(

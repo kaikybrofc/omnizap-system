@@ -35,7 +35,10 @@ import { buildWhatsAppGoogleLoginUrl } from '../services/whatsappLoginLinkServic
 import { isWhatsAppUserLinkedToGoogleWebAccount } from '../services/googleWebLinkService.js';
 import { createMessageAnalysisEvent } from '../modules/analyticsModule/messageAnalysisEventRepository.js';
 import { routeConversationMessage } from '../services/conversationRouterService.js';
-import { executeMessageCommandRoute } from '../services/messageCommandExecutionService.js';
+import {
+  executeMessageCommandRoute,
+  isKnownNonAdminCommand,
+} from '../services/messageCommandExecutionService.js';
 import {
   canSendMessageInStickerFocus,
   registerMessageUsageInStickerFocus,
@@ -83,53 +86,6 @@ const SITE_ORIGIN =
     .replace(/\/+$/, '') || 'https://omnizap.shop';
 const SITE_LOGIN_URL = `${SITE_ORIGIN}/login/`;
 const SITE_GROUP_LOGIN_URL = `${SITE_ORIGIN}/login`;
-
-const KNOWN_MESSAGE_COMMANDS = new Set([
-  'menu',
-  'sticker',
-  's',
-  'pack',
-  'packs',
-  'toimg',
-  'tovideo',
-  'tovid',
-  'play',
-  'playvid',
-  'tiktok',
-  'tt',
-  'cat',
-  'catimg',
-  'catimage',
-  'catprompt',
-  'iaprompt',
-  'promptia',
-  'quote',
-  'qc',
-  'wp',
-  'waifupics',
-  'wpnsfw',
-  'waifupicsnsfw',
-  'wppicshelp',
-  'stickertext',
-  'st',
-  'stickertextwhite',
-  'stw',
-  'stickertextblink',
-  'stb',
-  'ranking',
-  'rank',
-  'top5',
-  'rankingglobal',
-  'rankglobal',
-  'globalrank',
-  'globalranking',
-  'ping',
-  'dado',
-  'dice',
-  'user',
-  'usuario',
-  'rpg',
-]);
 
 let messageAnalyticsTableMissingLogged = false;
 const recentCommandExecutions = new Map();
@@ -991,7 +947,7 @@ export const handleMessages = async (update, sock) => {
             const args = rawArgs ? rawArgs.split(/\s+/) : [];
             const text = match && match[2] !== undefined ? match[2] : '';
             const isAdminCommandRoute = isAdminCommand(command);
-            const isKnownCommand = KNOWN_MESSAGE_COMMANDS.has(command) || isAdminCommandRoute;
+            const isKnownCommand = isKnownNonAdminCommand(command) || isAdminCommandRoute;
 
             analysisPayload.commandName = command || null;
             analysisPayload.commandArgsCount = args.length;

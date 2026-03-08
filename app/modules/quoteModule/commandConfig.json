@@ -7,13 +7,14 @@
   ],
   "commands": [
     {
-      "name": "quote",
+      "name": "citar",
       "aliases": [
-        "qc"
+        "qc",
+        "quote"
       ],
       "descricao": "Transforma texto em figurinha estilo quote.",
       "metodos_de_uso": [
-        "<prefix>quote seu texto",
+        "<prefix>citar seu texto",
         "<prefix>qc @usuario texto"
       ],
       "permissao_necessaria": "usuario comum",
@@ -90,20 +91,20 @@
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": [
-        "quote",
+        "citar",
         "qc",
         "midia",
         "privado",
         "grupo"
       ],
       "faq_patterns": [
-        "como usar quote",
-        "o que faz quote",
-        "comando quote"
+        "como usar citar",
+        "o que faz citar",
+        "comando citar"
       ],
       "user_phrasings": [
-        "quero usar quote",
-        "me ajuda com quote",
+        "quero usar citar",
+        "me ajuda com citar",
         "transforma texto em figurinha"
       ],
       "suggestion_priority": 100,
@@ -128,13 +129,13 @@
       },
       "mensagens_uso": {
         "default": [
-          "🖼️ *Quote*",
+          "🖼️ *Citar*",
           "",
           "Use assim:",
-          "*<prefix>quote* sua mensagem",
+          "*<prefix>citar* sua mensagem",
           "",
           "Ou responda uma mensagem com:",
-          "*<prefix>quote*"
+          "*<prefix>citar*"
         ]
       }
     }

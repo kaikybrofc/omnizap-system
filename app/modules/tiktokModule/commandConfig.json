@@ -7,13 +7,14 @@
   ],
   "commands": [
     {
-      "name": "tiktok",
+      "name": "baixartiktok",
       "aliases": [
-        "tt"
+        "tt",
+        "tiktok"
       ],
       "descricao": "Baixa midia do TikTok sem marca d'agua.",
       "metodos_de_uso": [
-        "<prefix>tiktok <url>",
+        "<prefix>baixartiktok <url>",
         "<prefix>tt <url1> <url2>"
       ],
       "permissao_necessaria": "usuario comum",
@@ -89,21 +90,21 @@
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": [
-        "tiktok",
+        "baixartiktok",
         "tt",
         "midia",
         "privado",
         "grupo"
       ],
       "faq_patterns": [
-        "como usar tiktok",
-        "o que faz tiktok",
-        "comando tiktok"
+        "como usar baixartiktok",
+        "o que faz baixartiktok",
+        "comando baixartiktok"
       ],
       "user_phrasings": [
-        "quero usar tiktok",
-        "me ajuda com tiktok",
-        "baixa midia do tiktok"
+        "quero usar baixartiktok",
+        "me ajuda com baixartiktok",
+        "baixa midia do baixartiktok"
       ],
       "suggestion_priority": 100,
       "acesso": {
@@ -127,11 +128,11 @@
       },
       "mensagens_uso": {
         "default": [
-          "🎬 *TikTok Downloader*",
+          "🎬 *Baixartiktok Downloader*",
           "",
-          "Uso: *<prefix>tiktok <link1> [link2 ...]*",
+          "Uso: *<prefix>baixartiktok <link1> [link2 ...]*",
           "",
-          "Exemplo: *<prefix>tiktok https://www.tiktok.com/@usuario/video/123*"
+          "Exemplo: *<prefix>baixartiktok https://www.baixartiktok.com/@usuario/video/123*"
         ]
       }
     }

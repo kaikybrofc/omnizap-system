@@ -7,14 +7,15 @@
   ],
   "commands": [
     {
-      "name": "user",
+      "name": "perfil",
       "aliases": [
-        "usuario"
+        "usuario",
+        "user"
       ],
       "descricao": "Consulta perfil e estatisticas de um usuario.",
       "metodos_de_uso": [
-        "<prefix>user perfil",
-        "<prefix>user perfil <id|telefone>",
+        "<prefix>perfil perfil",
+        "<prefix>perfil perfil <id|telefone>",
         "<prefix>usuario perfil @contato"
       ],
       "permissao_necessaria": "usuario comum",
@@ -101,19 +102,19 @@
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": [
-        "user",
+        "perfil",
         "usuario",
         "privado",
         "grupo"
       ],
       "faq_patterns": [
-        "como usar user",
-        "o que faz user",
-        "comando user"
+        "como usar perfil",
+        "o que faz perfil",
+        "comando perfil"
       ],
       "user_phrasings": [
-        "quero usar user",
-        "me ajuda com user",
+        "quero usar perfil",
+        "me ajuda com perfil",
         "consulta perfil e estatisticas"
       ],
       "suggestion_priority": 100,
@@ -139,7 +140,7 @@
       "mensagens_uso": {
         "default": [
           "Formato de uso:",
-          "<prefix>user perfil <id|telefone>",
+          "<prefix>perfil perfil <id|telefone>",
           "",
           "Dica:",
           "• Você pode mencionar alguém.",
