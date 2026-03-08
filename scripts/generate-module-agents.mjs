@@ -27,6 +27,34 @@ const printObjectPairs = (obj, fallback = '(nao informado)') => {
   return entries.map(([key, value]) => `- ${key}: ${String(value)}`);
 };
 
+const printObjectPairsDeep = (obj, prefix = '') => {
+  if (!obj || typeof obj !== 'object') return [];
+  const entries = Object.entries(obj);
+  if (!entries.length) return [];
+
+  const lines = [];
+  for (const [key, value] of entries) {
+    const nextKey = prefix ? `${prefix}.${key}` : key;
+    if (Array.isArray(value)) {
+      if (!value.length) {
+        lines.push(`- ${nextKey}: (nenhum)`);
+      } else {
+        const serialized = value
+          .map((item) => (typeof item === 'object' ? JSON.stringify(item) : String(item)))
+          .join(', ');
+        lines.push(`- ${nextKey}: ${serialized}`);
+      }
+      continue;
+    }
+    if (value && typeof value === 'object') {
+      lines.push(...printObjectPairsDeep(value, nextKey));
+      continue;
+    }
+    lines.push(`- ${nextKey}: ${String(value)}`);
+  }
+  return lines;
+};
+
 const renderArgumentLine = (argument) => {
   if (!argument || typeof argument !== 'object') return '- (argumento invalido)';
   const nome = String(argument.nome || 'arg').trim() || 'arg';
@@ -157,6 +185,38 @@ const buildCommandSection = (command = {}) => {
 
   lines.push('- respostas_padrao:');
   lines.push(...printObjectPairs(command.respostas_padrao));
+
+  lines.push('- mensagens_sistema:');
+  const mensagensSistema =
+    command.mensagens_sistema && typeof command.mensagens_sistema === 'object'
+      ? command.mensagens_sistema
+      : null;
+  if (!mensagensSistema) {
+    lines.push('- (nao informado)');
+  } else {
+    lines.push(...printObjectPairs(mensagensSistema));
+  }
+
+  lines.push('- limites_operacionais:');
+  const limitesOperacionais =
+    command.limites_operacionais && typeof command.limites_operacionais === 'object'
+      ? command.limites_operacionais
+      : null;
+  if (!limitesOperacionais) {
+    lines.push('- (nao informado)');
+  } else {
+    const deepPairs = printObjectPairsDeep(limitesOperacionais);
+    lines.push(...(deepPairs.length ? deepPairs : ['- (nao informado)']));
+  }
+
+  lines.push('- opcoes:');
+  const opcoes = command.opcoes && typeof command.opcoes === 'object' ? command.opcoes : null;
+  if (!opcoes) {
+    lines.push('- (nao informado)');
+  } else {
+    const deepPairs = printObjectPairsDeep(opcoes);
+    lines.push(...(deepPairs.length ? deepPairs : ['- (nao informado)']));
+  }
 
   lines.push('- observabilidade:');
   if (command.observabilidade && typeof command.observabilidade === 'object') {

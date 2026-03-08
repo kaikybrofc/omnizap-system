@@ -20,6 +20,13 @@ import {
   resolveUserId,
   resolveUserIdCached,
 } from '../../services/lidMapService.js';
+import {
+  getAiCommandOperationalLimits,
+  getAiCommandOptionConfig,
+  getAiCommandSystemMessages,
+  getAiUsageText,
+  isAiCommandPremiumOnly,
+} from './aiConfigRuntime.js';
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || OPENAI_MODEL;
@@ -142,6 +149,165 @@ const MAX_IMAGE_BYTES =
     ? OPENAI_MAX_IMAGE_MB * 1024 * 1024
     : 50 * 1024 * 1024;
 
+const normalizeText = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase();
+
+const toSet = (values = [], fallbackValues = []) => {
+  const source = Array.isArray(values) && values.length ? values : fallbackValues;
+  return new Set(source.map((value) => normalizeText(value)).filter(Boolean));
+};
+
+const toMap = (value = {}, fallbackMap = new Map()) => {
+  const output = new Map();
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    for (const [key, mapValue] of Object.entries(value)) {
+      const normalizedKey = normalizeText(key);
+      const normalizedValue = normalizeText(mapValue);
+      if (!normalizedKey || !normalizedValue) continue;
+      output.set(normalizedKey, normalizedValue);
+    }
+  }
+
+  if (output.size > 0) {
+    return output;
+  }
+  return new Map(fallbackMap);
+};
+
+const resolveAiMessages = (commandName) => {
+  const commandMessages = getAiCommandSystemMessages(commandName);
+  const mergeMessage = (key, fallback) =>
+    String(commandMessages?.[key] || '').trim() || String(fallback || '').trim();
+
+  return {
+    premiumOnly: mergeMessage(
+      'premium_only',
+      [
+        '⭐ *Comando Premium*',
+        '',
+        'Este comando é exclusivo para usuários premium.',
+        'Fale com o administrador para liberar o acesso.',
+      ].join('\n'),
+    ),
+    openAiNotConfigured: mergeMessage(
+      'openai_nao_configurada',
+      [
+        '⚠️ *OpenAI não configurada*',
+        '',
+        `Defina a variável *OPENAI_API_KEY* no \`.env\` para usar o comando *${commandName}*.`,
+      ].join('\n'),
+    ),
+    imageTooLarge: mergeMessage(
+      'imagem_muito_grande',
+      '⚠️ A imagem enviada ultrapassa o limite de {{limite_mb}} MB. Envie uma imagem menor.',
+    ),
+    imageDownloadFailed: mergeMessage(
+      'imagem_download_falhou',
+      '⚠️ Não consegui baixar a imagem. Tente reenviar.',
+    ),
+    invalidOptions: mergeMessage(
+      'opcoes_invalidas',
+      '⚠️ Opções inválidas no comando.\nDetalhes: {{detalhes}}\n\nUse *{{prefix}}catimg* sem opções para ver o formato correto.',
+    ),
+    emptyResponse: mergeMessage(
+      'resposta_vazia',
+      '⚠️ Não consegui gerar uma resposta agora. Tente novamente.',
+    ),
+    longAudioFallback: mergeMessage(
+      'audio_muito_longo',
+      '⚠️ A resposta ficou longa demais para áudio. Enviando em texto.',
+    ),
+    audioFailedFallback: mergeMessage(
+      'audio_falhou',
+      '⚠️ Não consegui gerar o áudio agora. Enviando texto.',
+    ),
+    genericAiError: mergeMessage(
+      'erro_openai',
+      ['❌ *Erro ao falar com a IA*', 'Tente novamente em alguns instantes.'].join('\n'),
+    ),
+    promptTooLong: mergeMessage(
+      'prompt_muito_longo',
+      '⚠️ Prompt muito longo. Limite: {{max_chars}} caracteres.',
+    ),
+    promptResetSuccess: mergeMessage(
+      'prompt_reset_sucesso',
+      '✅ Prompt da IA restaurado para o padrão.',
+    ),
+    promptUpdateSuccess: mergeMessage(
+      'prompt_update_sucesso',
+      '✅ Prompt da IA atualizado para você.',
+    ),
+  };
+};
+
+const applyTemplate = (template, vars = {}) => {
+  let output = String(template || '');
+  for (const [key, value] of Object.entries(vars || {})) {
+    output = output.replaceAll(`{{${key}}}`, String(value ?? ''));
+  }
+  return output;
+};
+
+const resolveCatParseOptions = () => {
+  const config = getAiCommandOptionConfig('cat');
+  const parse = config?.parse || {};
+
+  return {
+    audioFlags: toSet(parse.audio_flags, [...AUDIO_FLAG_ALIASES]),
+    textFlags: toSet(parse.text_flags, [...TEXT_FLAG_ALIASES]),
+    imageDetailAliases: toMap(parse.image_detail_aliases, IMAGE_DETAIL_ALIASES),
+  };
+};
+
+const resolveCatImageGenerationOptions = () => {
+  const config = getAiCommandOptionConfig('catimg');
+  const image = config?.geracao_imagem || {};
+  const fallbackFlagAliases = {
+    size: [...IMAGE_GEN_FLAG_ALIASES.size],
+    quality: [...IMAGE_GEN_FLAG_ALIASES.quality],
+    format: [...IMAGE_GEN_FLAG_ALIASES.format],
+    background: [...IMAGE_GEN_FLAG_ALIASES.background],
+    compression: [...IMAGE_GEN_FLAG_ALIASES.compression],
+  };
+
+  const normalizeFlagAliasSet = (key) =>
+    toSet(image?.flag_aliases?.[key], fallbackFlagAliases[key] || []);
+
+  const compressionMin = Number(image?.compression?.min);
+  const compressionMax = Number(image?.compression?.max);
+
+  return {
+    sizeOptions: toSet(image?.size_options, [...IMAGE_GEN_SIZE_OPTIONS]),
+    sizeAliases: toMap(image?.size_aliases, IMAGE_GEN_SIZE_ALIASES),
+    qualityOptions: toSet(image?.quality_options, [...IMAGE_GEN_QUALITY_OPTIONS]),
+    qualityAliases: toMap(image?.quality_aliases, IMAGE_GEN_QUALITY_ALIASES),
+    formatOptions: toSet(image?.format_options, [...IMAGE_GEN_FORMAT_OPTIONS]),
+    formatAliases: toMap(image?.format_aliases, IMAGE_GEN_FORMAT_ALIASES),
+    backgroundOptions: toSet(image?.background_options, [...IMAGE_GEN_BACKGROUND_OPTIONS]),
+    backgroundAliases: toMap(image?.background_aliases, IMAGE_GEN_BACKGROUND_ALIASES),
+    flagAliases: {
+      size: normalizeFlagAliasSet('size'),
+      quality: normalizeFlagAliasSet('quality'),
+      format: normalizeFlagAliasSet('format'),
+      background: normalizeFlagAliasSet('background'),
+      compression: normalizeFlagAliasSet('compression'),
+    },
+    compression: {
+      min: Number.isFinite(compressionMin) ? compressionMin : 0,
+      max: Number.isFinite(compressionMax) ? compressionMax : 100,
+    },
+  };
+};
+
+const resolveCatPromptMaxChars = () => {
+  const limits = getAiCommandOperationalLimits('catprompt');
+  const value = Number.parseInt(String(limits?.prompt_max_chars ?? ''), 10);
+  if (!Number.isFinite(value) || value <= 0) return 2000;
+  return value;
+};
+
 const getClient = () => {
   if (cachedClient) return cachedClient;
   cachedClient = new OpenAI({
@@ -228,26 +394,32 @@ const sendUsage = async (
   expirationMessage,
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 ) => {
+  const usageText =
+    getAiUsageText('cat', {
+      commandPrefix,
+      header: '🤖 *Comando CAT*',
+      variant: 'default',
+    }) ||
+    [
+      '🤖 *Comando CAT*',
+      '',
+      'Use assim:',
+      `*${commandPrefix}cat* [--audio] sua pergunta`,
+      `*${commandPrefix}cat* (responda ou envie uma imagem com legenda)`,
+      '',
+      'Opções:',
+      '--audio | --texto',
+      '--detail low | high | auto',
+      '',
+      'Exemplo:',
+      `*${commandPrefix}cat* Explique como funciona a fotossíntese.`,
+      `*${commandPrefix}cat* --audio Resuma a imagem.`,
+    ].join('\n');
+
   await sendAndStore(
     sock,
     remoteJid,
-    {
-      text: [
-        '🤖 *Comando CAT*',
-        '',
-        'Use assim:',
-        `*${commandPrefix}cat* [--audio] sua pergunta`,
-        `*${commandPrefix}cat* (responda ou envie uma imagem com legenda)`,
-        '',
-        'Opções:',
-        '--audio | --texto',
-        '--detail low | high | auto',
-        '',
-        'Exemplo:',
-        `*${commandPrefix}cat* Explique como funciona a fotossíntese.`,
-        `*${commandPrefix}cat* --audio Resuma a imagem.`,
-      ].join('\n'),
-    },
+    { text: usageText },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
 };
@@ -314,18 +486,18 @@ const isPremiumAllowed = async (senderJid) => {
   );
 };
 
-const sendPremiumOnly = async (sock, remoteJid, messageInfo, expirationMessage) => {
+const sendPremiumOnly = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  { commandName = 'cat' } = {},
+) => {
+  const messages = resolveAiMessages(commandName);
   await sendAndStore(
     sock,
     remoteJid,
-    {
-      text: [
-        '⭐ *Comando Premium*',
-        '',
-        'Este comando é exclusivo para usuários premium.',
-        'Fale com o administrador para liberar o acesso.',
-      ].join('\n'),
-    },
+    { text: messages.premiumOnly },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
 };
@@ -337,20 +509,26 @@ const sendPromptUsage = async (
   expirationMessage,
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 ) => {
+  const usageText =
+    getAiUsageText('catprompt', {
+      commandPrefix,
+      header: '🧠 *Prompt da IA*',
+      variant: 'default',
+    }) ||
+    [
+      '🧠 *Prompt da IA*',
+      '',
+      'Use assim:',
+      `*${commandPrefix}catprompt* seu novo prompt`,
+      '',
+      'Para voltar ao padrão:',
+      `*${commandPrefix}catprompt reset*`,
+    ].join('\n');
+
   await sendAndStore(
     sock,
     remoteJid,
-    {
-      text: [
-        '🧠 *Prompt da IA*',
-        '',
-        'Use assim:',
-        `*${commandPrefix}catprompt* seu novo prompt`,
-        '',
-        'Para voltar ao padrão:',
-        `*${commandPrefix}catprompt reset*`,
-      ].join('\n'),
-    },
+    { text: usageText },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
 };
@@ -362,83 +540,109 @@ const sendImageUsage = async (
   expirationMessage,
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 ) => {
+  const usageText =
+    getAiUsageText('catimg', {
+      commandPrefix,
+      header: '🖼️ *Imagem IA*',
+      variant: 'default',
+    }) ||
+    [
+      '🖼️ *Imagem IA*',
+      '',
+      'Use assim:',
+      `*${commandPrefix}catimg* seu prompt`,
+      `*${commandPrefix}catimg* (responda uma imagem com legenda para editar)`,
+      '',
+      'Opções:',
+      '--size 1024x1024 | 1024x1536 | 1536x1024 | auto',
+      '--quality low | medium | high | auto',
+      '--format png | jpeg | webp',
+      '--background transparent | opaque | auto',
+      '--compression 0-100',
+      '',
+      'Exemplo:',
+      `*${commandPrefix}catimg* --size 1536x1024 Um gato astronauta em aquarela.`,
+    ].join('\n');
+
   await sendAndStore(
     sock,
     remoteJid,
-    {
-      text: [
-        '🖼️ *Imagem IA*',
-        '',
-        'Use assim:',
-        `*${commandPrefix}catimg* seu prompt`,
-        `*${commandPrefix}catimg* (responda uma imagem com legenda para editar)`,
-        '',
-        'Opções:',
-        '--size 1024x1024 | 1024x1536 | 1536x1024 | auto',
-        '--quality low | medium | high | auto',
-        '--format png | jpeg | webp',
-        '--background transparent | opaque | auto',
-        '--compression 0-100',
-        '',
-        'Exemplo:',
-        `*${commandPrefix}catimg* --size 1536x1024 Um gato astronauta em aquarela.`,
-      ].join('\n'),
-    },
+    { text: usageText },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
 };
 
-const normalizeImageDetail = (value) => {
+const normalizeImageDetail = (value, detailAliases = IMAGE_DETAIL_ALIASES) => {
   if (!value) return null;
-  const normalized = IMAGE_DETAIL_ALIASES.get(String(value).toLowerCase());
+  const normalized = detailAliases.get(normalizeText(value));
   return normalized || null;
 };
 
-const normalizeImageGenSize = (value) => {
+const normalizeImageGenSize = (
+  value,
+  sizeOptions = IMAGE_GEN_SIZE_OPTIONS,
+  sizeAliases = IMAGE_GEN_SIZE_ALIASES,
+) => {
   if (!value) return null;
-  const raw = String(value).toLowerCase();
-  if (IMAGE_GEN_SIZE_OPTIONS.has(raw)) return raw;
-  const alias = IMAGE_GEN_SIZE_ALIASES.get(raw);
-  if (alias && IMAGE_GEN_SIZE_OPTIONS.has(alias)) return alias;
+  const raw = normalizeText(value);
+  if (sizeOptions.has(raw)) return raw;
+  const alias = sizeAliases.get(raw);
+  if (alias && sizeOptions.has(alias)) return alias;
   return null;
 };
 
-const normalizeImageGenQuality = (value) => {
+const normalizeImageGenQuality = (
+  value,
+  qualityOptions = IMAGE_GEN_QUALITY_OPTIONS,
+  qualityAliases = IMAGE_GEN_QUALITY_ALIASES,
+) => {
   if (!value) return null;
-  const raw = String(value).toLowerCase();
-  if (IMAGE_GEN_QUALITY_OPTIONS.has(raw)) return raw;
-  const alias = IMAGE_GEN_QUALITY_ALIASES.get(raw);
-  if (alias && IMAGE_GEN_QUALITY_OPTIONS.has(alias)) return alias;
+  const raw = normalizeText(value);
+  if (qualityOptions.has(raw)) return raw;
+  const alias = qualityAliases.get(raw);
+  if (alias && qualityOptions.has(alias)) return alias;
   return null;
 };
 
-const normalizeImageGenFormat = (value) => {
+const normalizeImageGenFormat = (
+  value,
+  formatOptions = IMAGE_GEN_FORMAT_OPTIONS,
+  formatAliases = IMAGE_GEN_FORMAT_ALIASES,
+) => {
   if (!value) return null;
-  const raw = String(value).toLowerCase();
-  const alias = IMAGE_GEN_FORMAT_ALIASES.get(raw);
-  if (alias && IMAGE_GEN_FORMAT_OPTIONS.has(alias)) return alias;
-  if (IMAGE_GEN_FORMAT_OPTIONS.has(raw)) return raw;
+  const raw = normalizeText(value);
+  const alias = formatAliases.get(raw);
+  if (alias && formatOptions.has(alias)) return alias;
+  if (formatOptions.has(raw)) return raw;
   return null;
 };
 
-const normalizeImageGenBackground = (value) => {
+const normalizeImageGenBackground = (
+  value,
+  backgroundOptions = IMAGE_GEN_BACKGROUND_OPTIONS,
+  backgroundAliases = IMAGE_GEN_BACKGROUND_ALIASES,
+) => {
   if (!value) return null;
-  const raw = String(value).toLowerCase();
-  if (IMAGE_GEN_BACKGROUND_OPTIONS.has(raw)) return raw;
-  const alias = IMAGE_GEN_BACKGROUND_ALIASES.get(raw);
-  if (alias && IMAGE_GEN_BACKGROUND_OPTIONS.has(alias)) return alias;
+  const raw = normalizeText(value);
+  if (backgroundOptions.has(raw)) return raw;
+  const alias = backgroundAliases.get(raw);
+  if (alias && backgroundOptions.has(alias)) return alias;
   return null;
 };
 
-const normalizeImageGenCompression = (value) => {
+const normalizeImageGenCompression = (value, { min = 0, max = 100 } = {}) => {
   if (value === null || value === undefined || value === '') return null;
   const numeric = Number.parseInt(value, 10);
   if (!Number.isFinite(numeric)) return null;
-  if (numeric < 0 || numeric > 100) return null;
+  if (numeric < min || numeric > max) return null;
   return numeric;
 };
 
-const parseCatOptions = (rawText = '') => {
+const parseCatOptions = (rawText = '', optionConfig = {}) => {
+  const audioFlags = optionConfig?.audioFlags || AUDIO_FLAG_ALIASES;
+  const textFlags = optionConfig?.textFlags || TEXT_FLAG_ALIASES;
+  const imageDetailAliases = optionConfig?.imageDetailAliases || IMAGE_DETAIL_ALIASES;
+
   const tokens = rawText.trim().split(/\s+/).filter(Boolean);
   let wantsAudio = false;
   let imageDetail = null;
@@ -446,20 +650,20 @@ const parseCatOptions = (rawText = '') => {
 
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i];
-    const lower = token.toLowerCase();
+    const lower = normalizeText(token);
 
-    if (AUDIO_FLAG_ALIASES.has(lower)) {
+    if (audioFlags.has(lower)) {
       wantsAudio = true;
       continue;
     }
-    if (TEXT_FLAG_ALIASES.has(lower)) {
+    if (textFlags.has(lower)) {
       wantsAudio = false;
       continue;
     }
 
     if (lower.startsWith('--detail=') || lower.startsWith('--detalhe=')) {
       const value = token.split('=')[1];
-      const detail = normalizeImageDetail(value);
+      const detail = normalizeImageDetail(value, imageDetailAliases);
       if (detail) {
         imageDetail = detail;
         continue;
@@ -468,7 +672,7 @@ const parseCatOptions = (rawText = '') => {
 
     if (lower === '--detail' || lower === '--detalhe') {
       const value = tokens[i + 1];
-      const detail = normalizeImageDetail(value);
+      const detail = normalizeImageDetail(value, imageDetailAliases);
       if (detail) {
         imageDetail = detail;
         i += 1;
@@ -486,7 +690,18 @@ const parseCatOptions = (rawText = '') => {
   };
 };
 
-const parseImageGenOptions = (rawText = '') => {
+const parseImageGenOptions = (rawText = '', optionConfig = {}) => {
+  const sizeOptions = optionConfig?.sizeOptions || IMAGE_GEN_SIZE_OPTIONS;
+  const sizeAliases = optionConfig?.sizeAliases || IMAGE_GEN_SIZE_ALIASES;
+  const qualityOptions = optionConfig?.qualityOptions || IMAGE_GEN_QUALITY_OPTIONS;
+  const qualityAliases = optionConfig?.qualityAliases || IMAGE_GEN_QUALITY_ALIASES;
+  const formatOptions = optionConfig?.formatOptions || IMAGE_GEN_FORMAT_OPTIONS;
+  const formatAliases = optionConfig?.formatAliases || IMAGE_GEN_FORMAT_ALIASES;
+  const backgroundOptions = optionConfig?.backgroundOptions || IMAGE_GEN_BACKGROUND_OPTIONS;
+  const backgroundAliases = optionConfig?.backgroundAliases || IMAGE_GEN_BACKGROUND_ALIASES;
+  const flagAliases = optionConfig?.flagAliases || IMAGE_GEN_FLAG_ALIASES;
+  const compression = optionConfig?.compression || { min: 0, max: 100 };
+
   const tokens = rawText.trim().split(/\s+/).filter(Boolean);
   const promptParts = [];
   const toolOptions = {};
@@ -502,17 +717,17 @@ const parseImageGenOptions = (rawText = '') => {
 
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i];
-    const lower = token.toLowerCase();
+    const lower = normalizeText(token);
 
     if (lower.startsWith('--size=')) {
       const value = token.split('=')[1];
-      setOption('size', value, normalizeImageGenSize(value));
+      setOption('size', value, normalizeImageGenSize(value, sizeOptions, sizeAliases));
       continue;
     }
-    if (IMAGE_GEN_FLAG_ALIASES.size.has(lower)) {
+    if (flagAliases.size?.has(lower)) {
       const value = tokens[i + 1];
       if (value) {
-        setOption('size', value, normalizeImageGenSize(value));
+        setOption('size', value, normalizeImageGenSize(value, sizeOptions, sizeAliases));
         i += 1;
         continue;
       }
@@ -520,13 +735,17 @@ const parseImageGenOptions = (rawText = '') => {
 
     if (lower.startsWith('--quality=')) {
       const value = token.split('=')[1];
-      setOption('quality', value, normalizeImageGenQuality(value));
+      setOption('quality', value, normalizeImageGenQuality(value, qualityOptions, qualityAliases));
       continue;
     }
-    if (IMAGE_GEN_FLAG_ALIASES.quality.has(lower)) {
+    if (flagAliases.quality?.has(lower)) {
       const value = tokens[i + 1];
       if (value) {
-        setOption('quality', value, normalizeImageGenQuality(value));
+        setOption(
+          'quality',
+          value,
+          normalizeImageGenQuality(value, qualityOptions, qualityAliases),
+        );
         i += 1;
         continue;
       }
@@ -534,13 +753,21 @@ const parseImageGenOptions = (rawText = '') => {
 
     if (lower.startsWith('--format=')) {
       const value = token.split('=')[1];
-      setOption('output_format', value, normalizeImageGenFormat(value));
+      setOption(
+        'output_format',
+        value,
+        normalizeImageGenFormat(value, formatOptions, formatAliases),
+      );
       continue;
     }
-    if (IMAGE_GEN_FLAG_ALIASES.format.has(lower)) {
+    if (flagAliases.format?.has(lower)) {
       const value = tokens[i + 1];
       if (value) {
-        setOption('output_format', value, normalizeImageGenFormat(value));
+        setOption(
+          'output_format',
+          value,
+          normalizeImageGenFormat(value, formatOptions, formatAliases),
+        );
         i += 1;
         continue;
       }
@@ -548,13 +775,21 @@ const parseImageGenOptions = (rawText = '') => {
 
     if (lower.startsWith('--background=')) {
       const value = token.split('=')[1];
-      setOption('background', value, normalizeImageGenBackground(value));
+      setOption(
+        'background',
+        value,
+        normalizeImageGenBackground(value, backgroundOptions, backgroundAliases),
+      );
       continue;
     }
-    if (IMAGE_GEN_FLAG_ALIASES.background.has(lower)) {
+    if (flagAliases.background?.has(lower)) {
       const value = tokens[i + 1];
       if (value) {
-        setOption('background', value, normalizeImageGenBackground(value));
+        setOption(
+          'background',
+          value,
+          normalizeImageGenBackground(value, backgroundOptions, backgroundAliases),
+        );
         i += 1;
         continue;
       }
@@ -562,13 +797,13 @@ const parseImageGenOptions = (rawText = '') => {
 
     if (lower.startsWith('--compression=')) {
       const value = token.split('=')[1];
-      setOption('output_compression', value, normalizeImageGenCompression(value));
+      setOption('output_compression', value, normalizeImageGenCompression(value, compression));
       continue;
     }
-    if (IMAGE_GEN_FLAG_ALIASES.compression.has(lower)) {
+    if (flagAliases.compression?.has(lower)) {
       const value = tokens[i + 1];
       if (value) {
-        setOption('output_compression', value, normalizeImageGenCompression(value));
+        setOption('output_compression', value, normalizeImageGenCompression(value, compression));
         i += 1;
         continue;
       }
@@ -656,20 +891,20 @@ export async function handleCatCommand({
   text,
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 }) {
-  const { prompt: rawPrompt, wantsAudio, imageDetail } = parseCatOptions(text || '');
+  const commandName = 'cat';
+  const commandMessages = resolveAiMessages(commandName);
+  const {
+    prompt: rawPrompt,
+    wantsAudio,
+    imageDetail,
+  } = parseCatOptions(text || '', resolveCatParseOptions());
 
   if (!process.env.OPENAI_API_KEY) {
     logger.warn('handleCatCommand: OPENAI_API_KEY não configurada.');
     await sendAndStore(
       sock,
       remoteJid,
-      {
-        text: [
-          '⚠️ *OpenAI não configurada*',
-          '',
-          'Defina a variável *OPENAI_API_KEY* no `.env` para usar o comando *cat*.',
-        ].join('\n'),
-      },
+      { text: commandMessages.openAiNotConfigured },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     return;
@@ -677,9 +912,11 @@ export async function handleCatCommand({
 
   await reactToMessage(sock, remoteJid, messageInfo);
 
-  if (!(await isPremiumAllowed(senderJid))) {
-    await sendPremiumOnly(sock, remoteJid, messageInfo, expirationMessage);
-    return;
+  if (isAiCommandPremiumOnly(commandName)) {
+    if (!(await isPremiumAllowed(senderJid))) {
+      await sendPremiumOnly(sock, remoteJid, messageInfo, expirationMessage, { commandName });
+      return;
+    }
   }
 
   const imageMedia = findImageMedia(messageInfo);
@@ -689,9 +926,7 @@ export async function handleCatCommand({
     await sendAndStore(
       sock,
       remoteJid,
-      {
-        text: `⚠️ A imagem enviada ultrapassa o limite de ${limitMb} MB. Envie uma imagem menor.`,
-      },
+      { text: applyTemplate(commandMessages.imageTooLarge, { limite_mb: limitMb }) },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     return;
@@ -701,7 +936,7 @@ export async function handleCatCommand({
     await sendAndStore(
       sock,
       remoteJid,
-      { text: '⚠️ Não consegui baixar a imagem. Tente reenviar.' },
+      { text: commandMessages.imageDownloadFailed },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     return;
@@ -768,7 +1003,7 @@ export async function handleCatCommand({
       await sendAndStore(
         sock,
         remoteJid,
-        { text: '⚠️ Não consegui gerar uma resposta agora. Tente novamente.' },
+        { text: commandMessages.emptyResponse },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
       );
       return;
@@ -779,7 +1014,7 @@ export async function handleCatCommand({
         await sendAndStore(
           sock,
           remoteJid,
-          { text: '⚠️ A resposta ficou longa demais para áudio. Enviando em texto.' },
+          { text: commandMessages.longAudioFallback },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } else {
@@ -812,7 +1047,7 @@ export async function handleCatCommand({
           await sendAndStore(
             sock,
             remoteJid,
-            { text: '⚠️ Não consegui gerar o áudio agora. Enviando texto.' },
+            { text: commandMessages.audioFailedFallback },
             { quoted: messageInfo, ephemeralExpiration: expirationMessage },
           );
         }
@@ -831,7 +1066,7 @@ export async function handleCatCommand({
       sock,
       remoteJid,
       {
-        text: ['❌ *Erro ao falar com a IA*', 'Tente novamente em alguns instantes.'].join('\n'),
+        text: commandMessages.genericAiError,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -847,20 +1082,19 @@ export async function handleCatImageCommand({
   text,
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 }) {
-  const { prompt, toolOptions, errors } = parseImageGenOptions(text || '');
+  const commandName = 'catimg';
+  const commandMessages = resolveAiMessages(commandName);
+  const { prompt, toolOptions, errors } = parseImageGenOptions(
+    text || '',
+    resolveCatImageGenerationOptions(),
+  );
 
   if (!process.env.OPENAI_API_KEY) {
     logger.warn('handleCatImageCommand: OPENAI_API_KEY não configurada.');
     await sendAndStore(
       sock,
       remoteJid,
-      {
-        text: [
-          '⚠️ *OpenAI não configurada*',
-          '',
-          'Defina a variável *OPENAI_API_KEY* no `.env` para usar o comando *catimg*.',
-        ].join('\n'),
-      },
+      { text: commandMessages.openAiNotConfigured },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     return;
@@ -868,9 +1102,11 @@ export async function handleCatImageCommand({
 
   await reactToMessage(sock, remoteJid, messageInfo);
 
-  if (!(await isPremiumAllowed(senderJid))) {
-    await sendPremiumOnly(sock, remoteJid, messageInfo, expirationMessage);
-    return;
+  if (isAiCommandPremiumOnly(commandName)) {
+    if (!(await isPremiumAllowed(senderJid))) {
+      await sendPremiumOnly(sock, remoteJid, messageInfo, expirationMessage, { commandName });
+      return;
+    }
   }
 
   const imageMedia = findImageMedia(messageInfo);
@@ -880,9 +1116,7 @@ export async function handleCatImageCommand({
     await sendAndStore(
       sock,
       remoteJid,
-      {
-        text: `⚠️ A imagem enviada ultrapassa o limite de ${limitMb} MB. Envie uma imagem menor.`,
-      },
+      { text: applyTemplate(commandMessages.imageTooLarge, { limite_mb: limitMb }) },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     return;
@@ -892,7 +1126,7 @@ export async function handleCatImageCommand({
     await sendAndStore(
       sock,
       remoteJid,
-      { text: '⚠️ Não consegui baixar a imagem. Tente reenviar.' },
+      { text: commandMessages.imageDownloadFailed },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     return;
@@ -908,12 +1142,10 @@ export async function handleCatImageCommand({
       sock,
       remoteJid,
       {
-        text: [
-          '⚠️ Opções inválidas no comando.',
-          `Detalhes: ${errors.join(', ')}`,
-          '',
-          `Use *${commandPrefix}catimg* sem opções para ver o formato correto.`,
-        ].join('\n'),
+        text: applyTemplate(commandMessages.invalidOptions, {
+          detalhes: errors.join(', '),
+          prefix: commandPrefix,
+        }),
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -989,7 +1221,7 @@ export async function handleCatImageCommand({
       await sendAndStore(
         sock,
         remoteJid,
-        { text: '⚠️ Não consegui gerar a imagem agora. Tente novamente.' },
+        { text: commandMessages.emptyResponse },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
       );
       return;
@@ -1017,7 +1249,7 @@ export async function handleCatImageCommand({
       sock,
       remoteJid,
       {
-        text: ['❌ *Erro ao falar com a IA*', 'Tente novamente em alguns instantes.'].join('\n'),
+        text: commandMessages.genericAiError,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -1033,15 +1265,20 @@ export async function handleCatPromptCommand({
   text,
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 }) {
+  const commandName = 'catprompt';
+  const commandMessages = resolveAiMessages(commandName);
+  const promptMaxChars = resolveCatPromptMaxChars();
   const promptText = text?.trim();
   if (!promptText) {
     await sendPromptUsage(sock, remoteJid, messageInfo, expirationMessage, commandPrefix);
     return;
   }
 
-  if (!(await isPremiumAllowed(senderJid))) {
-    await sendPremiumOnly(sock, remoteJid, messageInfo, expirationMessage);
-    return;
+  if (isAiCommandPremiumOnly(commandName)) {
+    if (!(await isPremiumAllowed(senderJid))) {
+      await sendPremiumOnly(sock, remoteJid, messageInfo, expirationMessage, { commandName });
+      return;
+    }
   }
 
   const lower = promptText.toLowerCase();
@@ -1050,17 +1287,17 @@ export async function handleCatPromptCommand({
     await sendAndStore(
       sock,
       remoteJid,
-      { text: '✅ Prompt da IA restaurado para o padrão.' },
+      { text: commandMessages.promptResetSuccess },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     return;
   }
 
-  if (promptText.length > 2000) {
+  if (promptText.length > promptMaxChars) {
     await sendAndStore(
       sock,
       remoteJid,
-      { text: '⚠️ Prompt muito longo. Limite: 2000 caracteres.' },
+      { text: applyTemplate(commandMessages.promptTooLong, { max_chars: promptMaxChars }) },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     return;
@@ -1070,7 +1307,7 @@ export async function handleCatPromptCommand({
   await sendAndStore(
     sock,
     remoteJid,
-    { text: '✅ Prompt da IA atualizado para você.' },
+    { text: commandMessages.promptUpdateSuccess },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
 }

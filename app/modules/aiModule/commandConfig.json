@@ -96,6 +96,47 @@
           "janela_ms": 300000,
           "escopo": "usuario"
         }
+      },
+      "mensagens_uso": {
+        "default": [
+          "*<prefix>cat* [--audio] sua pergunta",
+          "*<prefix>cat* (responda ou envie uma imagem com legenda)",
+          "",
+          "Opções:",
+          "--audio | --texto",
+          "--detail low | high | auto",
+          "",
+          "Exemplo:",
+          "*<prefix>cat* Explique como funciona a fotossíntese.",
+          "*<prefix>cat* --audio Resuma a imagem."
+        ]
+      },
+      "mensagens_sistema": {
+        "premium_only": "⭐ *Comando Premium*\n\nEste comando é exclusivo para usuários premium.\nFale com o administrador para liberar o acesso.",
+        "openai_nao_configurada": "⚠️ *OpenAI não configurada*\n\nDefina a variável *OPENAI_API_KEY* no `.env` para usar o comando *cat*.",
+        "imagem_muito_grande": "⚠️ A imagem enviada ultrapassa o limite de {{limite_mb}} MB. Envie uma imagem menor.",
+        "imagem_download_falhou": "⚠️ Não consegui baixar a imagem. Tente reenviar.",
+        "resposta_vazia": "⚠️ Não consegui gerar uma resposta agora. Tente novamente.",
+        "audio_muito_longo": "⚠️ A resposta ficou longa demais para áudio. Enviando em texto.",
+        "audio_falhou": "⚠️ Não consegui gerar o áudio agora. Enviando texto.",
+        "erro_openai": "❌ *Erro ao falar com a IA*\nTente novamente em alguns instantes."
+      },
+      "opcoes": {
+        "parse": {
+          "audio_flags": ["--audio", "--voz", "--voice", "--tts", "-a"],
+          "text_flags": ["--texto", "--text", "--txt"],
+          "image_detail_aliases": {
+            "low": "low",
+            "high": "high",
+            "auto": "auto",
+            "baixo": "low",
+            "baixa": "low",
+            "alto": "high",
+            "alta": "high",
+            "automatico": "auto",
+            "automático": "auto"
+          }
+        }
       }
     },
     {
@@ -203,6 +244,85 @@
           "janela_ms": 300000,
           "escopo": "usuario"
         }
+      },
+      "mensagens_uso": {
+        "default": [
+          "*<prefix>catimg* seu prompt",
+          "*<prefix>catimg* (responda uma imagem com legenda para editar)",
+          "",
+          "Opções:",
+          "--size 1024x1024 | 1024x1536 | 1536x1024 | auto",
+          "--quality low | medium | high | auto",
+          "--format png | jpeg | webp",
+          "--background transparent | opaque | auto",
+          "--compression 0-100",
+          "",
+          "Exemplo:",
+          "*<prefix>catimg* --size 1536x1024 Um gato astronauta em aquarela."
+        ]
+      },
+      "mensagens_sistema": {
+        "premium_only": "⭐ *Comando Premium*\n\nEste comando é exclusivo para usuários premium.\nFale com o administrador para liberar o acesso.",
+        "openai_nao_configurada": "⚠️ *OpenAI não configurada*\n\nDefina a variável *OPENAI_API_KEY* no `.env` para usar o comando *catimg*.",
+        "imagem_muito_grande": "⚠️ A imagem enviada ultrapassa o limite de {{limite_mb}} MB. Envie uma imagem menor.",
+        "imagem_download_falhou": "⚠️ Não consegui baixar a imagem. Tente reenviar.",
+        "opcoes_invalidas": "⚠️ Opções inválidas no comando.\nDetalhes: {{detalhes}}\n\nUse *{{prefix}}catimg* sem opções para ver o formato correto.",
+        "resposta_vazia": "⚠️ Não consegui gerar a imagem agora. Tente novamente.",
+        "erro_openai": "❌ *Erro ao falar com a IA*\nTente novamente em alguns instantes."
+      },
+      "opcoes": {
+        "geracao_imagem": {
+          "size_options": ["auto", "1024x1024", "1024x1536", "1536x1024"],
+          "size_aliases": {
+            "1024": "1024x1024",
+            "square": "1024x1024",
+            "quadrado": "1024x1024",
+            "portrait": "1024x1536",
+            "retrato": "1024x1536",
+            "landscape": "1536x1024",
+            "paisagem": "1536x1024",
+            "auto": "auto"
+          },
+          "quality_options": ["auto", "low", "medium", "high"],
+          "quality_aliases": {
+            "baixa": "low",
+            "baixo": "low",
+            "media": "medium",
+            "média": "medium",
+            "medio": "medium",
+            "médio": "medium",
+            "alta": "high",
+            "alto": "high",
+            "auto": "auto"
+          },
+          "format_options": ["png", "jpeg", "webp"],
+          "format_aliases": {
+            "jpg": "jpeg",
+            "jpeg": "jpeg",
+            "png": "png",
+            "webp": "webp"
+          },
+          "background_options": ["auto", "transparent", "opaque"],
+          "background_aliases": {
+            "auto": "auto",
+            "transparent": "transparent",
+            "transparente": "transparent",
+            "opaque": "opaque",
+            "opaco": "opaque",
+            "opaca": "opaque"
+          },
+          "flag_aliases": {
+            "size": ["--size", "--tamanho"],
+            "quality": ["--quality", "--qualidade"],
+            "format": ["--format", "--formato"],
+            "background": ["--background", "--fundo"],
+            "compression": ["--compression", "--compressao", "--compressão"]
+          },
+          "compression": {
+            "min": 0,
+            "max": 100
+          }
+        }
       }
     },
     {
@@ -286,7 +406,27 @@
           "janela_ms": 300000,
           "escopo": "usuario"
         }
+      },
+      "mensagens_uso": {
+        "default": [
+          "*<prefix>catprompt* seu novo prompt",
+          "",
+          "Para voltar ao padrão:",
+          "*<prefix>catprompt reset*"
+        ]
+      },
+      "mensagens_sistema": {
+        "premium_only": "⭐ *Comando Premium*\n\nEste comando é exclusivo para usuários premium.\nFale com o administrador para liberar o acesso.",
+        "prompt_muito_longo": "⚠️ Prompt muito longo. Limite: {{max_chars}} caracteres.",
+        "prompt_reset_sucesso": "✅ Prompt da IA restaurado para o padrão.",
+        "prompt_update_sucesso": "✅ Prompt da IA atualizado para você."
+      },
+      "limites_operacionais": {
+        "prompt_max_chars": 2000
       }
     }
-  ]
+  ],
+  "textos": {
+    "usage_header": "Use assim:"
+  }
 }
