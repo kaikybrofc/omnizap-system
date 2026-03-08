@@ -690,6 +690,70 @@ NODE
   )
 }
 
+prepare_legacy_static_entrypoints() {
+  local target_dir="$1"
+  local pages_dir="$target_dir/pages"
+  if [ ! -d "$pages_dir" ]; then
+    log "Pasta pages ausente em $target_dir; aliases legados nao serao gerados."
+    return 0
+  fi
+
+  log "Gerando aliases estaticos legados em $target_dir"
+
+  copy_page_alias() {
+    local source_name="$1"
+    local dest_relative="$2"
+    local source_path="$pages_dir/$source_name"
+    local dest_path="$target_dir/$dest_relative"
+
+    if [ ! -f "$source_path" ]; then
+      log "Aviso: template ausente para alias legado ($source_name)."
+      return 0
+    fi
+
+    mkdir -p "$(dirname "$dest_path")"
+    cp "$source_path" "$dest_path"
+  }
+
+  copy_page_alias "home.html" "index.html"
+  copy_page_alias "api-docs.html" "api-docs/index.html"
+  copy_page_alias "aup.html" "aup/index.html"
+  copy_page_alias "comandos.html" "comandos/index.html"
+  copy_page_alias "dpa.html" "dpa/index.html"
+  copy_page_alias "licenca.html" "licenca/index.html"
+  copy_page_alias "notice-and-takedown.html" "notice-and-takedown/index.html"
+  copy_page_alias "politica-de-privacidade.html" "politica-de-privacidade/index.html"
+  copy_page_alias "suboperadores.html" "suboperadores/index.html"
+  copy_page_alias "termos-de-uso.html" "termos-de-uso/index.html"
+  copy_page_alias "termos-de-uso-texto-integral.html" "termos-de-uso/texto-integral/index.html"
+  copy_page_alias "termos-de-uso-texto-integral.html" "termos-de-uso/texto-integral.html"
+  copy_page_alias "login.html" "login/index.html"
+  copy_page_alias "user.html" "user/index.html"
+  copy_page_alias "user-password-reset.html" "user/password-reset/index.html"
+  copy_page_alias "user-systemadm.html" "user/systemadm/index.html"
+  copy_page_alias "stickers.html" "stickers/index.html"
+  copy_page_alias "stickers-admin.html" "stickers/admin/index.html"
+  copy_page_alias "stickers-create.html" "stickers/create/index.html"
+
+  for seo_template in "$pages_dir"/seo-*.html; do
+    if [ ! -f "$seo_template" ]; then
+      continue
+    fi
+
+    local seo_slug=""
+    seo_slug="$(basename "$seo_template")"
+    seo_slug="${seo_slug#seo-}"
+    seo_slug="${seo_slug%.html}"
+    if [ -z "$seo_slug" ]; then
+      continue
+    fi
+
+    local seo_dest_dir="$target_dir/seo/$seo_slug"
+    mkdir -p "$seo_dest_dir"
+    cp "$seo_template" "$seo_dest_dir/index.html"
+  done
+}
+
 verify_post_sync_cache_bust() {
   if [ "$VERIFY_POST_SYNC_CACHE_BUST_ENABLED" != "1" ]; then
     log "Verificação pós-sync de cache-bust desativada (DEPLOY_VERIFY_POST_SYNC_CACHE_BUST=$VERIFY_POST_SYNC_CACHE_BUST_ENABLED)."
@@ -780,6 +844,7 @@ if [ "$REQUIRE_CACHE_BUST_REFERENCES" = "1" ]; then
     exit 1
   fi
 fi
+prepare_legacy_static_entrypoints "$STAGING_DIR"
 verify_cache_bust_refs "$STAGING_DIR" "staging"
 
 if [ "$BACKUP_ENABLED" = "1" ] && [ "$DRY_RUN" != "1" ] && [ -d "$DEPLOY_DIR" ]; then

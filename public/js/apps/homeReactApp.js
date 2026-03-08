@@ -188,6 +188,12 @@ const toNonNegativeNumber = (value) => {
   return Math.max(0, numeric);
 };
 
+const toPositiveNumber = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return numeric;
+};
+
 const normalizeStatus = (value) => {
   const normalized = String(value || '')
     .trim()
@@ -311,7 +317,7 @@ const App = () => {
       const usersTotal = toNonNegativeNumber(realtime?.total_users);
       const messagesTotal = toNonNegativeNumber(realtime?.total_messages);
       const commandsTotal = toNonNegativeNumber(realtime?.total_commands);
-      const latencyMs = toNonNegativeNumber(realtime?.system_latency_ms);
+      const latencyMs = toPositiveNumber(realtime?.system_latency_ms);
 
       setSession(sessionData && sessionData.authenticated && sessionData.user?.sub ? sessionData : null);
       setBotMenuUrl(contactUrl || '/login/');

@@ -2416,20 +2416,25 @@ const buildHomeRealtimeSnapshot = async ({ systemSummary = null } = {}) => {
   const totalCommandsRaw = Number(systemSummary?.usage?.total_commands);
   const httpLatencyP95Ms = Number(systemSummary?.observability?.http_latency_p95_ms);
   const lagP99Ms = Number(systemSummary?.observability?.lag_p99_ms);
-  const resolvedLatencyMs = Number.isFinite(httpLatencyP95Ms) ? httpLatencyP95Ms : Number.isFinite(lagP99Ms) ? lagP99Ms : null;
+  const resolvedLatencyMs = Number.isFinite(httpLatencyP95Ms) && httpLatencyP95Ms > 0 ? httpLatencyP95Ms : Number.isFinite(lagP99Ms) && lagP99Ms > 0 ? lagP99Ms : null;
 
   const totalUsers = Number.isFinite(totalUsersRaw) ? Math.max(0, Math.round(totalUsersRaw)) : null;
   const totalMessages = Number.isFinite(totalMessagesRaw) ? Math.max(0, Math.round(totalMessagesRaw)) : null;
   const totalCommands = Number.isFinite(totalCommandsRaw) ? Math.max(0, Math.round(totalCommandsRaw)) : null;
-  const systemLatencyMs = Number.isFinite(resolvedLatencyMs) ? Math.max(0, Number(resolvedLatencyMs.toFixed(2))) : null;
+  const systemLatencyMs = Number.isFinite(resolvedLatencyMs) && resolvedLatencyMs > 0 ? Number(resolvedLatencyMs.toFixed(2)) : null;
 
-  return {
+  const payload = {
     total_users: totalUsers,
     total_messages: totalMessages,
     total_commands: totalCommands,
-    system_latency_ms: systemLatencyMs,
     updated_at: new Date().toISOString(),
   };
+
+  if (systemLatencyMs !== null) {
+    payload.system_latency_ms = systemLatencyMs;
+  }
+
+  return payload;
 };
 
 const handleHomeBootstrapRequest = async (req, res, url) => {
