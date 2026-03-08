@@ -9,6 +9,9 @@
       "aliases": [],
       "descricao": "Baixa/gera audio a partir de link ou busca no YouTube.",
       "metodos_de_uso": ["<prefix>play <link>", "<prefix>play <termo de busca>"],
+      "mensagens_uso": {
+        "default": ["🎵 Uso: <prefix>play <link do YouTube ou termo de busca>"]
+      },
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "arquivo ate PLAY_MAX_MB (padrao 100 MB)",
       "local_de_uso": ["privado", "grupo"],
@@ -94,6 +97,9 @@
       "aliases": [],
       "descricao": "Baixa video a partir de link ou busca no YouTube.",
       "metodos_de_uso": ["<prefix>playvid <link>", "<prefix>playvid <termo de busca>"],
+      "mensagens_uso": {
+        "default": ["🎬 Uso: <prefix>playvid <link do YouTube ou termo de busca>"]
+      },
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "arquivo ate PLAY_MAX_MB (padrao 100 MB)",
       "local_de_uso": ["privado", "grupo"],
@@ -174,5 +180,8 @@
         }
       }
     }
-  ]
+  ],
+  "textos": {
+    "usage_header": ""
+  }
 }

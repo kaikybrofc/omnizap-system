@@ -11,6 +11,7 @@ import { pipeline } from 'node:stream/promises';
 import logger from '../../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { getAdminJid } from '../../config/adminIdentity.js';
+import { getPlayUsageText } from './playConfigRuntime.js';
 
 const adminJid = getAdminJid();
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
@@ -1521,6 +1522,8 @@ const playService = {
   processPlayRequest,
 };
 
+const resolveCommandNameByType = (type) => (type === 'audio' ? 'play' : 'playvid');
+
 const handleTypedPlayCommand = async ({
   sock,
   remoteJid,
@@ -1532,10 +1535,12 @@ const handleTypedPlayCommand = async ({
 }) => {
   try {
     if (!text?.trim()) {
+      const commandName = resolveCommandNameByType(type);
       const usageText =
-        type === 'audio'
+        getPlayUsageText(commandName, { commandPrefix }) ||
+        (type === 'audio'
           ? `🎵 Uso: ${commandPrefix}play <link do YouTube ou termo de busca>`
-          : `🎬 Uso: ${commandPrefix}playvid <link do YouTube ou termo de busca>`;
+          : `🎬 Uso: ${commandPrefix}playvid <link do YouTube ou termo de busca>`);
 
       await sendAndStore(
         sock,
