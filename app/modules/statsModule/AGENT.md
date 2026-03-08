@@ -3,14 +3,12 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
-
 - arquivo_base: `app/modules/statsModule/commandConfig.json`
-- schema_version: `1.1.0`
+- schema_version: `2.0.0`
 - module_enabled: `true`
-- generated_at: `2026-03-08T08:14:27.803Z`
+- generated_at: `2026-03-08T10:59:41.156Z`
 
 ## Escopo do Modulo
-
 - module: `statsModule`
 - source_files:
 - rankingCommand.js
@@ -19,7 +17,6 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_enabled_commands: `2`
 
 ## Protocolo de Resposta para IA
-
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -28,17 +25,14 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
-
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
-
-### ranking
-
-- aliases: rank, top5
+### classificacao
+- aliases: rank, top5, ranking
 - enabled: true
 - categoria: estatisticas
 - descricao: Mostra top 5 mais ativos do grupo.
@@ -47,12 +41,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - local_de_uso:
 - grupo
 - metodos_de_uso:
-- <prefix>ranking
+- <prefix>classificacao
 - <prefix>rank
 - <prefix>top5
 - mensagens_uso (variantes):
 - default:
-- <prefix>ranking
+- <prefix>classificacao
 - <prefix>rank
 - <prefix>top5
 - subcomandos:
@@ -112,9 +106,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
-### rankingglobal
-
-- aliases: rankglobal, globalrank, globalranking
+### classificacaoglobal
+- aliases: rankglobal, globalrank, globalranking, rankingglobal
 - enabled: true
 - categoria: estatisticas
 - descricao: Mostra top 5 global de atividade.
@@ -124,11 +117,11 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - privado
 - grupo
 - metodos_de_uso:
-- <prefix>rankingglobal
+- <prefix>classificacaoglobal
 - <prefix>globalrank
 - mensagens_uso (variantes):
 - default:
-- <prefix>rankingglobal
+- <prefix>classificacaoglobal
 - <prefix>globalrank
 - subcomandos:
 - (nenhum)

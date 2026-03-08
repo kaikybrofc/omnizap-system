@@ -152,12 +152,138 @@ const limitArray = (value, size = 6) =>
   (Array.isArray(value) ? value : []).filter(Boolean).slice(0, Math.max(0, size));
 
 const ensureArray = (value) => (Array.isArray(value) ? value.filter(Boolean) : []);
+const ensureObject = (value) => (value && typeof value === 'object' ? value : {});
+const pickFirstText = (...values) => {
+  for (const value of values) {
+    const text = String(value ?? '').trim();
+    if (text) return text;
+  }
+  return '';
+};
+const pickFirstBoolean = (...values) => {
+  for (const value of values) {
+    if (typeof value === 'boolean') return value;
+  }
+  return false;
+};
+
+const readEntryDescription = (entry = {}) =>
+  pickFirstText(entry?.description, entry?.docs?.summary, entry?.descricao);
+
+const readEntryUsage = (entry = {}) => {
+  const usageV2 = ensureArray(entry?.usage);
+  if (usageV2.length) return usageV2;
+  const docsUsage = ensureArray(entry?.docs?.usage_examples);
+  if (docsUsage.length) return docsUsage;
+  return ensureArray(entry?.metodos_de_uso);
+};
+
+const readEntryPermission = (entry = {}) =>
+  pickFirstText(entry?.permission, entry?.permissao_necessaria);
+
+const readEntryContexts = (entry = {}) => {
+  const contextsV2 = ensureArray(entry?.contexts);
+  if (contextsV2.length) return contextsV2;
+  return ensureArray(entry?.local_de_uso);
+};
+
+const readEntryUsageLimit = (entry = {}) =>
+  pickFirstText(entry?.limits?.usage_description, entry?.limite_de_uso);
+
+const readEntryCategory = (entry = {}) => pickFirstText(entry?.category, entry?.categoria);
+
+const readEntryDiscovery = (entry = {}) => ensureObject(entry?.discovery);
+
+const readEntryKeywords = (entry = {}) => {
+  const discovery = readEntryDiscovery(entry);
+  const source = discovery.keywords?.length ? discovery.keywords : entry?.capability_keywords;
+  return ensureArray(source);
+};
+
+const readEntryFaqQueries = (entry = {}) => {
+  const discovery = readEntryDiscovery(entry);
+  const source = discovery.faq_queries?.length ? discovery.faq_queries : entry?.faq_patterns;
+  return ensureArray(source);
+};
+
+const readEntryUserPhrasings = (entry = {}) => {
+  const discovery = readEntryDiscovery(entry);
+  const source = discovery.user_phrasings?.length ? discovery.user_phrasings : entry?.user_phrasings;
+  return ensureArray(source);
+};
+
+const readEntrySuggestionPriority = (entry = {}) => {
+  const discovery = readEntryDiscovery(entry);
+  const raw =
+    discovery.suggestion_priority !== undefined
+      ? discovery.suggestion_priority
+      : entry?.suggestion_priority;
+  return toFiniteNumber(raw, 100);
+};
+
+const readEntryRequirements = (entry = {}) => {
+  const requirements = ensureObject(entry?.requirements);
+  const requirementsLegacy = ensureObject(requirements?.legacy);
+  const preConditions = ensureObject(entry?.pre_condicoes);
+
+  return {
+    require_group: pickFirstBoolean(
+      requirements.require_group,
+      requirements.requer_grupo,
+      requirementsLegacy.require_group,
+      requirementsLegacy.requer_grupo,
+      preConditions.requer_grupo,
+    ),
+    require_group_admin: pickFirstBoolean(
+      requirements.require_group_admin,
+      requirements.requer_admin,
+      requirementsLegacy.require_group_admin,
+      requirementsLegacy.requer_admin,
+      preConditions.requer_admin,
+    ),
+    require_bot_owner: pickFirstBoolean(
+      requirements.require_bot_owner,
+      requirements.requer_admin_principal,
+      requirementsLegacy.require_bot_owner,
+      requirementsLegacy.requer_admin_principal,
+      preConditions.requer_admin_principal,
+    ),
+    require_google_login: pickFirstBoolean(
+      requirements.require_google_login,
+      requirements.requer_google_login,
+      requirementsLegacy.require_google_login,
+      requirementsLegacy.requer_google_login,
+      preConditions.requer_google_login,
+    ),
+    require_nsfw_enabled: pickFirstBoolean(
+      requirements.require_nsfw_enabled,
+      requirements.requer_nsfw,
+      requirementsLegacy.require_nsfw_enabled,
+      requirementsLegacy.requer_nsfw,
+      preConditions.requer_nsfw,
+    ),
+    require_media: pickFirstBoolean(
+      requirements.require_media,
+      requirements.requer_midia,
+      requirementsLegacy.require_media,
+      requirementsLegacy.requer_midia,
+      preConditions.requer_midia,
+    ),
+    require_reply_message: pickFirstBoolean(
+      requirements.require_reply_message,
+      requirements.requer_mensagem_respondida,
+      requirementsLegacy.require_reply_message,
+      requirementsLegacy.requer_mensagem_respondida,
+      preConditions.requer_mensagem_respondida,
+    ),
+  };
+};
 
 const formatPermissionLabel = (permission) => String(permission || 'nao definido').trim();
 
-const formatWhereLabel = (localDeUso = []) => {
-  if (!Array.isArray(localDeUso) || localDeUso.length === 0) return 'nao definido';
-  return localDeUso.join(', ');
+const formatWhereLabel = (contexts = []) => {
+  if (!Array.isArray(contexts) || contexts.length === 0) return 'nao definido';
+  return contexts.join(', ');
 };
 
 const renderUsage = (method, commandPrefix = '/') =>
@@ -325,15 +451,15 @@ const computeFeedbackScore = (feedbackStore, commandName) => {
   return clamp01(precision * evidenceWeight);
 };
 
-const formatPreConditions = (pre = {}) => {
+const formatPreConditions = (requirements = {}) => {
   const lines = [];
-  if (pre.requer_grupo) lines.push('- Requer ser executado em grupo.');
-  if (pre.requer_admin) lines.push('- Requer permissao de admin do grupo.');
-  if (pre.requer_admin_principal) lines.push('- Requer admin principal do bot.');
-  if (pre.requer_google_login) lines.push('- Pode requerer login vinculado ao site.');
-  if (pre.requer_nsfw) lines.push('- Requer NSFW ativo quando aplicavel.');
-  if (pre.requer_midia) lines.push('- Requer midia anexada/citada quando aplicavel.');
-  if (pre.requer_mensagem_respondida)
+  if (requirements.require_group) lines.push('- Requer ser executado em grupo.');
+  if (requirements.require_group_admin) lines.push('- Requer permissao de admin do grupo.');
+  if (requirements.require_bot_owner) lines.push('- Requer admin principal do bot.');
+  if (requirements.require_google_login) lines.push('- Pode requerer login vinculado ao site.');
+  if (requirements.require_nsfw_enabled) lines.push('- Requer NSFW ativo quando aplicavel.');
+  if (requirements.require_media) lines.push('- Requer midia anexada/citada quando aplicavel.');
+  if (requirements.require_reply_message)
     lines.push('- Requer resposta/citacao de mensagem quando aplicavel.');
   return lines;
 };
@@ -433,15 +559,16 @@ const collectCommandSearchRecords = () => {
       const aliases = ensureArray(entry.aliases)
         .map((value) => normalizeText(value))
         .filter(Boolean);
-      const capabilityKeywords = ensureArray(entry.capability_keywords)
+      const capabilityKeywords = readEntryKeywords(entry)
         .map((value) => normalizeText(value))
         .filter(Boolean);
-      const faqPatterns = ensureArray(entry.faq_patterns)
+      const faqPatterns = readEntryFaqQueries(entry)
         .map((value) => normalizeText(value))
         .filter(Boolean);
-      const userPhrasings = ensureArray(entry.user_phrasings)
+      const userPhrasings = readEntryUserPhrasings(entry)
         .map((value) => normalizeText(value))
         .filter(Boolean);
+      const description = readEntryDescription(entry);
 
       records.push({
         moduleKey: wrapper.moduleKey,
@@ -452,10 +579,10 @@ const collectCommandSearchRecords = () => {
         capabilityKeywords,
         faqPatterns,
         userPhrasings,
-        description: normalizeText(entry.descricao),
-        descriptionTokens: tokenizeText(entry.descricao),
-        category: normalizeText(entry.categoria),
-        suggestionPriority: toFiniteNumber(entry.suggestion_priority, 100),
+        description: normalizeText(description),
+        descriptionTokens: tokenizeText(description),
+        category: normalizeText(readEntryCategory(entry)),
+        suggestionPriority: readEntrySuggestionPriority(entry),
       });
     }
   }
@@ -681,14 +808,12 @@ const buildDeterministicCommandAnswer = ({
   suggestions = [],
   intro,
 }) => {
-  const usage = ensureArray(entry?.metodos_de_uso).map((method) =>
-    renderUsage(method, commandPrefix),
-  );
-  const description = String(entry?.descricao || 'Sem descricao cadastrada.');
-  const permissionLabel = formatPermissionLabel(entry?.permissao_necessaria);
-  const whereLabel = formatWhereLabel(entry?.local_de_uso);
-  const limitLabel = String(entry?.limite_de_uso || 'nao informado');
-  const preconditions = formatPreConditions(entry?.pre_condicoes || {});
+  const usage = readEntryUsage(entry).map((method) => renderUsage(method, commandPrefix));
+  const description = readEntryDescription(entry) || 'Sem descricao cadastrada.';
+  const permissionLabel = formatPermissionLabel(readEntryPermission(entry));
+  const whereLabel = formatWhereLabel(readEntryContexts(entry));
+  const limitLabel = readEntryUsageLimit(entry) || 'nao informado';
+  const preconditions = formatPreConditions(readEntryRequirements(entry));
 
   const lines = [
     intro || `🤖 Posso te orientar sobre *${commandPrefix}${commandName}*.`,

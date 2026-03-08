@@ -3,14 +3,12 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
-
 - arquivo_base: `app/modules/waifuPicsModule/commandConfig.json`
-- schema_version: `1.1.0`
+- schema_version: `2.0.0`
 - module_enabled: `true`
-- generated_at: `2026-03-08T08:14:27.803Z`
+- generated_at: `2026-03-08T10:59:41.156Z`
 
 ## Escopo do Modulo
-
 - module: `waifuPicsModule`
 - source_files:
 - waifuPicsCommand.js
@@ -18,7 +16,6 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_enabled_commands: `3`
 
 ## Protocolo de Resposta para IA
-
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -27,17 +24,14 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
-
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
-
-### wp
-
-- aliases: waifupics
+### waifu
+- aliases: waifupics, wp
 - enabled: true
 - categoria: anime
 - descricao: Envia imagem SFW da API Waifu.pics por categoria.
@@ -47,11 +41,11 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - privado
 - grupo
 - metodos_de_uso:
-- <prefix>wp <categoria>
+- <prefix>waifu <categoria>
 - <prefix>waifupics neko
 - mensagens_uso (variantes):
 - default:
-- <prefix>wp <categoria>
+- <prefix>waifu <categoria>
 - <prefix>waifupics neko
 - subcomandos:
 - (nenhum)
@@ -109,9 +103,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
-### wpnsfw
-
-- aliases: waifupicsnsfw
+### waifunsfw
+- aliases: waifupicsnsfw, wpnsfw
 - enabled: true
 - categoria: anime
 - descricao: Envia imagem NSFW da API Waifu.pics por categoria.
@@ -121,11 +114,11 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - privado
 - grupo
 - metodos_de_uso:
-- <prefix>wpnsfw <categoria>
+- <prefix>waifunsfw <categoria>
 - <prefix>waifupicsnsfw waifu
 - mensagens_uso (variantes):
 - default:
-- <prefix>wpnsfw <categoria>
+- <prefix>waifunsfw <categoria>
 - <prefix>waifupicsnsfw waifu
 - subcomandos:
 - (nenhum)
@@ -184,9 +177,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
-### wppicshelp
-
-- aliases: (nenhum)
+### waifuajuda
+- aliases: wppicshelp
 - enabled: true
 - categoria: anime
 - descricao: Mostra ajuda e categorias disponiveis de Waifu.pics.
@@ -196,10 +188,10 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - privado
 - grupo
 - metodos_de_uso:
-- <prefix>wppicshelp
+- <prefix>waifuajuda
 - mensagens_uso (variantes):
 - default:
-- <prefix>wppicshelp
+- <prefix>waifuajuda
 - subcomandos:
 - (nenhum)
 - argumentos:

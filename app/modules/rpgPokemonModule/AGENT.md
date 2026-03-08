@@ -3,14 +3,12 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
-
 - arquivo_base: `app/modules/rpgPokemonModule/commandConfig.json`
-- schema_version: `1.1.0`
+- schema_version: `2.0.0`
 - module_enabled: `true`
-- generated_at: `2026-03-08T08:14:27.803Z`
+- generated_at: `2026-03-08T10:59:41.156Z`
 
 ## Escopo do Modulo
-
 - module: `rpgPokemonModule`
 - source_files:
 - rpgPokemonCommand.js
@@ -18,7 +16,6 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_enabled_commands: `1`
 
 ## Protocolo de Resposta para IA
-
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -27,17 +24,14 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
-
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
-
-### rpg
-
-- aliases: (nenhum)
+### pokemon
+- aliases: rpg
 - enabled: true
 - categoria: jogos
 - descricao: Comando principal do RPG Pokemon (exploracao, batalha, loja e social).
@@ -47,16 +41,16 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - privado
 - grupo
 - metodos_de_uso:
-- <prefix>rpg help
-- <prefix>rpg start
-- <prefix>rpg explorar
-- <prefix>rpg atacar 1
+- <prefix>pokemon help
+- <prefix>pokemon start
+- <prefix>pokemon explorar
+- <prefix>pokemon atacar 1
 - mensagens_uso (variantes):
 - default:
-- <prefix>rpg help
-- <prefix>rpg start
-- <prefix>rpg explorar
-- <prefix>rpg atacar 1
+- <prefix>pokemon help
+- <prefix>pokemon start
+- <prefix>pokemon explorar
+- <prefix>pokemon atacar 1
 - subcomandos:
 - help
 - ajuda

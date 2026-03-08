@@ -30,41 +30,138 @@ const defaultLogger = {
   debug: (...args) => console.debug(...args),
 };
 
-const formatPermissionLabel = (permission) => String(permission || 'nao definido').trim();
-
-const formatWhereLabel = (localDeUso = []) => {
-  if (!Array.isArray(localDeUso) || localDeUso.length === 0) return 'nao definido';
-  return localDeUso.join(', ');
+const ensureArray = (value) => (Array.isArray(value) ? value.filter(Boolean) : []);
+const ensureObject = (value) => (value && typeof value === 'object' ? value : {});
+const pickFirstText = (...values) => {
+  for (const value of values) {
+    const text = String(value ?? '').trim();
+    if (text) return text;
+  }
+  return '';
+};
+const pickFirstBoolean = (...values) => {
+  for (const value of values) {
+    if (typeof value === 'boolean') return value;
+  }
+  return false;
 };
 
-const formatPreConditions = (pre = {}) => {
+const formatPermissionLabel = (permission) => String(permission || 'nao definido').trim();
+
+const formatWhereLabel = (contexts = []) => {
+  if (!Array.isArray(contexts) || contexts.length === 0) return 'nao definido';
+  return contexts.join(', ');
+};
+
+const readEntryDescription = (entry = {}) =>
+  pickFirstText(entry?.description, entry?.docs?.summary, entry?.descricao);
+
+const readEntryUsage = (entry = {}) => {
+  const usageV2 = ensureArray(entry?.usage);
+  if (usageV2.length) return usageV2;
+  const docsUsage = ensureArray(entry?.docs?.usage_examples);
+  if (docsUsage.length) return docsUsage;
+  return ensureArray(entry?.metodos_de_uso);
+};
+
+const readEntryPermission = (entry = {}) =>
+  pickFirstText(entry?.permission, entry?.permissao_necessaria);
+
+const readEntryContexts = (entry = {}) => {
+  const contextsV2 = ensureArray(entry?.contexts);
+  if (contextsV2.length) return contextsV2;
+  return ensureArray(entry?.local_de_uso);
+};
+
+const readEntryUsageLimit = (entry = {}) =>
+  pickFirstText(entry?.limits?.usage_description, entry?.limite_de_uso);
+
+const readEntryRequirements = (entry = {}) => {
+  const requirements = ensureObject(entry?.requirements);
+  const requirementsLegacy = ensureObject(requirements?.legacy);
+  const preConditions = ensureObject(entry?.pre_condicoes);
+
+  return {
+    require_group: pickFirstBoolean(
+      requirements.require_group,
+      requirements.requer_grupo,
+      requirementsLegacy.require_group,
+      requirementsLegacy.requer_grupo,
+      preConditions.requer_grupo,
+    ),
+    require_group_admin: pickFirstBoolean(
+      requirements.require_group_admin,
+      requirements.requer_admin,
+      requirementsLegacy.require_group_admin,
+      requirementsLegacy.requer_admin,
+      preConditions.requer_admin,
+    ),
+    require_bot_owner: pickFirstBoolean(
+      requirements.require_bot_owner,
+      requirements.requer_admin_principal,
+      requirementsLegacy.require_bot_owner,
+      requirementsLegacy.requer_admin_principal,
+      preConditions.requer_admin_principal,
+    ),
+    require_google_login: pickFirstBoolean(
+      requirements.require_google_login,
+      requirements.requer_google_login,
+      requirementsLegacy.require_google_login,
+      requirementsLegacy.requer_google_login,
+      preConditions.requer_google_login,
+    ),
+    require_nsfw_enabled: pickFirstBoolean(
+      requirements.require_nsfw_enabled,
+      requirements.requer_nsfw,
+      requirementsLegacy.require_nsfw_enabled,
+      requirementsLegacy.requer_nsfw,
+      preConditions.requer_nsfw,
+    ),
+    require_media: pickFirstBoolean(
+      requirements.require_media,
+      requirements.requer_midia,
+      requirementsLegacy.require_media,
+      requirementsLegacy.requer_midia,
+      preConditions.requer_midia,
+    ),
+    require_reply_message: pickFirstBoolean(
+      requirements.require_reply_message,
+      requirements.requer_mensagem_respondida,
+      requirementsLegacy.require_reply_message,
+      requirementsLegacy.requer_mensagem_respondida,
+      preConditions.requer_mensagem_respondida,
+    ),
+  };
+};
+
+const formatPreConditions = (requirements = {}) => {
   const lines = [];
-  if (pre.requer_grupo) lines.push('- Requer ser executado em grupo.');
-  if (pre.requer_admin) lines.push('- Requer permissao de admin do grupo.');
-  if (pre.requer_admin_principal) lines.push('- Requer admin principal do bot.');
-  if (pre.requer_google_login) lines.push('- Pode requerer login vinculado ao site.');
-  if (pre.requer_nsfw) lines.push('- Requer NSFW ativo quando aplicavel.');
-  if (pre.requer_midia) lines.push('- Requer midia anexada/citada quando aplicavel.');
-  if (pre.requer_mensagem_respondida)
+  if (requirements.require_group) lines.push('- Requer ser executado em grupo.');
+  if (requirements.require_group_admin) lines.push('- Requer permissao de admin do grupo.');
+  if (requirements.require_bot_owner) lines.push('- Requer admin principal do bot.');
+  if (requirements.require_google_login) lines.push('- Pode requerer login vinculado ao site.');
+  if (requirements.require_nsfw_enabled) lines.push('- Requer NSFW ativo quando aplicavel.');
+  if (requirements.require_media) lines.push('- Requer midia anexada/citada quando aplicavel.');
+  if (requirements.require_reply_message)
     lines.push('- Requer resposta/citacao de mensagem quando aplicavel.');
   if (lines.length === 0) lines.push('- Sem pre-condicoes explicitas no modulo.');
   return lines;
 };
 
 const evaluatePreConditions = (entry, context = {}) => {
-  const pre = entry?.pre_condicoes || {};
+  const requirements = readEntryRequirements(entry);
   const reasons = [];
 
-  if (pre.requer_grupo && !context.isGroupMessage) {
+  if (requirements.require_group && !context.isGroupMessage) {
     reasons.push('este comando exige uso em grupo');
   }
-  if (pre.requer_admin && context.isSenderAdmin === false) {
+  if (requirements.require_group_admin && context.isSenderAdmin === false) {
     reasons.push('este comando exige permissao de admin do grupo');
   }
-  if (pre.requer_admin_principal && context.isSenderOwner === false) {
+  if (requirements.require_bot_owner && context.isSenderOwner === false) {
     reasons.push('este comando exige admin principal do bot');
   }
-  if (pre.requer_nsfw && context.groupNsfwEnabled === false) {
+  if (requirements.require_nsfw_enabled && context.groupNsfwEnabled === false) {
     reasons.push('NSFW precisa estar ativo no grupo');
   }
 
@@ -360,12 +457,10 @@ export const createModuleAiHelpService = ({
 
   const buildCommandFaqItems = (entry, commandPrefix = '/') => {
     const commandToken = `${commandPrefix}${entry.name}`;
-    const usageLines = (entry.metodos_de_uso || []).map((method) =>
-      renderUsage(method, commandPrefix),
-    );
+    const usageLines = readEntryUsage(entry).map((method) => renderUsage(method, commandPrefix));
     const firstUsage = usageLines[0] || commandToken;
-    const whereLabel = formatWhereLabel(entry.local_de_uso);
-    const permissionLabel = formatPermissionLabel(entry.permissao_necessaria);
+    const whereLabel = formatWhereLabel(readEntryContexts(entry));
+    const permissionLabel = formatPermissionLabel(readEntryPermission(entry));
 
     return [
       {
@@ -408,19 +503,19 @@ export const createModuleAiHelpService = ({
   }) => {
     const { llm } = getAiHelpConfig();
     const commandToken = `${commandPrefix}${entry.name}`;
-    const usage = (entry.metodos_de_uso || []).map((method) => renderUsage(method, commandPrefix));
-    const preconditions = formatPreConditions(entry.pre_condicoes || {});
+    const usage = readEntryUsage(entry).map((method) => renderUsage(method, commandPrefix));
+    const preconditions = formatPreConditions(readEntryRequirements(entry));
     const gate = evaluatePreConditions(entry, context);
-    const whereLabel = formatWhereLabel(entry.local_de_uso);
-    const permissionLabel = formatPermissionLabel(entry.permissao_necessaria);
+    const whereLabel = formatWhereLabel(readEntryContexts(entry));
+    const permissionLabel = formatPermissionLabel(readEntryPermission(entry));
 
     const lines = [
       `📘 *Comando:* ${commandToken}`,
-      `📝 ${entry.descricao || 'Sem descricao cadastrada.'}`,
+      `📝 ${readEntryDescription(entry) || 'Sem descricao cadastrada.'}`,
       '',
       `👤 *Quem pode usar:* ${permissionLabel}`,
       `📍 *Onde pode usar:* ${whereLabel}`,
-      `⏱️ *Limite:* ${entry.limite_de_uso || 'nao informado'}`,
+      `⏱️ *Limite:* ${readEntryUsageLimit(entry) || 'nao informado'}`,
       '',
       '*Como usar:*',
       ...(usage.length ? usage.map((line) => `- ${line}`) : ['- Uso nao configurado no JSON.']),
@@ -460,10 +555,8 @@ export const createModuleAiHelpService = ({
     const entries = listEnabledCommands();
     return entries
       .map((entry) => {
-        const methods = Array.isArray(entry.metodos_de_uso)
-          ? entry.metodos_de_uso.slice(0, 2).join(' | ')
-          : '';
-        return `- ${entry.name} | permissao=${entry.permissao_necessaria || 'n/a'} | local=${formatWhereLabel(entry.local_de_uso)} | uso=${methods}`;
+        const methods = readEntryUsage(entry).slice(0, 2).join(' | ');
+        return `- ${entry.name} | permissao=${readEntryPermission(entry) || 'n/a'} | local=${formatWhereLabel(readEntryContexts(entry))} | uso=${methods}`;
       })
       .join('\n');
   };
