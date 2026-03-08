@@ -100,6 +100,10 @@ logger.info(`Configuração de banco de dados carregada para o ambiente: ${envir
 export const TABLES = {
   MESSAGES: 'messages',
   AI_HELP_RESPONSE_CACHE: 'ai_help_response_cache',
+  AI_LEARNING_EVENTS: 'ai_learning_events',
+  AI_LEARNED_PATTERNS: 'ai_learned_patterns',
+  AI_LEARNED_KEYWORDS: 'ai_learned_keywords',
+  AI_QUESTION_EMBEDDINGS: 'ai_question_embeddings',
   MESSAGE_ANALYSIS_EVENT: 'message_analysis_event',
   BAILEYS_EVENT_JOURNAL: 'baileys_event_journal',
   CHATS: 'chats',

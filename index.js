@@ -51,6 +51,7 @@ import {
   startStickerDomainEventConsumer,
   stopStickerDomainEventConsumer,
 } from './app/modules/stickerPackModule/stickerDomainEventConsumerRuntime.js';
+import { startAiLearningWorker, stopAiLearningWorker } from './app/workers/aiLearningWorker.js';
 
 /**
  * Timeout máximo para inicialização do banco (criar/verificar DB + tabelas).
@@ -231,6 +232,7 @@ async function startApp() {
     }
     startStickerPackScoreSnapshotRuntime();
     startStickerDomainEventConsumer();
+    startAiLearningWorker();
 
     // Backfill é opcional, rodando em background.
     const shouldBackfill = process.env.LID_BACKFILL_ON_START !== 'false';
@@ -391,6 +393,14 @@ async function shutdown(signal, error) {
     } catch (consumerError) {
       logger.warn('Falha ao encerrar consumidor interno de eventos de domínio.', {
         error: consumerError?.message,
+      });
+    }
+
+    try {
+      stopAiLearningWorker();
+    } catch (learningWorkerError) {
+      logger.warn('Falha ao encerrar worker de aprendizado de IA.', {
+        error: learningWorkerError?.message,
       });
     }
 

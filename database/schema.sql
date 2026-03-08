@@ -1070,4 +1070,57 @@ CREATE TABLE IF NOT EXISTS `ai_help_response_cache` (
   KEY `idx_ai_help_response_cache_used` (`last_used_at`),
   KEY `idx_ai_help_response_cache_source_used` (`source`,`last_used_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `ai_learning_events` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_question` varchar(512) NOT NULL,
+  `normalized_question` varchar(512) NOT NULL,
+  `tool_suggested` varchar(64) NOT NULL,
+  `tool_executed` varchar(64) NOT NULL,
+  `success` tinyint(1) NOT NULL DEFAULT 1,
+  `confidence` decimal(5,4) DEFAULT NULL,
+  `processed` tinyint(1) NOT NULL DEFAULT 0,
+  `processed_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_ai_learning_events_processed_created` (`processed`,`created_at`),
+  KEY `idx_ai_learning_events_tool_created` (`tool_executed`,`created_at`),
+  KEY `idx_ai_learning_events_norm_question` (`normalized_question`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `ai_learned_patterns` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `pattern` varchar(512) NOT NULL,
+  `tool` varchar(64) NOT NULL,
+  `confidence` decimal(5,4) NOT NULL DEFAULT 0.5000,
+  `source_event_id` bigint(20) unsigned NOT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_ai_learned_patterns_event_pattern` (`source_event_id`,`tool`,`pattern`),
+  KEY `idx_ai_learned_patterns_tool_created` (`tool`,`created_at`),
+  KEY `idx_ai_learned_patterns_tool_confidence` (`tool`,`confidence`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `ai_learned_keywords` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `keyword` varchar(128) NOT NULL,
+  `tool` varchar(64) NOT NULL,
+  `weight` decimal(6,4) NOT NULL DEFAULT 1.0000,
+  `source_event_id` bigint(20) unsigned NOT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_ai_learned_keywords_event_keyword` (`source_event_id`,`tool`,`keyword`),
+  KEY `idx_ai_learned_keywords_tool_created` (`tool`,`created_at`),
+  KEY `idx_ai_learned_keywords_tool_weight` (`tool`,`weight`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `ai_question_embeddings` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `question` varchar(512) NOT NULL,
+  `embedding` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`embedding`)),
+  `tool` varchar(64) NOT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_ai_question_embeddings_tool_created` (`tool`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 SET FOREIGN_KEY_CHECKS = 1;

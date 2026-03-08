@@ -108,7 +108,12 @@ const isToolCallingReady = (context = {}) => {
   return true;
 };
 
-warmupToolCandidateSelector();
+void warmupToolCandidateSelector().catch((error) => {
+  logger.warn('Falha ao aquecer seletor de candidatos de tool.', {
+    action: 'tool_candidate_selector_warmup_failed',
+    error: error?.message,
+  });
+});
 
 export const maybeResolveAndExecuteToolCall = async ({ question, context = {} } = {}) => {
   const rawQuestion = normalizeText(question);
@@ -119,7 +124,7 @@ export const maybeResolveAndExecuteToolCall = async ({ question, context = {} } 
     Number(context?.toolSelectionLimit) > 0
       ? Number(context.toolSelectionLimit)
       : GLOBAL_TOOL_CALLING_DEFAULT_CANDIDATE_LIMIT;
-  const candidateSelection = selectCandidateTools(rawQuestion, candidateLimit);
+  const candidateSelection = await selectCandidateTools(rawQuestion, candidateLimit);
   const tools = Array.isArray(candidateSelection?.tools) ? candidateSelection.tools : [];
   if (tools.length === 0) {
     return null;
@@ -180,6 +185,10 @@ export const maybeResolveAndExecuteToolCall = async ({ question, context = {} } 
 
   const execution = await executeTool(toolName, parsedArgs, {
     ...context,
+    userQuestion: rawQuestion,
+    toolSelectionCandidates: Array.isArray(candidateSelection?.candidateTools)
+      ? candidateSelection.candidateTools
+      : [],
     executeCommand: context.toolCommandExecutor,
   });
 

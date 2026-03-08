@@ -1,6 +1,7 @@
 import logger from '../../utils/logger/loggerModule.js';
 import { getToolRecord } from './moduleToolRegistryService.js';
 import { mapToolArgsToCommandText } from './commandToolBuilderService.js';
+import { saveLearningEvent } from './aiLearningRepository.js';
 
 const normalizeText = (value) =>
   String(value || '')
@@ -154,6 +155,34 @@ const validateAndNormalizeArgs = ({ record, inputArgs }) => {
     errors,
   };
 };
+
+const resolveLearningConfidence = ({ context, toolName }) => {
+  const direct = Number(context?.topMatchScore);
+  if (Number.isFinite(direct)) {
+    return Math.max(0, Math.min(1, direct));
+  }
+
+  const candidates = Array.isArray(context?.toolSelectionCandidates)
+    ? context.toolSelectionCandidates
+    : [];
+  const found = candidates.find(
+    (candidate) =>
+      normalizeText(candidate?.toolName) === normalizeText(toolName) ||
+      normalizeText(candidate?.commandName) === normalizeText(toolName),
+  );
+  const score = Number(found?.score);
+  if (Number.isFinite(score)) return Math.max(0, Math.min(1, score));
+  return null;
+};
+
+const resolveLearningQuestion = (context = {}) =>
+  String(
+    context?.userQuestion ||
+      context?.question ||
+      context?.rawQuestion ||
+      context?.originalQuestion ||
+      '',
+  ).trim();
 
 const normalizePermissionText = (value) => String(value || 'nao definido').trim();
 
@@ -404,6 +433,25 @@ export const executeTool = async (toolName, toolArgs, context = {}) => {
           : String(executionResult?.text || '').trim() ||
             `Nao consegui executar ${record.commandName}. Tente o comando manualmente.`,
     };
+  }
+
+  const learningQuestion = resolveLearningQuestion(context);
+  if (learningQuestion) {
+    try {
+      await saveLearningEvent({
+        question: learningQuestion,
+        toolSuggested: normalizedToolName,
+        toolExecuted: record.toolName,
+        success: true,
+        confidence: resolveLearningConfidence({ context, toolName: record.toolName }),
+      });
+    } catch (error) {
+      logger.warn('Falha ao salvar evento de aprendizado apos tool executada.', {
+        action: 'ai_learning_event_save_after_tool_failed',
+        toolName: record.toolName,
+        error: error?.message,
+      });
+    }
   }
 
   return {

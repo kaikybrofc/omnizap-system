@@ -2,17 +2,26 @@ import natural from 'natural';
 import winkBm25TextSearch from 'wink-bm25-text-search';
 import logger from '../../utils/logger/loggerModule.js';
 import { getAllToolRecords, getToolRegistryStats } from './moduleToolRegistryService.js';
+import {
+  getLearnedKnowledgeVersion,
+  listLearnedKeywords,
+  listLearnedPatterns,
+} from './aiLearningRepository.js';
 
 const DEFAULT_TOOL_SELECTION_MAX_CANDIDATES = 8;
 const DEFAULT_TOOL_SELECTION_MIN_SCORE = 0.2;
 const DEFAULT_TOOL_SELECTION_FALLBACK_POPULAR_LIMIT = 5;
 const DEFAULT_TOOL_SELECTION_CACHE_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_TOOL_SELECTION_CACHE_MAX_ENTRIES = 800;
+const DEFAULT_TOOL_SELECTION_LEARNED_REFRESH_MS = 60_000;
+const DEFAULT_TOOL_SELECTION_LEARNED_MAX_ROWS = 10_000;
 const MIN_BM25_DOCS = 3;
 
-const BM25_WEIGHT = 0.55;
-const OVERLAP_WEIGHT = 0.25;
-const FUZZY_WEIGHT = 0.2;
+const BM25_WEIGHT = 0.35;
+const KEYWORD_MATCH_WEIGHT = 0.25;
+const LEARNED_PATTERNS_WEIGHT = 0.2;
+const FUZZY_MATCH_WEIGHT = 0.1;
+const TOOL_POPULARITY_WEIGHT = 0.1;
 
 const BM25_FIELD_WEIGHTS = {
   descricao: 3,
@@ -65,6 +74,16 @@ const STOPWORDS = new Set([
 
 let cachedIndexSnapshot = null;
 let cachedIndexSignature = '';
+let learnedRefreshPromise = null;
+
+let learnedKnowledgeCache = {
+  loaded: false,
+  version: '0:0',
+  lastLoadedAt: 0,
+  nextRefreshAt: 0,
+  keywordsByTool: new Map(),
+  patternsByTool: new Map(),
+};
 
 const parseEnvInt = (value, fallback, min, max) => {
   const parsed = Number.parseInt(String(value ?? ''), 10);
@@ -107,6 +126,18 @@ const TOOL_SELECTION_CACHE_MAX_ENTRIES = parseEnvInt(
   DEFAULT_TOOL_SELECTION_CACHE_MAX_ENTRIES,
   50,
   10_000,
+);
+const TOOL_SELECTION_LEARNED_REFRESH_MS = parseEnvInt(
+  process.env.TOOL_SELECTION_LEARNED_REFRESH_MS,
+  DEFAULT_TOOL_SELECTION_LEARNED_REFRESH_MS,
+  5_000,
+  30 * 60 * 1000,
+);
+const TOOL_SELECTION_LEARNED_MAX_ROWS = parseEnvInt(
+  process.env.TOOL_SELECTION_LEARNED_MAX_ROWS,
+  DEFAULT_TOOL_SELECTION_LEARNED_MAX_ROWS,
+  100,
+  50_000,
 );
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
@@ -203,10 +234,10 @@ const buildDocumentFields = (record) => {
 
   const aliases = unique(record?.aliases || []);
   const commandTerms = unique([record?.commandName, ...aliases]).join(' ');
-  const searchableText = normalizeText(
-    [descricao, capabilityKeywords, faqPatterns, userPhrasings, commandTerms].join(' '),
+  const staticKeywordText = normalizeText(
+    [capabilityKeywords, commandTerms, faqPatterns].join(' '),
   );
-  const searchableTokens = new Set(tokenizeText(searchableText));
+  const staticKeywordTokens = new Set(tokenizeText(staticKeywordText));
   const matchPhrases = unique([
     record?.commandName,
     ...aliases,
@@ -220,8 +251,7 @@ const buildDocumentFields = (record) => {
     capability_keywords: normalizeText(capabilityKeywords),
     faq_patterns: normalizeText(faqPatterns),
     user_phrasings: normalizeText(userPhrasings),
-    searchableText,
-    searchableTokens,
+    staticKeywordTokens,
     matchPhrases,
   };
 };
@@ -245,8 +275,8 @@ const pruneCache = (nowMs = Date.now()) => {
   }
 };
 
-const buildCacheKey = ({ message, limit, minScore, signature }) =>
-  `${signature}|${limit}|${roundScore(minScore)}|${normalizeText(message)}`;
+const buildCacheKey = ({ message, limit, minScore, signature, learnedVersion }) =>
+  `${signature}|${learnedVersion}|${limit}|${roundScore(minScore)}|${normalizeText(message)}`;
 
 const extractBm25Scores = (bm25Engine, queryText) => {
   const rawResults = bm25Engine?.search?.(queryText);
@@ -354,6 +384,171 @@ const buildOrGetIndexSnapshot = () => {
   return cachedIndexSnapshot;
 };
 
+const computeKeywordMatchScore = ({
+  queryTokens = [],
+  staticKeywordTokens = new Set(),
+  learnedKeywordMap = new Map(),
+}) => {
+  const staticOverlap = computeTokenOverlapScore(queryTokens, staticKeywordTokens);
+
+  let learnedScore = 0;
+  if (learnedKeywordMap.size > 0) {
+    let totalWeight = 0;
+    let matchedWeight = 0;
+    for (const [keyword, weight] of learnedKeywordMap.entries()) {
+      const safeWeight = Math.max(0, Number(weight) || 0);
+      totalWeight += safeWeight;
+      if (queryTokens.includes(keyword)) {
+        matchedWeight += safeWeight;
+      }
+    }
+    learnedScore = totalWeight > 0 ? clamp01(matchedWeight / totalWeight) : 0;
+  }
+
+  return clamp01(staticOverlap * 0.65 + learnedScore * 0.35);
+};
+
+const computeLearnedPatternsScore = ({ queryText, queryTokens = [], learnedPatterns = [] }) => {
+  if (!Array.isArray(learnedPatterns) || learnedPatterns.length === 0) return 0;
+
+  let best = 0;
+  for (const item of learnedPatterns) {
+    const pattern = normalizeText(item?.pattern || '');
+    if (!pattern) continue;
+
+    const confidence = clamp01(item?.confidence);
+    const patternTokens =
+      item?.tokens instanceof Set ? item.tokens : new Set(tokenizeText(pattern));
+    const fuzzy = Number(natural.JaroWinklerDistance(normalizeText(queryText), pattern)) || 0;
+    const overlap = computeTokenOverlapScore(queryTokens, patternTokens);
+    const raw = clamp01(fuzzy * 0.7 + overlap * 0.3);
+    const weighted = clamp01(raw * (0.5 + confidence * 0.5));
+    if (weighted > best) best = weighted;
+  }
+
+  return best;
+};
+
+const buildLearnedKnowledgeMaps = ({ patterns = [], keywords = [] }) => {
+  const keywordsByTool = new Map();
+  const keywordDedup = new Map();
+
+  for (const row of keywords) {
+    const tool = normalizeText(row?.tool);
+    const keyword = normalizeText(row?.keyword);
+    if (!tool || !keyword) continue;
+
+    const dedupKey = `${tool}::${keyword}`;
+    const weight = clamp01(row?.weight) || 0.5;
+    const current = keywordDedup.get(dedupKey) || 0;
+    if (weight > current) {
+      keywordDedup.set(dedupKey, weight);
+    }
+  }
+
+  for (const [dedupKey, weight] of keywordDedup.entries()) {
+    const [tool, keyword] = dedupKey.split('::');
+    if (!tool || !keyword) continue;
+    const toolMap = keywordsByTool.get(tool) || new Map();
+    toolMap.set(keyword, Math.max(weight, toolMap.get(keyword) || 0));
+    keywordsByTool.set(tool, toolMap);
+  }
+
+  const patternsByTool = new Map();
+  const patternDedup = new Map();
+
+  for (const row of patterns) {
+    const tool = normalizeText(row?.tool);
+    const pattern = String(row?.pattern || '').trim();
+    if (!tool || !pattern) continue;
+
+    const dedupKey = `${tool}::${normalizeText(pattern)}`;
+    const confidence = clamp01(row?.confidence) || 0.5;
+    const current = patternDedup.get(dedupKey);
+    if (!current || confidence > current.confidence) {
+      patternDedup.set(dedupKey, {
+        pattern,
+        confidence,
+        tokens: new Set(tokenizeText(pattern)),
+      });
+    }
+  }
+
+  for (const [dedupKey, value] of patternDedup.entries()) {
+    const [tool] = dedupKey.split('::');
+    if (!tool) continue;
+    const list = patternsByTool.get(tool) || [];
+    list.push(value);
+    patternsByTool.set(tool, list);
+  }
+
+  return {
+    keywordsByTool,
+    patternsByTool,
+  };
+};
+
+const refreshLearnedKnowledgeCache = async ({ force = false } = {}) => {
+  const nowMs = Date.now();
+  if (
+    !force &&
+    learnedKnowledgeCache.loaded &&
+    learnedKnowledgeCache.nextRefreshAt > nowMs &&
+    learnedKnowledgeCache.version
+  ) {
+    return learnedKnowledgeCache;
+  }
+
+  if (learnedRefreshPromise) {
+    return learnedRefreshPromise;
+  }
+
+  learnedRefreshPromise = (async () => {
+    const versionInfo = await getLearnedKnowledgeVersion();
+    const nextVersion = String(versionInfo?.version || '0:0');
+
+    if (!force && learnedKnowledgeCache.loaded && learnedKnowledgeCache.version === nextVersion) {
+      learnedKnowledgeCache = {
+        ...learnedKnowledgeCache,
+        nextRefreshAt: nowMs + TOOL_SELECTION_LEARNED_REFRESH_MS,
+      };
+      return learnedKnowledgeCache;
+    }
+
+    const [patterns, keywords] = await Promise.all([
+      listLearnedPatterns({ limit: TOOL_SELECTION_LEARNED_MAX_ROWS }),
+      listLearnedKeywords({ limit: TOOL_SELECTION_LEARNED_MAX_ROWS }),
+    ]);
+
+    const maps = buildLearnedKnowledgeMaps({ patterns, keywords });
+    learnedKnowledgeCache = {
+      loaded: true,
+      version: nextVersion,
+      lastLoadedAt: nowMs,
+      nextRefreshAt: nowMs + TOOL_SELECTION_LEARNED_REFRESH_MS,
+      keywordsByTool: maps.keywordsByTool,
+      patternsByTool: maps.patternsByTool,
+    };
+
+    logger.info('Cache de conhecimento aprendido para tool selector atualizado.', {
+      action: 'tool_candidate_learning_cache_refreshed',
+      version: nextVersion,
+      pattern_count: patterns.length,
+      keyword_count: keywords.length,
+      tools_with_patterns: maps.patternsByTool.size,
+      tools_with_keywords: maps.keywordsByTool.size,
+    });
+
+    return learnedKnowledgeCache;
+  })();
+
+  try {
+    return await learnedRefreshPromise;
+  } finally {
+    learnedRefreshPromise = null;
+  }
+};
+
 const buildSelectionFromEntries = ({
   rankedEntries = [],
   fallbackUsed = false,
@@ -374,7 +569,8 @@ const buildSelectionFromEntries = ({
       moduleKey: entry.moduleKey,
       score: roundScore(entry.finalScore),
       bm25Score: roundScore(entry.bm25Score),
-      overlapScore: roundScore(entry.overlapScore),
+      keywordMatchScore: roundScore(entry.keywordMatchScore),
+      learnedPatternsScore: roundScore(entry.learnedPatternsScore),
       fuzzyScore: roundScore(entry.fuzzyScore),
       popularityScore: roundScore(entry.popularityScore),
       usageCount: Number(entry.learningSignals?.usageCount || 0),
@@ -383,11 +579,12 @@ const buildSelectionFromEntries = ({
   };
 };
 
-export const selectCandidateTools = (userMessage, limit = TOOL_SELECTION_MAX_CANDIDATES) => {
+export const selectCandidateTools = async (userMessage, limit = TOOL_SELECTION_MAX_CANDIDATES) => {
   const startNs = process.hrtime.bigint();
   const safeLimit = Math.max(1, Math.min(32, Number(limit) || TOOL_SELECTION_MAX_CANDIDATES));
   const minScore = TOOL_SELECTION_MIN_SCORE;
   const snapshot = buildOrGetIndexSnapshot();
+  const learnedKnowledge = await refreshLearnedKnowledgeCache();
 
   if (!snapshot.entries.length) {
     return {
@@ -408,6 +605,7 @@ export const selectCandidateTools = (userMessage, limit = TOOL_SELECTION_MAX_CAN
     limit: safeLimit,
     minScore,
     signature: snapshot.signature,
+    learnedVersion: learnedKnowledge.version,
   });
 
   const cached = queryCache.get(cacheKey);
@@ -437,15 +635,31 @@ export const selectCandidateTools = (userMessage, limit = TOOL_SELECTION_MAX_CAN
   const ranked = snapshot.entries
     .map((entry) => {
       const bm25Score = bm25Scores.get(entry.toolName) || 0;
-      const overlapScore = computeTokenOverlapScore(queryTokens, entry.searchableTokens);
+      const learnedKeywordMap = learnedKnowledge.keywordsByTool.get(entry.toolName) || new Map();
+      const learnedPatterns = learnedKnowledge.patternsByTool.get(entry.toolName) || [];
+      const keywordMatchScore = computeKeywordMatchScore({
+        queryTokens,
+        staticKeywordTokens: entry.staticKeywordTokens,
+        learnedKeywordMap,
+      });
+      const learnedPatternsScore = computeLearnedPatternsScore({
+        queryText: normalizedMessage,
+        queryTokens,
+        learnedPatterns,
+      });
       const fuzzyScore = computeFuzzyScore(normalizedMessage, entry.matchPhrases);
       const finalScore = clamp01(
-        bm25Score * BM25_WEIGHT + overlapScore * OVERLAP_WEIGHT + fuzzyScore * FUZZY_WEIGHT,
+        bm25Score * BM25_WEIGHT +
+          keywordMatchScore * KEYWORD_MATCH_WEIGHT +
+          learnedPatternsScore * LEARNED_PATTERNS_WEIGHT +
+          fuzzyScore * FUZZY_MATCH_WEIGHT +
+          entry.popularityScore * TOOL_POPULARITY_WEIGHT,
       );
       return {
         ...entry,
         bm25Score,
-        overlapScore,
+        keywordMatchScore,
+        learnedPatternsScore,
         fuzzyScore,
         finalScore,
       };
@@ -466,7 +680,8 @@ export const selectCandidateTools = (userMessage, limit = TOOL_SELECTION_MAX_CAN
         .map((entry) => ({
           ...entry,
           bm25Score: 0,
-          overlapScore: 0,
+          keywordMatchScore: 0,
+          learnedPatternsScore: 0,
           fuzzyScore: 0,
           finalScore: entry.popularityScore,
         }))
@@ -501,8 +716,10 @@ export const selectCandidateTools = (userMessage, limit = TOOL_SELECTION_MAX_CAN
   return selection;
 };
 
-export const getCandidateTools = (userMessage, limit = TOOL_SELECTION_MAX_CANDIDATES) =>
-  selectCandidateTools(userMessage, limit).tools;
+export const getCandidateTools = async (userMessage, limit = TOOL_SELECTION_MAX_CANDIDATES) => {
+  const selection = await selectCandidateTools(userMessage, limit);
+  return selection.tools;
+};
 
 export const getToolCandidateSelectorConfig = () => ({
   maxCandidates: TOOL_SELECTION_MAX_CANDIDATES,
@@ -510,19 +727,41 @@ export const getToolCandidateSelectorConfig = () => ({
   fallbackPopularLimit: TOOL_SELECTION_FALLBACK_POPULAR_LIMIT,
   cacheTtlMs: TOOL_SELECTION_CACHE_TTL_MS,
   cacheMaxEntries: TOOL_SELECTION_CACHE_MAX_ENTRIES,
+  learnedRefreshMs: TOOL_SELECTION_LEARNED_REFRESH_MS,
+  learnedMaxRows: TOOL_SELECTION_LEARNED_MAX_ROWS,
   scoreWeights: {
     bm25: BM25_WEIGHT,
-    overlap: OVERLAP_WEIGHT,
-    fuzzy: FUZZY_WEIGHT,
+    keywordMatch: KEYWORD_MATCH_WEIGHT,
+    learnedPatterns: LEARNED_PATTERNS_WEIGHT,
+    fuzzy: FUZZY_MATCH_WEIGHT,
+    popularity: TOOL_POPULARITY_WEIGHT,
   },
 });
 
-export const warmupToolCandidateSelector = () => {
+export const warmupToolCandidateSelector = async () => {
   buildOrGetIndexSnapshot();
+  await refreshLearnedKnowledgeCache({ force: true });
+};
+
+export const markToolCandidateLearningCacheDirty = () => {
+  learnedKnowledgeCache = {
+    ...learnedKnowledgeCache,
+    nextRefreshAt: 0,
+  };
+  queryCache.clear();
 };
 
 export const resetToolCandidateSelectorCacheForTests = () => {
   queryCache.clear();
   cachedIndexSnapshot = null;
   cachedIndexSignature = '';
+  learnedKnowledgeCache = {
+    loaded: false,
+    version: '0:0',
+    lastLoadedAt: 0,
+    nextRefreshAt: 0,
+    keywordsByTool: new Map(),
+    patternsByTool: new Map(),
+  };
+  learnedRefreshPromise = null;
 };
