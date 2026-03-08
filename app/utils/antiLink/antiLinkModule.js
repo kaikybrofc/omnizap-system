@@ -1,10 +1,10 @@
 import { URL } from 'node:url';
-import { isUserAdmin, updateGroupParticipants } from '../../config/groupUtils.js';
-import { getJidUser, isLidJid, isSameJidUser, isWhatsAppJid, normalizeJid } from '../../config/baileysConfig.js';
+import { isUserAdmin, updateGroupParticipants } from '../../config/index.js';
+import { getJidUser, isLidJid, isSameJidUser, isWhatsAppJid, normalizeJid } from '../../config/index.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 import logger from '../../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
-import { extractSenderInfoFromMessage, resolveUserId } from '../../services/lidMapService.js';
+import { extractSenderInfoFromMessage, resolveUserId } from '../../config/index.js';
 
 /**
  * Base de redes conhecidas e seus domínios oficiais para permitir por categoria.

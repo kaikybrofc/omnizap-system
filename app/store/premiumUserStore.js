@@ -1,5 +1,5 @@
 import groupConfigStore from './groupConfigStore.js';
-import { isSameJidUser, normalizeJid } from '../config/baileysConfig.js';
+import { isSameJidUser, normalizeJid } from '../config/index.js';
 
 const PREMIUM_CONFIG_ID = 'system:premium_users';
 

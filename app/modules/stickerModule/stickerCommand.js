@@ -2,13 +2,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URL } from 'node:url';
 import logger from '../../../utils/logger/loggerModule.js';
-import { downloadMediaMessage, extractMediaDetails, getJidUser } from '../../config/baileysConfig.js';
+import { downloadMediaMessage, extractMediaDetails, getJidUser } from '../../config/index.js';
 import { addStickerMetadata } from './addStickerMetadata.js';
 import { convertToWebp } from './convertToWebp.js';
 import { v4 as uuidv4 } from 'uuid';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { addStickerToAutoPack } from '../stickerPackModule/autoPackCollectorRuntime.js';
-import { getAdminJid } from '../../config/adminIdentity.js';
+import { getAdminJid } from '../../config/index.js';
 import { getStickerUsageText } from './stickerConfigRuntime.js';
 
 const adminJid = getAdminJid();

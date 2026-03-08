@@ -2,7 +2,7 @@ import axios from 'axios';
 import logger from '../../utils/logger/loggerModule.js';
 import groupConfigStore from '../store/groupConfigStore.js';
 import { TABLES, findAll } from '../../database/index.js';
-import { getActiveSocket } from './socketState.js';
+import { getActiveSocket } from '../config/index.js';
 import getImageBuffer from '../utils/http/getImageBufferModule.js';
 import { sendAndStore } from './messagePersistenceService.js';
 

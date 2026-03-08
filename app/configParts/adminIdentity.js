@@ -1,5 +1,5 @@
 import { encodeJid, getJidUser, isSameJidUser, normalizeJid } from './baileysConfig.js';
-import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../services/lidMapService.js';
+import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from './baileysConfig.js';
 
 const ADMIN_ENV_KEY = 'USER_ADMIN';
 

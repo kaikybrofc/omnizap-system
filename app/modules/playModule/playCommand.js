@@ -10,7 +10,7 @@ import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import logger from '../../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
-import { getAdminJid } from '../../config/adminIdentity.js';
+import { getAdminJid } from '../../config/index.js';
 import { getPlayUsageText } from './playConfigRuntime.js';
 
 const adminJid = getAdminJid();

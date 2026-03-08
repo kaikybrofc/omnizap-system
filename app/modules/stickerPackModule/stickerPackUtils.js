@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { normalizeJid } from '../../config/baileysConfig.js';
+import { normalizeJid } from '../../config/index.js';
 
 /**
  * Utilitários compartilhados para normalização e sanitização de dados de packs.

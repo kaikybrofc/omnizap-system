@@ -1,7 +1,7 @@
 import { createCanvas, loadImage } from 'canvas';
 import { executeQuery } from '../../../database/index.js';
-import { getJidUser, getProfilePicBuffer, normalizeJid } from '../../config/baileysConfig.js';
-import { primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../../services/lidMapService.js';
+import { getJidUser, getProfilePicBuffer, normalizeJid } from '../../config/index.js';
+import { primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../../config/index.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 
 import logger from '../../../utils/logger/loggerModule.js';
-import { downloadMediaMessage, extractMediaDetails } from '../../config/baileysConfig.js';
+import { downloadMediaMessage, extractMediaDetails } from '../../config/index.js';
 import { isFeatureEnabled } from '../../services/featureFlagService.js';
 import { createStickerAsset, findLatestStickerAssetByOwner, findStickerAssetById, findStickerAssetBySha256, updateStickerAssetStoragePath } from './stickerAssetRepository.js';
 import { ensureStickerAssetClassified } from './stickerClassificationService.js';

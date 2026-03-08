@@ -1,6 +1,6 @@
 import logger from '../../utils/logger/loggerModule.js';
 import { findById, upsert } from '../../database/index.js';
-import { extractUserIdInfo, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from './lidMapService.js';
+import { extractUserIdInfo, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../config/index.js';
 
 const GROUP_METADATA_FIELDS = ['id', 'subject', 'description', 'owner_jid', 'creation', 'participants'];
 

@@ -4,9 +4,9 @@ import path from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 
 import logger from '../../../utils/logger/loggerModule.js';
-import { getJidUser } from '../../config/baileysConfig.js';
-import { resolveUserId } from '../../services/lidMapService.js';
-import { runSocketMethod } from '../../services/socketState.js';
+import { getJidUser } from '../../config/index.js';
+import { resolveUserId } from '../../config/index.js';
+import { runSocketMethod } from '../../config/index.js';
 import { convertToWebp } from '../stickerModule/convertToWebp.js';
 import { addStickerMetadata } from '../stickerModule/addStickerMetadata.js';
 import { fetchLatestPushNames } from '../statsModule/rankingCommon.js';

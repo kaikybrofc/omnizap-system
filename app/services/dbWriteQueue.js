@@ -1,6 +1,6 @@
 import logger from '../../utils/logger/loggerModule.js';
 import { executeQuery, TABLES } from '../../database/index.js';
-import { queueLidUpdate, flushLidQueue, resolveUserIdCached } from './lidMapService.js';
+import { queueLidUpdate, flushLidQueue, resolveUserIdCached } from '../config/index.js';
 import { buildPlaceholders, createFlushRunner } from './queueUtils.js';
 import { recordError, setQueueDepth } from '../observability/metrics.js';
 import { sanitizeUnicodeString, toSafeJsonColumnValue } from '../utils/json/jsonSanitizer.js';

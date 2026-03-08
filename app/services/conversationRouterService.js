@@ -1,5 +1,5 @@
 import logger from '../../utils/logger/loggerModule.js';
-import { isSameJidUser } from '../config/baileysConfig.js';
+import { isSameJidUser } from '../config/index.js';
 import { responderPerguntaGlobal } from './globalModuleAiHelpService.js';
 import { appendConversationSessionMessage, getConversationSession, setConversationSessionIntent } from '../store/conversationSessionStore.js';
 

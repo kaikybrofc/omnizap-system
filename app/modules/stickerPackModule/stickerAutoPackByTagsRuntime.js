@@ -1,6 +1,6 @@
 import logger from '../../../utils/logger/loggerModule.js';
-import { getActiveSocket } from '../../services/socketState.js';
-import { normalizeJid, resolveBotJid } from '../../config/baileysConfig.js';
+import { getActiveSocket } from '../../config/index.js';
+import { normalizeJid, resolveBotJid } from '../../config/index.js';
 import { recordStickerAutoPackCycle } from '../../observability/metrics.js';
 import stickerPackService from './stickerPackServiceRuntime.js';
 import { countClassifiedStickerAssetsWithoutPack, listClassifiedStickerAssetsForCuration } from './stickerAssetRepository.js';

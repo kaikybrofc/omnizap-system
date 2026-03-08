@@ -5,10 +5,10 @@ import { spawn } from 'node:child_process';
 import { URL, URLSearchParams } from 'node:url';
 
 import { executeQuery, pool, TABLES } from '../../../database/index.js';
-import { getJidUser, normalizeJid, resolveBotJid } from '../../../app/config/baileysConfig.js';
-import { getAdminPhone, getAdminRawValue, resolveAdminJid } from '../../../app/config/adminIdentity.js';
-import { getActiveSocket, profilePictureUrlFromActiveSocket } from '../../../app/services/socketState.js';
-import { extractUserIdInfo, resolveUserId } from '../../../app/services/lidMapService.js';
+import { getJidUser, normalizeJid, resolveBotJid } from '../../../app/config/index.js';
+import { getAdminPhone, getAdminRawValue, resolveAdminJid } from '../../../app/config/index.js';
+import { getActiveSocket, profilePictureUrlFromActiveSocket } from '../../../app/config/index.js';
+import { extractUserIdInfo, resolveUserId } from '../../../app/config/index.js';
 import { resolveWhatsAppOwnerJidFromLoginPayload, toWhatsAppOwnerJid, toWhatsAppPhoneDigits } from '../../../app/services/whatsappLoginLinkService.js';
 import logger from '../../../utils/logger/loggerModule.js';
 import { getSystemMetrics } from '../../../app/utils/systemMetrics/systemMetricsModule.js';

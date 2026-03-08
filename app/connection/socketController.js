@@ -1,7 +1,7 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage, areJidsSameUser, WAMessageStatus, WAMessageStubType, WAMessageAddressingMode } from '@whiskeysockets/baileys';
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage, areJidsSameUser, WAMessageStatus, WAMessageStubType } from '@whiskeysockets/baileys';
 
 import NodeCache from 'node-cache';
-import { resolveBaileysVersion } from '../config/baileysConfig.js';
+import { parseEnvBool, parseEnvCsv, parseEnvInt, resolveBaileysVersion, resolveAddressingModeFromMessageKey, normalizeAddressingMode, normalizePnToJid } from '../config/index.js';
 
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
@@ -11,14 +11,14 @@ import pino from 'pino';
 import logger from '../../utils/logger/loggerModule.js';
 import { handleMessages } from '../controllers/messageController.js';
 import { syncNewsBroadcastService } from '../services/newsBroadcastService.js';
-import { setActiveSocket as storeActiveSocket, runActiveSocketMethod, isSocketOpen } from '../services/socketState.js';
+import { setActiveSocket as storeActiveSocket, runActiveSocketMethod, isSocketOpen } from '../config/index.js';
 import { recordError, recordMessagesUpsert } from '../observability/metrics.js';
 import { resolveCaptchaByReaction } from '../services/captchaService.js';
 
 import { handleGroupUpdate as handleGroupParticipantsEvent, handleGroupJoinRequest } from '../modules/adminModule/groupEventHandlers.js';
 
 import { findBy, findById, remove } from '../../database/index.js';
-import { extractSenderInfoFromMessage, primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../services/lidMapService.js';
+import { extractSenderInfoFromMessage, primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../config/index.js';
 import { queueBaileysEventInsert, queueChatUpdate, queueLidUpdate, queueMessageInsert } from '../services/dbWriteQueue.js';
 import { buildGroupMetadataFromGroup, buildGroupMetadataFromUpdate, upsertGroupMetadata, parseParticipantsFromDb } from '../services/groupMetadataService.js';
 import { buildMessageData } from '../services/messagePersistenceService.js';
@@ -27,29 +27,6 @@ import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const parseEnvBool = (value, fallback) => {
-  if (value === undefined || value === null || value === '') return fallback;
-  const normalized = String(value).trim().toLowerCase();
-  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
-  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
-  return fallback;
-};
-
-const parseEnvInt = (value, fallback, min, max) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(min, Math.min(max, Math.floor(parsed)));
-};
-
-const parseEnvCsv = (value, fallback) => {
-  if (value === undefined || value === null || value === '') return [...fallback];
-  const parsed = String(value)
-    .split(',')
-    .map((entry) => String(entry || '').trim())
-    .filter(Boolean);
-  return parsed.length > 0 ? parsed : [...fallback];
-};
 
 const IS_PRODUCTION =
   String(process.env.NODE_ENV || '')
@@ -90,22 +67,6 @@ const MESSAGE_STUB_CODE_TO_NAME = new Map(
     .filter(([, value]) => typeof value === 'number')
     .map(([name, value]) => [value, name]),
 );
-
-const normalizeAddressingMode = (value) => {
-  if (value === WAMessageAddressingMode.LID) return WAMessageAddressingMode.LID;
-  if (value === WAMessageAddressingMode.PN) return WAMessageAddressingMode.PN;
-  return undefined;
-};
-
-const resolveAddressingModeFromMessageKey = (key) => {
-  const explicit = normalizeAddressingMode(key?.addressingMode);
-  if (explicit) return explicit;
-
-  const identityCandidate = key?.participant || key?.participantAlt || key?.remoteJid || key?.remoteJidAlt || '';
-  if (isLidUserId(identityCandidate)) return WAMessageAddressingMode.LID;
-  if (isWhatsAppUserId(identityCandidate)) return WAMessageAddressingMode.PN;
-  return undefined;
-};
 
 const normalizeMessageStatus = (status) => {
   const statusCode = Number(status);
@@ -634,15 +595,6 @@ const safeJsonParse = (value, fallback) => {
  * @param {string|null|undefined} pn
  * @returns {string|null}
  */
-const normalizePnToJid = (pn) => {
-  if (!pn || typeof pn !== 'string') return null;
-  const normalized = pn.trim();
-  if (!normalized) return null;
-  if (isWhatsAppUserId(normalized)) return normalized;
-  if (/^\d+(?::\d+)?$/.test(normalized)) return `${normalized}@s.whatsapp.net`;
-  return null;
-};
-
 /**
  * Persiste mensagens recebidas quando o tipo do upsert permite salvamento.
  * @async

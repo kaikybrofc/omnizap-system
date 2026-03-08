@@ -1,9 +1,9 @@
 import logger from '../../utils/logger/loggerModule.js';
-import { getJidUser } from '../config/baileysConfig.js';
-import { isUserAdmin, updateGroupParticipants } from '../config/groupUtils.js';
-import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from './lidMapService.js';
+import { getJidUser } from '../config/index.js';
+import { isUserAdmin, updateGroupParticipants } from '../config/index.js';
+import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../config/index.js';
 import { sendAndStore } from './messagePersistenceService.js';
-import { getActiveSocket } from './socketState.js';
+import { getActiveSocket } from '../config/index.js';
 
 export const CAPTCHA_TIMEOUT_MS = 5 * 60 * 1000;
 export const CAPTCHA_TIMEOUT_MINUTES = 5;

@@ -1,13 +1,13 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
-import { getJidUser, getProfilePicBuffer, normalizeJid } from '../../config/baileysConfig.js';
-import { isUserAdmin } from '../../config/groupUtils.js';
-import { extractUserIdInfo, isWhatsAppUserId, resolveUserId, resolveUserIdCached } from '../../services/lidMapService.js';
-import { fetchBlocklistFromActiveSocket } from '../../services/socketState.js';
+import { getJidUser, getProfilePicBuffer, normalizeJid } from '../../config/index.js';
+import { isUserAdmin } from '../../config/index.js';
+import { extractUserIdInfo, isWhatsAppUserId, resolveUserId, resolveUserIdCached } from '../../config/index.js';
+import { fetchBlocklistFromActiveSocket } from '../../config/index.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import logger from '../../../utils/logger/loggerModule.js';
 import { MESSAGE_TYPE_SQL, TIMESTAMP_TO_DATETIME_SQL } from '../statsModule/rankingCommon.js';
-import { getAdminJid } from '../../config/adminIdentity.js';
+import { getAdminJid } from '../../config/index.js';
 import { getUserUsageText } from './userConfigRuntime.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';

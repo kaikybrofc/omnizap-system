@@ -3,7 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import logger from '../../../utils/logger/loggerModule.js';
-import { getJidUser } from '../../config/baileysConfig.js';
+import { getJidUser } from '../../config/index.js';
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const METADATA_MAX_LENGTH = 64;

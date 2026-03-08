@@ -1,13 +1,13 @@
 import logger from '../../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
-import { getJidServer, isUserJid, normalizeJid } from '../../config/baileysConfig.js';
+import { getJidServer, isUserJid, normalizeJid } from '../../config/index.js';
 import stickerPackService from './stickerPackServiceRuntime.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 import { captureIncomingStickerAsset, resolveStickerAssetForCommand } from './stickerStorageService.js';
 import { buildStickerPackMessage, sendStickerPackWithFallback } from './stickerPackMessageService.js';
 import { sanitizeText } from './stickerPackUtils.js';
 import { executeQuery, TABLES } from '../../../database/index.js';
-import { extractSenderInfoFromMessage, extractUserIdInfo, resolveUserId } from '../../services/lidMapService.js';
+import { extractSenderInfoFromMessage, extractUserIdInfo, resolveUserId } from '../../config/index.js';
 import { toWhatsAppPhoneDigits } from '../../services/whatsappLoginLinkService.js';
 
 /**

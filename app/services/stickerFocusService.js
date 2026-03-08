@@ -1,4 +1,4 @@
-import { normalizeJid } from '../config/baileysConfig.js';
+import { normalizeJid } from '../config/index.js';
 
 const parseEnvInt = (value, fallback, min, max) => {
   const numeric = Number(value);

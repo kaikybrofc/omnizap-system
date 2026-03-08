@@ -6,10 +6,10 @@ import path from 'node:path';
 import logger from '../../../utils/logger/loggerModule.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import aiPromptStore from '../../store/aiPromptStore.js';
-import { downloadMediaMessage, extractAllMediaDetails, getJidUser, isSameJidUser, normalizeJid } from '../../config/baileysConfig.js';
+import { downloadMediaMessage, extractAllMediaDetails, getJidUser, isSameJidUser, normalizeJid } from '../../config/index.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
-import { getAdminJid, resolveAdminJid } from '../../config/adminIdentity.js';
-import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../../services/lidMapService.js';
+import { getAdminJid, resolveAdminJid } from '../../config/index.js';
+import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../../config/index.js';
 import { getAiCommandOperationalLimits, getAiCommandOptionConfig, getAiCommandSystemMessages, getAiUsageText, isAiCommandPremiumOnly } from './aiConfigRuntime.js';
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';

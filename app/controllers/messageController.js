@@ -3,16 +3,15 @@ import 'dotenv/config';
 import { isAdminCommand } from '../modules/adminModule/groupCommandHandlers.js';
 import { explicarComandoGlobal, registerGlobalHelpCommandExecution } from '../services/globalModuleAiHelpService.js';
 import { extractSupportedStickerMediaDetails, processSticker } from '../modules/stickerModule/stickerCommand.js';
-import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, getJidUser, isGroupJid, isLidJid, isSameJidUser, isWhatsAppJid, normalizeJid, resolveBotJid } from '../config/baileysConfig.js';
-import { isUserAdmin } from '../config/groupUtils.js';
-import { isAdminSenderAsync } from '../config/adminIdentity.js';
+import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, isGroupJid, isSameJidUser, normalizeJid, resolveBotJid, extractSenderInfoFromMessage, resolveUserId, resolveAddressingModeFromMessageKey, resolveCanonicalWhatsAppJid, parseEnvBool, parseEnvInt } from '../config/index.js';
+import { isUserAdmin } from '../config/index.js';
+import { isAdminSenderAsync } from '../config/index.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { maybeCaptureIncomingSticker } from '../modules/stickerPackModule/stickerPackCommandHandlers.js';
 import groupConfigStore from '../store/groupConfigStore.js';
 import { sendAndStore } from '../services/messagePersistenceService.js';
 import { resolveCaptchaByMessage } from '../services/captchaService.js';
-import { extractSenderInfoFromMessage, resolveUserId } from '../services/lidMapService.js';
 import { buildWhatsAppGoogleLoginUrl } from '../services/whatsappLoginLinkService.js';
 import { isWhatsAppUserLinkedToGoogleWebAccount } from '../services/googleWebLinkService.js';
 import { createMessageAnalysisEvent } from '../modules/analyticsModule/messageAnalysisEventRepository.js';
@@ -26,18 +25,6 @@ const START_LOGIN_TRIGGER =
   String(process.env.WHATSAPP_LOGIN_TRIGGER || 'iniciar')
     .trim()
     .toLowerCase() || 'iniciar';
-const parseEnvBool = (value, fallback) => {
-  if (value === undefined || value === null || value === '') return fallback;
-  const normalized = String(value).trim().toLowerCase();
-  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
-  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
-  return fallback;
-};
-const parseEnvInt = (value, fallback, min, max) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(min, Math.min(max, Math.floor(parsed)));
-};
 const MESSAGE_ANALYTICS_ENABLED = parseEnvBool(process.env.MESSAGE_ANALYTICS_ENABLED, true);
 const MESSAGE_ANALYTICS_SOURCE =
   String(process.env.MESSAGE_ANALYTICS_SOURCE || 'whatsapp')
@@ -100,21 +87,6 @@ const normalizeTriggerText = (value) =>
 
 const isStartLoginTrigger = (text) => normalizeTriggerText(text) === START_LOGIN_TRIGGER;
 
-const resolveCanonicalWhatsAppJid = (...candidates) => {
-  for (const candidate of candidates) {
-    const normalized = normalizeJid(String(candidate || '').trim());
-    if (!normalized) continue;
-    if (!isWhatsAppJid(normalized)) continue;
-    const user = String(getJidUser(normalized) || '')
-      .split(':')[0]
-      .replace(/\D+/g, '');
-    if (!user) continue;
-    if (user.length < 10 || user.length > 15) continue;
-    return normalizeJid(`${user}@s.whatsapp.net`) || normalized;
-  }
-  return '';
-};
-
 const resolveCanonicalSenderJidFromMessage = async ({ messageInfo, senderJid }) => {
   const key = messageInfo?.key || {};
   const senderInfo = extractSenderInfoFromMessage(messageInfo);
@@ -131,24 +103,6 @@ const resolveCanonicalSenderJidFromMessage = async ({ messageInfo, senderJid }) 
   }
 
   return canonicalUserId;
-};
-
-const resolveAddressingModeFromMessageKey = (key = {}, senderInfo = {}) => {
-  const explicit = String(key?.addressingMode || '')
-    .trim()
-    .toLowerCase();
-  if (explicit === 'lid') return 'lid';
-  if (explicit === 'pn') return 'pn';
-
-  const candidates = [senderInfo?.lid, key?.participant, key?.participantAlt, key?.remoteJid, key?.remoteJidAlt];
-  for (const candidate of candidates) {
-    const normalized = normalizeJid(String(candidate || '').trim());
-    if (!normalized) continue;
-    if (isLidJid(normalized)) return 'lid';
-    if (isWhatsAppJid(normalized)) return 'pn';
-  }
-
-  return undefined;
 };
 
 const resolveSenderContext = async ({ messageInfo, isGroupMessage, remoteJid }) => {
