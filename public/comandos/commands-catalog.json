@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-03-08T22:12:02.894Z",
+  "generated_at": "2026-03-09T07:30:22.956Z",
   "totals": {
     "modules": 14,
     "categories": 10,
@@ -112,23 +112,34 @@
       "label": "Moderacao e Admin",
       "icon": "🛡️",
       "command_count": 32,
-      "modules": ["adminModule"],
+      "modules": [
+        "adminModule"
+      ],
       "commands": [
         {
           "key": "adminModule:adicionar",
           "name": "adicionar",
-          "aliases": ["add"],
+          "aliases": [
+            "add"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Adiciona participantes ao grupo atual.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
+          "local_de_uso": [
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/adicionar @participante"],
+          "metodos_de_uso": [
+            "/adicionar @participante"
+          ],
           "mensagens_uso": {
-            "missing_targets": ["/adicionar @participante1 @participante2 ...", "Também é possível informar os JIDs dos participantes."]
+            "missing_targets": [
+              "/adicionar @participante1 @participante2 ...",
+              "Também é possível informar os JIDs dos participantes."
+            ]
           }
         },
         {
@@ -141,113 +152,211 @@
           "category_label": "Moderacao e Admin",
           "descricao": "Gerencia bloqueio de links permitidos no grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["on", "off", "list", "allow", "disallow", "add", "remove"],
-          "metodos_de_uso": ["/antilink on", "/antilink off", "/antilink list", "/antilink allow <rede>", "/antilink disallow <rede>", "/antilink add <dominio>", "/antilink remove <dominio>"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "on",
+            "off",
+            "list",
+            "allow",
+            "disallow",
+            "add",
+            "remove"
+          ],
+          "metodos_de_uso": [
+            "/antilink on",
+            "/antilink off",
+            "/antilink list",
+            "/antilink allow <rede>",
+            "/antilink disallow <rede>",
+            "/antilink add <dominio>",
+            "/antilink remove <dominio>"
+          ],
           "mensagens_uso": {
-            "allow": ["/antilink allow <rede>"],
-            "disallow": ["/antilink disallow <rede>"],
-            "add": ["/antilink add <dominio>"],
-            "remove": ["/antilink remove <dominio>"]
+            "allow": [
+              "/antilink allow <rede>"
+            ],
+            "disallow": [
+              "/antilink disallow <rede>"
+            ],
+            "add": [
+              "/antilink add <dominio>"
+            ],
+            "remove": [
+              "/antilink remove <dominio>"
+            ]
           }
         },
         {
           "key": "adminModule:assunto",
           "name": "assunto",
-          "aliases": ["setsubject"],
+          "aliases": [
+            "setsubject"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Altera assunto do grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
+          "local_de_uso": [
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/assunto novo assunto"],
+          "metodos_de_uso": [
+            "/assunto novo assunto"
+          ],
           "mensagens_uso": {
-            "default": ["/assunto <novo_assunto>"]
+            "default": [
+              "/assunto <novo_assunto>"
+            ]
           }
         },
         {
           "key": "adminModule:atualizarsolicitacoes",
           "name": "atualizarsolicitacoes",
-          "aliases": ["updaterequests"],
+          "aliases": [
+            "updaterequests"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Aprova ou rejeita solicitacoes de entrada no grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["approve", "reject"],
-          "metodos_de_uso": ["/atualizarsolicitacoes approve @participante", "/atualizarsolicitacoes reject @participante"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "approve",
+            "reject"
+          ],
+          "metodos_de_uso": [
+            "/atualizarsolicitacoes approve @participante",
+            "/atualizarsolicitacoes reject @participante"
+          ],
           "mensagens_uso": {
-            "invalid_action": ["/atualizarsolicitacoes <approve|reject> @participante1 ..."],
-            "missing_targets": ["/atualizarsolicitacoes <approve|reject> @participante1 ...", "Mencione os usuários que devem ser aprovados ou rejeitados."]
+            "invalid_action": [
+              "/atualizarsolicitacoes <approve|reject> @participante1 ..."
+            ],
+            "missing_targets": [
+              "/atualizarsolicitacoes <approve|reject> @participante1 ...",
+              "Mencione os usuários que devem ser aprovados ou rejeitados."
+            ]
           }
         },
         {
           "key": "adminModule:autofigurinha",
           "name": "autofigurinha",
-          "aliases": ["autosticker"],
+          "aliases": [
+            "autosticker"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Ativa/desativa a geracao automatica de figurinhas no grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["on", "off", "status"],
-          "metodos_de_uso": ["/autofigurinha on", "/autofigurinha off", "/autofigurinha status"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "on",
+            "off",
+            "status"
+          ],
+          "metodos_de_uso": [
+            "/autofigurinha on",
+            "/autofigurinha off",
+            "/autofigurinha status"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:autosolicitacoes",
           "name": "autosolicitacoes",
-          "aliases": ["autorequests"],
+          "aliases": [
+            "autorequests"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Ativa/desativa auto aprovacao de solicitacoes no grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["on", "off", "status"],
-          "metodos_de_uso": ["/autosolicitacoes on", "/autosolicitacoes off", "/autosolicitacoes status"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "on",
+            "off",
+            "status"
+          ],
+          "metodos_de_uso": [
+            "/autosolicitacoes on",
+            "/autosolicitacoes off",
+            "/autosolicitacoes status"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:banir",
           "name": "banir",
-          "aliases": ["remover", "ban"],
+          "aliases": [
+            "remover",
+            "ban"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Remove participantes do grupo atual.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
+          "local_de_uso": [
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/banir @participante"],
+          "metodos_de_uso": [
+            "/banir @participante"
+          ],
           "mensagens_uso": {
-            "missing_targets": ["/banir @participante1 @participante2 ...", "Também é possível responder à mensagem do participante desejado."]
+            "missing_targets": [
+              "/banir @participante1 @participante2 ...",
+              "Também é possível responder à mensagem do participante desejado."
+            ]
           }
         },
         {
           "key": "adminModule:boasvindas",
           "name": "boasvindas",
-          "aliases": ["welcome"],
+          "aliases": [
+            "welcome"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Configura mensagens/midia de boas-vindas no grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["on", "off", "set"],
-          "metodos_de_uso": ["/boasvindas on", "/boasvindas off", "/boasvindas set <mensagem_ou_midia>"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "on",
+            "off",
+            "set"
+          ],
+          "metodos_de_uso": [
+            "/boasvindas on",
+            "/boasvindas off",
+            "/boasvindas set <mensagem_ou_midia>"
+          ],
           "mensagens_uso": {
-            "missing_content": ["/boasvindas set <mensagem ou caminho da midia>", "Também é possível enviar uma mídia junto ao comando."]
+            "missing_content": [
+              "/boasvindas set <mensagem ou caminho da midia>",
+              "Também é possível enviar uma mídia junto ao comando."
+            ]
           }
         },
         {
@@ -260,229 +369,399 @@
           "category_label": "Moderacao e Admin",
           "descricao": "Ativa/desativa captcha para novos membros no grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["on", "off", "status"],
-          "metodos_de_uso": ["/captcha on", "/captcha off", "/captcha status"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "on",
+            "off",
+            "status"
+          ],
+          "metodos_de_uso": [
+            "/captcha on",
+            "/captcha off",
+            "/captcha status"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:configgrupo",
           "name": "configgrupo",
-          "aliases": ["setgroup"],
+          "aliases": [
+            "setgroup"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Define estado do grupo (anuncio/aberto/locked/unlocked).",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["announcement", "not_announcement", "locked", "unlocked"],
-          "metodos_de_uso": ["/configgrupo announcement", "/configgrupo not_announcement", "/configgrupo locked", "/configgrupo unlocked"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "announcement",
+            "not_announcement",
+            "locked",
+            "unlocked"
+          ],
+          "metodos_de_uso": [
+            "/configgrupo announcement",
+            "/configgrupo not_announcement",
+            "/configgrupo locked",
+            "/configgrupo unlocked"
+          ],
           "mensagens_uso": {
-            "default": ["/configgrupo <announcement|not_announcement|locked|unlocked>"]
+            "default": [
+              "/configgrupo <announcement|not_announcement|locked|unlocked>"
+            ]
           }
         },
         {
           "key": "adminModule:convite",
           "name": "convite",
-          "aliases": ["invite"],
+          "aliases": [
+            "invite"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Mostra codigo de convite atual do grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
+          "local_de_uso": [
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/convite"],
+          "metodos_de_uso": [
+            "/convite"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:descricao",
           "name": "descricao",
-          "aliases": ["setdesc"],
+          "aliases": [
+            "setdesc"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Altera descricao do grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
+          "local_de_uso": [
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/descricao nova descricao"],
+          "metodos_de_uso": [
+            "/descricao nova descricao"
+          ],
           "mensagens_uso": {
-            "default": ["/descricao <nova_descricao>"]
+            "default": [
+              "/descricao <nova_descricao>"
+            ]
           }
         },
         {
           "key": "adminModule:despedida",
           "name": "despedida",
-          "aliases": ["farewell"],
+          "aliases": [
+            "farewell"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Configura mensagens/midia de despedida no grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["on", "off", "set"],
-          "metodos_de_uso": ["/despedida on", "/despedida off", "/despedida set <mensagem_ou_midia>"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "on",
+            "off",
+            "set"
+          ],
+          "metodos_de_uso": [
+            "/despedida on",
+            "/despedida off",
+            "/despedida set <mensagem_ou_midia>"
+          ],
           "mensagens_uso": {
-            "missing_content": ["/despedida set <mensagem ou caminho da midia>", "Também é possível enviar uma mídia junto ao comando."]
+            "missing_content": [
+              "/despedida set <mensagem ou caminho da midia>",
+              "Também é possível enviar uma mídia junto ao comando."
+            ]
           }
         },
         {
           "key": "adminModule:entrar",
           "name": "entrar",
-          "aliases": ["join"],
+          "aliases": [
+            "join"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Faz o bot entrar em grupo por codigo de convite.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/entrar <codigo_de_convite>"],
+          "metodos_de_uso": [
+            "/entrar <codigo_de_convite>"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:infoconvite",
           "name": "infoconvite",
-          "aliases": ["infofrominvite"],
+          "aliases": [
+            "infofrominvite"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Consulta dados de um grupo usando codigo de convite.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/infoconvite <codigo_de_convite>"],
+          "metodos_de_uso": [
+            "/infoconvite <codigo_de_convite>"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:janelachat",
           "name": "janelachat",
-          "aliases": ["chat", "chatwindow"],
+          "aliases": [
+            "chat",
+            "chatwindow"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Abre/fecha janela temporaria de chat livre no modo sticker.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["on", "off", "status"],
-          "metodos_de_uso": ["/janelachat on", "/janelachat off", "/janelachat status", "/janelachat on 15"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "on",
+            "off",
+            "status"
+          ],
+          "metodos_de_uso": [
+            "/janelachat on",
+            "/janelachat off",
+            "/janelachat status",
+            "/janelachat on 15"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:limitefigurinha",
           "name": "limitefigurinha",
-          "aliases": ["smsglimit", "stickertextlimit", "stextlimit", "stickermsglimit"],
+          "aliases": [
+            "smsglimit",
+            "stickertextlimit",
+            "stextlimit",
+            "stickermsglimit"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Define limite de mensagens por usuario no modo sticker.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["<minutos>", "status", "reset"],
-          "metodos_de_uso": ["/limitefigurinha 5", "/limitefigurinha status", "/limitefigurinha reset"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "<minutos>",
+            "status",
+            "reset"
+          ],
+          "metodos_de_uso": [
+            "/limitefigurinha 5",
+            "/limitefigurinha status",
+            "/limitefigurinha reset"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:menuadmin",
           "name": "menuadmin",
-          "aliases": ["adm", "menuadm"],
+          "aliases": [
+            "adm",
+            "menuadm"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Exibe menu administrativo do bot para o grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["ajuda", "faq", "perguntar"],
-          "metodos_de_uso": ["/menuadmin", "/menuadmin ajuda <comando>", "/menuadmin faq", "/menuadmin perguntar <pergunta>"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "ajuda",
+            "faq",
+            "perguntar"
+          ],
+          "metodos_de_uso": [
+            "/menuadmin",
+            "/menuadmin ajuda <comando>",
+            "/menuadmin faq",
+            "/menuadmin perguntar <pergunta>"
+          ],
           "mensagens_uso": {
-            "default": ["/menuadmin", "/menuadmin ajuda <comando>", "/menuadmin faq", "/menuadmin perguntar <pergunta>"],
-            "help": ["/menuadmin ajuda <comando>"],
-            "ask": ["/menuadmin perguntar <pergunta>"]
+            "default": [
+              "/menuadmin",
+              "/menuadmin ajuda <comando>",
+              "/menuadmin faq",
+              "/menuadmin perguntar <pergunta>"
+            ],
+            "help": [
+              "/menuadmin ajuda <comando>"
+            ],
+            "ask": [
+              "/menuadmin perguntar <pergunta>"
+            ]
           }
         },
         {
           "key": "adminModule:metadados",
           "name": "metadados",
-          "aliases": ["metadata"],
+          "aliases": [
+            "metadata"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Retorna metadados de um grupo informado ou do grupo atual.",
           "permissao_necessaria": "admin do grupo alvo",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/metadados", "/metadados <group_jid>"],
+          "metodos_de_uso": [
+            "/metadados",
+            "/metadados <group_jid>"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:modoadicao",
           "name": "modoadicao",
-          "aliases": ["addmode"],
+          "aliases": [
+            "addmode"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Define quem pode adicionar participantes no grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
+          "local_de_uso": [
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/modoadicao all_member_add", "/modoadicao admin_add"],
+          "metodos_de_uso": [
+            "/modoadicao all_member_add",
+            "/modoadicao admin_add"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:modofigurinha",
           "name": "modofigurinha",
-          "aliases": ["smode", "stickermode"],
+          "aliases": [
+            "smode",
+            "stickermode"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Controla modo foco em figurinhas no grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["on", "off", "status"],
-          "metodos_de_uso": ["/modofigurinha on", "/modofigurinha off", "/modofigurinha status"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "on",
+            "off",
+            "status"
+          ],
+          "metodos_de_uso": [
+            "/modofigurinha on",
+            "/modofigurinha off",
+            "/modofigurinha status"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:noticias",
           "name": "noticias",
-          "aliases": ["news", "noticia"],
+          "aliases": [
+            "news",
+            "noticia"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Ativa/desativa envio automatico de noticias no grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["on", "off", "status"],
-          "metodos_de_uso": ["/noticias on", "/noticias off", "/noticias status", "/news status"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "on",
+            "off",
+            "status"
+          ],
+          "metodos_de_uso": [
+            "/noticias on",
+            "/noticias off",
+            "/noticias status",
+            "/news status"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:novogrupo",
           "name": "novogrupo",
-          "aliases": ["newgroup"],
+          "aliases": [
+            "newgroup"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Cria um novo grupo com participantes informados.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/novogrupo <titulo> <participante1> <participante2>"],
+          "metodos_de_uso": [
+            "/novogrupo <titulo> <participante1> <participante2>"
+          ],
           "mensagens_uso": {}
         },
         {
@@ -495,136 +774,218 @@
           "category_label": "Moderacao e Admin",
           "descricao": "Ativa/desativa status de NSFW no grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["on", "off", "status"],
-          "metodos_de_uso": ["/nsfw on", "/nsfw off", "/nsfw status"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "on",
+            "off",
+            "status"
+          ],
+          "metodos_de_uso": [
+            "/nsfw on",
+            "/nsfw off",
+            "/nsfw status"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:prefixo",
           "name": "prefixo",
-          "aliases": ["prefix"],
+          "aliases": [
+            "prefix"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Define prefixo personalizado de comandos para o grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
-          "subcomandos": ["<novo_prefixo>", "status", "reset"],
-          "metodos_de_uso": ["<prefixo>prefixo <novo_prefixo>", "<prefixo>prefixo status", "<prefixo>prefixo reset"],
+          "local_de_uso": [
+            "grupo"
+          ],
+          "subcomandos": [
+            "<novo_prefixo>",
+            "status",
+            "reset"
+          ],
+          "metodos_de_uso": [
+            "<prefixo>prefixo <novo_prefixo>",
+            "<prefixo>prefixo status",
+            "<prefixo>prefixo reset"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:premium",
           "name": "premium",
-          "aliases": ["vip"],
+          "aliases": [
+            "vip"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Gerencia usuarios premium do sistema.",
           "permissao_necessaria": "admin principal do bot",
-          "local_de_uso": ["privado", "grupo"],
-          "subcomandos": ["add", "remove", "list"],
-          "metodos_de_uso": ["/premium list", "/premium add @usuario", "/premium remove @usuario"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
+          "subcomandos": [
+            "add",
+            "remove",
+            "list"
+          ],
+          "metodos_de_uso": [
+            "/premium list",
+            "/premium add @usuario",
+            "/premium remove @usuario"
+          ],
           "mensagens_uso": {
-            "invalid_action": ["/premium <add|remove|list> @usuario1 @usuario2 ..."],
-            "missing_targets": ["/premium <add|remove> @usuario1 @usuario2 ...", "Também é possível responder à mensagem do usuário desejado."]
+            "invalid_action": [
+              "/premium <add|remove|list> @usuario1 @usuario2 ..."
+            ],
+            "missing_targets": [
+              "/premium <add|remove> @usuario1 @usuario2 ...",
+              "Também é possível responder à mensagem do usuário desejado."
+            ]
           }
         },
         {
           "key": "adminModule:promover",
           "name": "promover",
-          "aliases": ["up"],
+          "aliases": [
+            "up"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Promove participantes a administradores do grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
+          "local_de_uso": [
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/promover @participante"],
+          "metodos_de_uso": [
+            "/promover @participante"
+          ],
           "mensagens_uso": {
-            "missing_targets": ["/promover @participante1 @participante2 ...", "Também é possível informar os JIDs dos participantes."]
+            "missing_targets": [
+              "/promover @participante1 @participante2 ...",
+              "Também é possível informar os JIDs dos participantes."
+            ]
           }
         },
         {
           "key": "adminModule:rebaixar",
           "name": "rebaixar",
-          "aliases": ["down"],
+          "aliases": [
+            "down"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Rebaixa administradores para membros comuns.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
+          "local_de_uso": [
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/rebaixar @participante"],
+          "metodos_de_uso": [
+            "/rebaixar @participante"
+          ],
           "mensagens_uso": {
-            "missing_targets": ["/rebaixar @participante1 @participante2 ...", "Também é possível informar os JIDs dos participantes."]
+            "missing_targets": [
+              "/rebaixar @participante1 @participante2 ...",
+              "Também é possível informar os JIDs dos participantes."
+            ]
           }
         },
         {
           "key": "adminModule:revogarconvite",
           "name": "revogarconvite",
-          "aliases": ["revoke"],
+          "aliases": [
+            "revoke"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Revoga o codigo de convite e gera novo codigo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
+          "local_de_uso": [
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/revogarconvite"],
+          "metodos_de_uso": [
+            "/revogarconvite"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:sair",
           "name": "sair",
-          "aliases": ["leave"],
+          "aliases": [
+            "leave"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Faz o bot sair do grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
+          "local_de_uso": [
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/sair"],
+          "metodos_de_uso": [
+            "/sair"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:solicitacoes",
           "name": "solicitacoes",
-          "aliases": ["requests"],
+          "aliases": [
+            "requests"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Lista solicitacoes pendentes para entrar no grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
+          "local_de_uso": [
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/solicitacoes"],
+          "metodos_de_uso": [
+            "/solicitacoes"
+          ],
           "mensagens_uso": {}
         },
         {
           "key": "adminModule:temporarias",
           "name": "temporarias",
-          "aliases": ["temp"],
+          "aliases": [
+            "temp"
+          ],
           "module": "adminModule",
           "module_label": "adminModule",
           "category": "admin",
           "category_label": "Moderacao e Admin",
           "descricao": "Define tempo de mensagens temporarias (ephemeral) no grupo.",
           "permissao_necessaria": "admin do grupo",
-          "local_de_uso": ["grupo"],
+          "local_de_uso": [
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/temporarias <duracao_em_segundos>"],
+          "metodos_de_uso": [
+            "/temporarias <duracao_em_segundos>"
+          ],
           "mensagens_uso": {}
         }
       ]
@@ -634,108 +995,204 @@
       "label": "Figurinhas",
       "icon": "🎨",
       "command_count": 6,
-      "modules": ["stickerModule", "stickerPackModule"],
+      "modules": [
+        "stickerModule",
+        "stickerPackModule"
+      ],
       "commands": [
         {
           "key": "stickerModule:figurinha",
           "name": "figurinha",
-          "aliases": ["s", "sticker"],
+          "aliases": [
+            "s",
+            "sticker"
+          ],
           "module": "stickerModule",
           "module_label": "stickerModule",
           "category": "figurinhas",
           "category_label": "Figurinhas",
           "descricao": "Converte imagem/video em figurinha.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/figurinha", "/s"],
+          "metodos_de_uso": [
+            "/figurinha",
+            "/s"
+          ],
           "mensagens_uso": {
-            "default": ["📌 Use: /figurinha (ou /s) respondendo a uma imagem, vídeo ou figurinha."]
+            "default": [
+              "📌 Use: /figurinha (ou /s) respondendo a uma imagem, vídeo ou figurinha."
+            ]
           }
         },
         {
           "key": "stickerModule:figurinhatexto",
           "name": "figurinhatexto",
-          "aliases": ["st", "stickertext"],
+          "aliases": [
+            "st",
+            "stickertext"
+          ],
           "module": "stickerModule",
           "module_label": "stickerModule",
           "category": "figurinhas",
           "category_label": "Figurinhas",
           "descricao": "Gera figurinha com texto (tema escuro).",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/figurinhatexto seu texto", "/st seu texto"],
+          "metodos_de_uso": [
+            "/figurinhatexto seu texto",
+            "/st seu texto"
+          ],
           "mensagens_uso": {
-            "default": ["📌 Use: /figurinhatexto seu texto", "💡 Exemplo: /st bom dia seus lindos"]
+            "default": [
+              "📌 Use: /figurinhatexto seu texto",
+              "💡 Exemplo: /st bom dia seus lindos"
+            ]
           }
         },
         {
           "key": "stickerModule:figurinhatextobranco",
           "name": "figurinhatextobranco",
-          "aliases": ["stw", "stickertextwhite"],
+          "aliases": [
+            "stw",
+            "stickertextwhite"
+          ],
           "module": "stickerModule",
           "module_label": "stickerModule",
           "category": "figurinhas",
           "category_label": "Figurinhas",
           "descricao": "Gera figurinha com texto (tema claro).",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/figurinhatextobranco seu texto", "/stw seu texto"],
+          "metodos_de_uso": [
+            "/figurinhatextobranco seu texto",
+            "/stw seu texto"
+          ],
           "mensagens_uso": {
-            "default": ["📌 Use: /figurinhatextobranco seu texto", "💡 Exemplo: /stw bom dia seus lindos"]
+            "default": [
+              "📌 Use: /figurinhatextobranco seu texto",
+              "💡 Exemplo: /stw bom dia seus lindos"
+            ]
           }
         },
         {
           "key": "stickerModule:figurinhatextopisca",
           "name": "figurinhatextopisca",
-          "aliases": ["stb", "stickertextblink"],
+          "aliases": [
+            "stb",
+            "stickertextblink"
+          ],
           "module": "stickerModule",
           "module_label": "stickerModule",
           "category": "figurinhas",
           "category_label": "Figurinhas",
           "descricao": "Gera figurinha animada de texto piscante.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/figurinhatextopisca seu texto", "/stb seu texto"],
+          "metodos_de_uso": [
+            "/figurinhatextopisca seu texto",
+            "/stb seu texto"
+          ],
           "mensagens_uso": {
-            "default": ["📌 Use: /figurinhatextopisca seu texto", "💡 Exemplo: /stb bom dia seus lindos -verde"]
+            "default": [
+              "📌 Use: /figurinhatextopisca seu texto",
+              "💡 Exemplo: /stb bom dia seus lindos -verde"
+            ]
           }
         },
         {
           "key": "stickerPackModule:pacote",
           "name": "pacote",
-          "aliases": ["packs", "pacotes", "pack"],
+          "aliases": [
+            "packs",
+            "pacotes",
+            "pack"
+          ],
           "module": "stickerPackModule",
           "module_label": "stickerPackModule",
           "category": "figurinhas",
           "category_label": "Figurinhas",
           "descricao": "Gerencia packs de figurinhas (criar, listar, adicionar, enviar).",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
-          "subcomandos": ["help", "create", "list", "info", "add", "setcover", "setdesc", "setpublisher", "send", "rename", "remove", "delete", "reorder"],
-          "metodos_de_uso": ["/pacote help", "/pacote create meupack", "/pacote list", "/pacote add <pacote>", "/pacote send <pacote>"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
+          "subcomandos": [
+            "help",
+            "create",
+            "list",
+            "info",
+            "add",
+            "setcover",
+            "setdesc",
+            "setpublisher",
+            "send",
+            "rename",
+            "remove",
+            "delete",
+            "reorder"
+          ],
+          "metodos_de_uso": [
+            "/pacote help",
+            "/pacote create meupack",
+            "/pacote list",
+            "/pacote add <pacote>",
+            "/pacote send <pacote>"
+          ],
           "mensagens_uso": {
-            "default": ["/pacote help", "/pacote create meupack", "/pacote list", "/pacote add <pacote>", "/pacote send <pacote>"]
+            "default": [
+              "/pacote help",
+              "/pacote create meupack",
+              "/pacote list",
+              "/pacote add <pacote>",
+              "/pacote send <pacote>"
+            ]
           }
         },
         {
           "key": "stickerModule:paraimagem",
           "name": "paraimagem",
-          "aliases": ["tovideo", "tovid", "toimg"],
+          "aliases": [
+            "tovideo",
+            "tovid",
+            "toimg"
+          ],
           "module": "stickerModule",
           "module_label": "stickerModule",
           "category": "figurinhas",
           "category_label": "Figurinhas",
           "descricao": "Converte figurinha para imagem ou video quando aplicavel.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/paraimagem", "/tovideo", "/tovid"],
+          "metodos_de_uso": [
+            "/paraimagem",
+            "/tovideo",
+            "/tovid"
+          ],
           "mensagens_uso": {
-            "default": ["📌 Use: /paraimagem (ou /tovideo / /tovid) respondendo a uma figurinha."]
+            "default": [
+              "📌 Use: /paraimagem (ou /tovideo / /tovid) respondendo a uma figurinha."
+            ]
           }
         }
       ]
@@ -745,74 +1202,127 @@
       "label": "Midia",
       "icon": "🎵",
       "command_count": 4,
-      "modules": ["playModule", "quoteModule", "tiktokModule"],
+      "modules": [
+        "playModule",
+        "quoteModule",
+        "tiktokModule"
+      ],
       "commands": [
         {
           "key": "tiktokModule:baixartiktok",
           "name": "baixartiktok",
-          "aliases": ["tt", "tiktok"],
+          "aliases": [
+            "tt",
+            "tiktok"
+          ],
           "module": "tiktokModule",
           "module_label": "tiktokModule",
           "category": "midia",
           "category_label": "Midia",
           "descricao": "Baixa midia do TikTok sem marca d'agua.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/baixartiktok <url>", "/tt <url1> <url2>"],
+          "metodos_de_uso": [
+            "/baixartiktok <url>",
+            "/tt <url1> <url2>"
+          ],
           "mensagens_uso": {
-            "default": ["🎬 *Baixartiktok Downloader*", "Uso: */baixartiktok <link1> [link2 ...]*", "Exemplo: */baixartiktok https://www.baixartiktok.com/@usuario/video/123*"]
+            "default": [
+              "🎬 *Baixartiktok Downloader*",
+              "Uso: */baixartiktok <link1> [link2 ...]*",
+              "Exemplo: */baixartiktok https://www.baixartiktok.com/@usuario/video/123*"
+            ]
           }
         },
         {
           "key": "quoteModule:citar",
           "name": "citar",
-          "aliases": ["qc", "quote"],
+          "aliases": [
+            "qc",
+            "quote"
+          ],
           "module": "quoteModule",
           "module_label": "quoteModule",
           "category": "midia",
           "category_label": "Midia",
           "descricao": "Transforma texto em figurinha estilo quote.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/citar seu texto", "/qc @usuario texto"],
+          "metodos_de_uso": [
+            "/citar seu texto",
+            "/qc @usuario texto"
+          ],
           "mensagens_uso": {
-            "default": ["🖼️ *Citar*", "Use assim:", "*/citar* sua mensagem", "Ou responda uma mensagem com:", "*/citar*"]
+            "default": [
+              "🖼️ *Citar*",
+              "Use assim:",
+              "*/citar* sua mensagem",
+              "Ou responda uma mensagem com:",
+              "*/citar*"
+            ]
           }
         },
         {
           "key": "playModule:tocar",
           "name": "tocar",
-          "aliases": ["musica", "play"],
+          "aliases": [
+            "musica",
+            "play"
+          ],
           "module": "playModule",
           "module_label": "playModule",
           "category": "midia",
           "category_label": "Midia",
           "descricao": "Baixa/gera audio a partir de link ou busca no YouTube.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/tocar <link>", "/tocar <termo de busca>"],
+          "metodos_de_uso": [
+            "/tocar <link>",
+            "/tocar <termo de busca>"
+          ],
           "mensagens_uso": {
-            "default": ["🎵 Uso: /tocar <link do YouTube ou termo de busca>"]
+            "default": [
+              "🎵 Uso: /tocar <link do YouTube ou termo de busca>"
+            ]
           }
         },
         {
           "key": "playModule:tocarvideo",
           "name": "tocarvideo",
-          "aliases": ["playvid"],
+          "aliases": [
+            "playvid"
+          ],
           "module": "playModule",
           "module_label": "playModule",
           "category": "midia",
           "category_label": "Midia",
           "descricao": "Baixa video a partir de link ou busca no YouTube.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/tocarvideo <link>", "/tocarvideo <termo de busca>"],
+          "metodos_de_uso": [
+            "/tocarvideo <link>",
+            "/tocarvideo <termo de busca>"
+          ],
           "mensagens_uso": {
-            "default": ["🎬 Uso: /tocarvideo <link do YouTube ou termo de busca>"]
+            "default": [
+              "🎬 Uso: /tocarvideo <link do YouTube ou termo de busca>"
+            ]
           }
         }
       ]
@@ -822,57 +1332,112 @@
       "label": "Inteligencia Artificial",
       "icon": "🤖",
       "command_count": 3,
-      "modules": ["aiModule"],
+      "modules": [
+        "aiModule"
+      ],
       "commands": [
         {
           "key": "aiModule:ia",
           "name": "ia",
-          "aliases": ["cat"],
+          "aliases": [
+            "cat"
+          ],
           "module": "aiModule",
           "module_label": "aiModule",
           "category": "ia",
           "category_label": "Inteligencia Artificial",
           "descricao": "Perguntas para IA com suporte opcional a resposta em audio.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/ia sua pergunta", "/ia --audio sua pergunta"],
+          "metodos_de_uso": [
+            "/ia sua pergunta",
+            "/ia --audio sua pergunta"
+          ],
           "mensagens_uso": {
-            "default": ["*/ia* [--audio] sua pergunta", "*/ia* (responda ou envie uma imagem com legenda)", "Opções:", "--audio | --texto", "--detail low | high | auto", "Exemplo:", "*/ia* Explique como funciona a fotossíntese.", "*/ia* --audio Resuma a imagem."]
+            "default": [
+              "*/ia* [--audio] sua pergunta",
+              "*/ia* (responda ou envie uma imagem com legenda)",
+              "Opções:",
+              "--audio | --texto",
+              "--detail low | high | auto",
+              "Exemplo:",
+              "*/ia* Explique como funciona a fotossíntese.",
+              "*/ia* --audio Resuma a imagem."
+            ]
           }
         },
         {
           "key": "aiModule:iaimagem",
           "name": "iaimagem",
-          "aliases": ["catimage", "catimg"],
+          "aliases": [
+            "catimage",
+            "catimg"
+          ],
           "module": "aiModule",
           "module_label": "aiModule",
           "category": "ia",
           "category_label": "Inteligencia Artificial",
           "descricao": "Gera/edita imagem com IA por prompt.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/iaimagem seu prompt", "/iaimagem --size 1536x1024 seu prompt"],
+          "metodos_de_uso": [
+            "/iaimagem seu prompt",
+            "/iaimagem --size 1536x1024 seu prompt"
+          ],
           "mensagens_uso": {
-            "default": ["*/iaimagem* seu prompt", "*/iaimagem* (responda uma imagem com legenda para editar)", "Opções:", "--size 1024x1024 | 1024x1536 | 1536x1024 | auto", "--quality low | medium | high | auto", "--format png | jpeg | webp", "--background transparent | opaque | auto", "--compression 0-100", "Exemplo:", "*/iaimagem* --size 1536x1024 Um gato astronauta em aquarela."]
+            "default": [
+              "*/iaimagem* seu prompt",
+              "*/iaimagem* (responda uma imagem com legenda para editar)",
+              "Opções:",
+              "--size 1024x1024 | 1024x1536 | 1536x1024 | auto",
+              "--quality low | medium | high | auto",
+              "--format png | jpeg | webp",
+              "--background transparent | opaque | auto",
+              "--compression 0-100",
+              "Exemplo:",
+              "*/iaimagem* --size 1536x1024 Um gato astronauta em aquarela."
+            ]
           }
         },
         {
           "key": "aiModule:pergunteia",
           "name": "pergunteia",
-          "aliases": ["iaprompt", "promptia", "catprompt"],
+          "aliases": [
+            "iaprompt",
+            "promptia",
+            "catprompt"
+          ],
           "module": "aiModule",
           "module_label": "aiModule",
           "category": "ia",
           "category_label": "Inteligencia Artificial",
           "descricao": "Define ou reseta o prompt personalizado da IA para o usuario.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
-          "subcomandos": ["reset"],
-          "metodos_de_uso": ["/pergunteia novo prompt", "/pergunteia reset"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
+          "subcomandos": [
+            "reset"
+          ],
+          "metodos_de_uso": [
+            "/pergunteia novo prompt",
+            "/pergunteia reset"
+          ],
           "mensagens_uso": {
-            "default": ["*/pergunteia* seu novo prompt", "Para voltar ao padrão:", "*/pergunteia reset*"]
+            "default": [
+              "*/pergunteia* seu novo prompt",
+              "Para voltar ao padrão:",
+              "*/pergunteia reset*"
+            ]
           }
         }
       ]
@@ -882,40 +1447,103 @@
       "label": "Jogos e Diversao",
       "icon": "🎮",
       "command_count": 2,
-      "modules": ["gameModule", "rpgPokemonModule"],
+      "modules": [
+        "gameModule",
+        "rpgPokemonModule"
+      ],
       "commands": [
         {
           "key": "gameModule:dado",
           "name": "dado",
-          "aliases": ["dice"],
+          "aliases": [
+            "dice"
+          ],
           "module": "gameModule",
           "module_label": "gameModule",
           "category": "jogos",
           "category_label": "Jogos e Diversao",
           "descricao": "Rola um dado com numero de lados opcional.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/dado", "/dado 20", "/dice 100"],
+          "metodos_de_uso": [
+            "/dado",
+            "/dado 20",
+            "/dice 100"
+          ],
           "mensagens_uso": {
-            "default": ["Formato de uso:", "/dado", "/dado <lados (2-1000)>", "/dice <lados (2-1000)>"]
+            "default": [
+              "Formato de uso:",
+              "/dado",
+              "/dado <lados (2-1000)>",
+              "/dice <lados (2-1000)>"
+            ]
           }
         },
         {
           "key": "rpgPokemonModule:pokemon",
           "name": "pokemon",
-          "aliases": ["rpg"],
+          "aliases": [
+            "rpg"
+          ],
           "module": "rpgPokemonModule",
           "module_label": "rpgPokemonModule",
           "category": "jogos",
           "category_label": "Jogos e Diversao",
           "descricao": "Comando principal do RPG Pokemon (exploracao, batalha, loja e social).",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
-          "subcomandos": ["help", "ajuda", "start", "perfil", "explorar", "atacar", "capturar", "fugir", "time", "escolher", "loja", "comprar", "usar", "bolsa", "pokedex", "evolucao", "missoes", "viajar", "tm", "berry", "raid", "desafiar", "pvp", "ginasio", "trade", "coop", "evento", "social", "karma", "engajamento"],
-          "metodos_de_uso": ["/pokemon help", "/pokemon start", "/pokemon explorar", "/pokemon atacar 1"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
+          "subcomandos": [
+            "help",
+            "ajuda",
+            "start",
+            "perfil",
+            "explorar",
+            "atacar",
+            "capturar",
+            "fugir",
+            "time",
+            "escolher",
+            "loja",
+            "comprar",
+            "usar",
+            "bolsa",
+            "pokedex",
+            "evolucao",
+            "missoes",
+            "viajar",
+            "tm",
+            "berry",
+            "raid",
+            "desafiar",
+            "pvp",
+            "ginasio",
+            "trade",
+            "coop",
+            "evento",
+            "social",
+            "karma",
+            "engajamento"
+          ],
+          "metodos_de_uso": [
+            "/pokemon help",
+            "/pokemon start",
+            "/pokemon explorar",
+            "/pokemon atacar 1"
+          ],
           "mensagens_uso": {
-            "default": ["/pokemon help", "/pokemon start", "/pokemon explorar", "/pokemon atacar 1"]
+            "default": [
+              "/pokemon help",
+              "/pokemon start",
+              "/pokemon explorar",
+              "/pokemon atacar 1"
+            ]
           }
         }
       ]
@@ -925,40 +1553,70 @@
       "label": "Estatisticas",
       "icon": "📊",
       "command_count": 2,
-      "modules": ["statsModule"],
+      "modules": [
+        "statsModule"
+      ],
       "commands": [
         {
           "key": "statsModule:classificacao",
           "name": "classificacao",
-          "aliases": ["rank", "top5", "ranking"],
+          "aliases": [
+            "rank",
+            "top5",
+            "ranking"
+          ],
           "module": "statsModule",
           "module_label": "statsModule",
           "category": "estatisticas",
           "category_label": "Estatisticas",
           "descricao": "Mostra top 5 mais ativos do grupo.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["grupo"],
+          "local_de_uso": [
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/classificacao", "/rank", "/top5"],
+          "metodos_de_uso": [
+            "/classificacao",
+            "/rank",
+            "/top5"
+          ],
           "mensagens_uso": {
-            "default": ["/classificacao", "/rank", "/top5"]
+            "default": [
+              "/classificacao",
+              "/rank",
+              "/top5"
+            ]
           }
         },
         {
           "key": "statsModule:classificacaoglobal",
           "name": "classificacaoglobal",
-          "aliases": ["rankglobal", "globalrank", "globalranking", "rankingglobal"],
+          "aliases": [
+            "rankglobal",
+            "globalrank",
+            "globalranking",
+            "rankingglobal"
+          ],
           "module": "statsModule",
           "module_label": "statsModule",
           "category": "estatisticas",
           "category_label": "Estatisticas",
           "descricao": "Mostra top 5 global de atividade.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/classificacaoglobal", "/globalrank"],
+          "metodos_de_uso": [
+            "/classificacaoglobal",
+            "/globalrank"
+          ],
           "mensagens_uso": {
-            "default": ["/classificacaoglobal", "/globalrank"]
+            "default": [
+              "/classificacaoglobal",
+              "/globalrank"
+            ]
           }
         }
       ]
@@ -968,57 +1626,92 @@
       "label": "Anime e Imagens",
       "icon": "🖼️",
       "command_count": 3,
-      "modules": ["waifuPicsModule"],
+      "modules": [
+        "waifuPicsModule"
+      ],
       "commands": [
         {
           "key": "waifuPicsModule:waifu",
           "name": "waifu",
-          "aliases": ["waifupics", "wp"],
+          "aliases": [
+            "waifupics",
+            "wp"
+          ],
           "module": "waifuPicsModule",
           "module_label": "waifuPicsModule",
           "category": "anime",
           "category_label": "Anime e Imagens",
           "descricao": "Envia imagem SFW da API Waifu.pics por categoria.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/waifu <categoria>", "/waifupics neko"],
+          "metodos_de_uso": [
+            "/waifu <categoria>",
+            "/waifupics neko"
+          ],
           "mensagens_uso": {
-            "default": ["/waifu <categoria>", "/waifupics neko"]
+            "default": [
+              "/waifu <categoria>",
+              "/waifupics neko"
+            ]
           }
         },
         {
           "key": "waifuPicsModule:waifuajuda",
           "name": "waifuajuda",
-          "aliases": ["wppicshelp"],
+          "aliases": [
+            "wppicshelp"
+          ],
           "module": "waifuPicsModule",
           "module_label": "waifuPicsModule",
           "category": "anime",
           "category_label": "Anime e Imagens",
           "descricao": "Mostra ajuda e categorias disponiveis de Waifu.pics.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/waifuajuda"],
+          "metodos_de_uso": [
+            "/waifuajuda"
+          ],
           "mensagens_uso": {
-            "default": ["/waifuajuda"]
+            "default": [
+              "/waifuajuda"
+            ]
           }
         },
         {
           "key": "waifuPicsModule:waifunsfw",
           "name": "waifunsfw",
-          "aliases": ["waifupicsnsfw", "wpnsfw"],
+          "aliases": [
+            "waifupicsnsfw",
+            "wpnsfw"
+          ],
           "module": "waifuPicsModule",
           "module_label": "waifuPicsModule",
           "category": "anime",
           "category_label": "Anime e Imagens",
           "descricao": "Envia imagem NSFW da API Waifu.pics por categoria.",
           "permissao_necessaria": "usuario comum com NSFW habilitado no grupo",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/waifunsfw <categoria>", "/waifupicsnsfw waifu"],
+          "metodos_de_uso": [
+            "/waifunsfw <categoria>",
+            "/waifupicsnsfw waifu"
+          ],
           "mensagens_uso": {
-            "default": ["/waifunsfw <categoria>", "/waifupicsnsfw waifu"]
+            "default": [
+              "/waifunsfw <categoria>",
+              "/waifupicsnsfw waifu"
+            ]
           }
         }
       ]
@@ -1028,23 +1721,44 @@
       "label": "Perfil de Usuario",
       "icon": "👤",
       "command_count": 1,
-      "modules": ["userModule"],
+      "modules": [
+        "userModule"
+      ],
       "commands": [
         {
           "key": "userModule:perfil",
           "name": "perfil",
-          "aliases": ["usuario", "user"],
+          "aliases": [
+            "usuario",
+            "user"
+          ],
           "module": "userModule",
           "module_label": "userModule",
           "category": "usuario",
           "category_label": "Perfil de Usuario",
           "descricao": "Consulta perfil e estatisticas de um usuario.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
-          "subcomandos": ["perfil", "profile"],
-          "metodos_de_uso": ["/perfil perfil", "/perfil perfil <id|telefone>", "/usuario perfil @contato"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
+          "subcomandos": [
+            "perfil",
+            "profile"
+          ],
+          "metodos_de_uso": [
+            "/perfil perfil",
+            "/perfil perfil <id|telefone>",
+            "/usuario perfil @contato"
+          ],
           "mensagens_uso": {
-            "default": ["Formato de uso:", "/perfil perfil <id|telefone>", "Dica:", "• Você pode mencionar alguém.", "• Ou responder a mensagem do usuário desejado."]
+            "default": [
+              "Formato de uso:",
+              "/perfil perfil <id|telefone>",
+              "Dica:",
+              "• Você pode mencionar alguém.",
+              "• Ou responder a mensagem do usuário desejado."
+            ]
           }
         }
       ]
@@ -1054,7 +1768,9 @@
       "label": "Menu e Navegacao",
       "icon": "📚",
       "command_count": 1,
-      "modules": ["menuModule"],
+      "modules": [
+        "menuModule"
+      ],
       "commands": [
         {
           "key": "menuModule:menu",
@@ -1066,11 +1782,35 @@
           "category_label": "Menu e Navegacao",
           "descricao": "Exibe o menu principal ou um menu por categoria.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
-          "subcomandos": ["figurinhas", "sticker", "stickers", "midia", "media", "quote", "quotes", "ia", "ai", "stats", "estatisticas", "anime"],
-          "metodos_de_uso": ["/menu", "/menu anime", "/menu stats"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
+          "subcomandos": [
+            "figurinhas",
+            "sticker",
+            "stickers",
+            "midia",
+            "media",
+            "quote",
+            "quotes",
+            "ia",
+            "ai",
+            "stats",
+            "estatisticas",
+            "anime"
+          ],
+          "metodos_de_uso": [
+            "/menu",
+            "/menu anime",
+            "/menu stats"
+          ],
           "mensagens_uso": {
-            "default": ["/menu", "/menu anime", "/menu stats"]
+            "default": [
+              "/menu",
+              "/menu anime",
+              "/menu stats"
+            ]
           }
         }
       ]
@@ -1080,23 +1820,34 @@
       "label": "Sistema",
       "icon": "🧰",
       "command_count": 1,
-      "modules": ["systemMetricsModule"],
+      "modules": [
+        "systemMetricsModule"
+      ],
       "commands": [
         {
           "key": "systemMetricsModule:statusbot",
           "name": "statusbot",
-          "aliases": ["ping"],
+          "aliases": [
+            "ping"
+          ],
           "module": "systemMetricsModule",
           "module_label": "systemMetricsModule",
           "category": "sistema",
           "category_label": "Sistema",
           "descricao": "Exibe latencia e estado de saude do servidor.",
           "permissao_necessaria": "usuario comum",
-          "local_de_uso": ["privado", "grupo"],
+          "local_de_uso": [
+            "privado",
+            "grupo"
+          ],
           "subcomandos": [],
-          "metodos_de_uso": ["/statusbot"],
+          "metodos_de_uso": [
+            "/statusbot"
+          ],
           "mensagens_uso": {
-            "default": ["/statusbot"]
+            "default": [
+              "/statusbot"
+            ]
           }
         }
       ]
