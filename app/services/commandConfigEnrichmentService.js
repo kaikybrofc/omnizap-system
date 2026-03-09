@@ -186,19 +186,24 @@ const readJsonFileCached = async (filePath) => {
   const cacheKey = `json:${normalizedPath}`;
 
   try {
-    const stat = await fs.stat(normalizedPath);
-    const cached = moduleConfigCache.get(cacheKey);
-    if (cached && cached.mtimeMs === Number(stat.mtimeMs || 0)) {
-      return cached.value;
-    }
+    const fileHandle = await fs.open(normalizedPath, 'r');
+    try {
+      const stat = await fileHandle.stat();
+      const cached = moduleConfigCache.get(cacheKey);
+      if (cached && cached.mtimeMs === Number(stat.mtimeMs || 0)) {
+        return cached.value;
+      }
 
-    const content = await fs.readFile(normalizedPath, 'utf8');
-    const parsed = JSON.parse(content);
-    moduleConfigCache.set(cacheKey, {
-      mtimeMs: Number(stat.mtimeMs || 0),
-      value: parsed,
-    });
-    return parsed;
+      const content = await fileHandle.readFile({ encoding: 'utf8' });
+      const parsed = JSON.parse(content);
+      moduleConfigCache.set(cacheKey, {
+        mtimeMs: Number(stat.mtimeMs || 0),
+        value: parsed,
+      });
+      return parsed;
+    } finally {
+      await fileHandle.close();
+    }
   } catch {
     return null;
   }
@@ -209,19 +214,24 @@ const readTextFileCached = async (filePath, maxChars) => {
   const cacheKey = `txt:${normalizedPath}:${maxChars}`;
 
   try {
-    const stat = await fs.stat(normalizedPath);
-    const cached = fileTextCache.get(cacheKey);
-    if (cached && cached.mtimeMs === Number(stat.mtimeMs || 0)) {
-      return cached.value;
-    }
+    const fileHandle = await fs.open(normalizedPath, 'r');
+    try {
+      const stat = await fileHandle.stat();
+      const cached = fileTextCache.get(cacheKey);
+      if (cached && cached.mtimeMs === Number(stat.mtimeMs || 0)) {
+        return cached.value;
+      }
 
-    const content = await fs.readFile(normalizedPath, 'utf8');
-    const truncated = truncate(content, maxChars);
-    fileTextCache.set(cacheKey, {
-      mtimeMs: Number(stat.mtimeMs || 0),
-      value: truncated,
-    });
-    return truncated;
+      const content = await fileHandle.readFile({ encoding: 'utf8' });
+      const truncated = truncate(content, maxChars);
+      fileTextCache.set(cacheKey, {
+        mtimeMs: Number(stat.mtimeMs || 0),
+        value: truncated,
+      });
+      return truncated;
+    } finally {
+      await fileHandle.close();
+    }
   } catch {
     return '';
   }

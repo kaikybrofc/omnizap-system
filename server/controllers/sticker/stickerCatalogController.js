@@ -147,6 +147,7 @@ const STICKER_WEB_GOOGLE_AUTH_REQUIRED = parseEnvBool(process.env.STICKER_WEB_GO
 const STICKER_WEB_GOOGLE_SESSION_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.STICKER_WEB_GOOGLE_SESSION_TTL_MS) || 7 * 24 * 60 * 60 * 1000);
 const STICKER_CATALOG_ONLY_CLASSIFIED = parseEnvBool(process.env.STICKER_CATALOG_ONLY_CLASSIFIED, true);
 const METRICS_ENDPOINT = process.env.METRICS_ENDPOINT || `http://127.0.0.1:${process.env.METRICS_PORT || 9102}${process.env.METRICS_PATH || '/metrics'}`;
+const METRICS_TOKEN = String(process.env.METRICS_TOKEN || process.env.METRICS_API_KEY || '').trim();
 const METRICS_SUMMARY_TIMEOUT_MS = clampInt(process.env.STICKER_SYSTEM_METRICS_TIMEOUT_MS, 1200, 300, 5000);
 const GITHUB_REPOSITORY = String(process.env.GITHUB_REPOSITORY || 'Kaikygr/omnizap-system').trim();
 const GITHUB_TOKEN = String(process.env.GITHUB_TOKEN || '').trim();
@@ -961,6 +962,18 @@ const estimateHistogramQuantileMs = (series, metricBaseName, quantile = 0.95) =>
   return null;
 };
 
+const buildMetricsRequestOptions = (signal = null) => {
+  const headers = {};
+  if (METRICS_TOKEN) {
+    headers.Authorization = `Bearer ${METRICS_TOKEN}`;
+  }
+
+  return {
+    ...(signal ? { signal } : {}),
+    ...(Object.keys(headers).length > 0 ? { headers } : {}),
+  };
+};
+
 const fetchPrometheusSummary = async () => {
   if (typeof globalThis.fetch !== 'function') {
     throw new Error('fetch indisponivel');
@@ -970,7 +983,7 @@ const fetchPrometheusSummary = async () => {
   const timeout = setTimeout(() => controller?.abort(), METRICS_SUMMARY_TIMEOUT_MS);
 
   try {
-    const response = await globalThis.fetch(METRICS_ENDPOINT, controller ? { signal: controller.signal } : {});
+    const response = await globalThis.fetch(METRICS_ENDPOINT, buildMetricsRequestOptions(controller?.signal || null));
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -5093,7 +5106,7 @@ const handlePackInteractionRequest = async (req, res, packKey, interaction, url)
     return;
   }
 
-  let engagement = getEmptyStickerPackEngagement();
+  let engagement;
   if (interaction === 'open') {
     engagement = await incrementStickerPackOpen(pack.id);
   } else if (interaction === 'like') {

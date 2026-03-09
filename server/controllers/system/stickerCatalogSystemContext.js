@@ -596,7 +596,7 @@ export const createStickerCatalogSystemContext = ({ executeQuery, tables, logger
   const toUtcDayKey = (value) => {
     if (!value) return '';
     if (value instanceof Date) return value.toISOString().slice(0, 10);
-    const text = String(value || '').trim();
+    const text = String(value).trim();
     if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
     const parsed = Date.parse(text);
     return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : '';

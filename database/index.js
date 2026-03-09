@@ -612,7 +612,7 @@ function createDbMonitorLogger({ enabled, logPath, rotateBytes, keep }) {
       queue.length = 0;
     } finally {
       processing = false;
-      if (queue.length > 0 && !processing) {
+      if (queue.length > 0) {
         processing = true;
         setImmediate(() => {
           processQueue().catch(() => {});

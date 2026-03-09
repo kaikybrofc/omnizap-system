@@ -91,7 +91,7 @@ export const executeMessageCommandRoute = async ({ command, args = [], text = ''
   const safeArgs = Array.isArray(args) ? args : [];
   const safeText = String(text || '');
 
-  let commandResult = { ok: true };
+  let commandResult;
   let commandRoute = resolvedCommand || 'unknown';
 
   switch (routeCommand) {

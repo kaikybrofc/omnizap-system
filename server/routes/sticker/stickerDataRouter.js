@@ -112,22 +112,27 @@ export const maybeHandleStickerDataRequest = async (req, res, { pathname, config
   }
 
   try {
-    const fileStat = await fs.stat(absolutePath);
-    if (!fileStat.isFile()) {
-      sendJson(req, res, 404, { error: 'Not Found' });
-      return true;
-    }
+    const fileHandle = await fs.open(absolutePath, 'r');
+    try {
+      const fileStat = await fileHandle.stat();
+      if (!fileStat.isFile()) {
+        sendJson(req, res, 404, { error: 'Not Found' });
+        return true;
+      }
 
-    const fileBuffer = req.method === 'HEAD' ? null : await fs.readFile(absolutePath);
-    res.statusCode = 200;
-    res.setHeader('Content-Type', resolveContentType(extension));
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    if (req.method === 'HEAD') {
-      res.end();
+      const fileBuffer = req.method === 'HEAD' ? null : await fileHandle.readFile();
+      res.statusCode = 200;
+      res.setHeader('Content-Type', resolveContentType(extension));
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      if (req.method === 'HEAD') {
+        res.end();
+        return true;
+      }
+      res.end(fileBuffer);
       return true;
+    } finally {
+      await fileHandle.close();
     }
-    res.end(fileBuffer);
-    return true;
   } catch (error) {
     if (error?.code === 'ENOENT') {
       sendJson(req, res, 404, { error: 'Not Found' });

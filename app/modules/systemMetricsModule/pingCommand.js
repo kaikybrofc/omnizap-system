@@ -3,6 +3,7 @@ import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const METRICS_ENDPOINT = process.env.METRICS_ENDPOINT || `http://localhost:${process.env.METRICS_PORT || 9102}${process.env.METRICS_PATH || '/metrics'}`;
+const METRICS_TOKEN = String(process.env.METRICS_TOKEN || process.env.METRICS_API_KEY || '').trim();
 const METRICS_TIMEOUT_MS = Number(process.env.METRICS_PING_TIMEOUT_MS || 1500);
 
 const formatLoadAverage = (values) => values.map((value) => value.toFixed(2)).join(' | ');
@@ -244,7 +245,14 @@ const fetchMetricsSnapshot = async () => {
     if (typeof globalThis.fetch !== 'function') {
       throw new Error('fetch indisponível');
     }
-    const response = await globalThis.fetch(METRICS_ENDPOINT, controller ? { signal: controller.signal } : {});
+    const headers = {};
+    if (METRICS_TOKEN) {
+      headers.Authorization = `Bearer ${METRICS_TOKEN}`;
+    }
+    const response = await globalThis.fetch(METRICS_ENDPOINT, {
+      ...(controller ? { signal: controller.signal } : {}),
+      ...(Object.keys(headers).length ? { headers } : {}),
+    });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }

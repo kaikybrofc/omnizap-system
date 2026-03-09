@@ -47,7 +47,7 @@ const coerceArray = (value) => {
       .map((token) => token.trim())
       .filter(Boolean);
   }
-  if (value === undefined || value === null || value === '') return [];
+  if (value === undefined || value === null) return [];
   return [value];
 };
 

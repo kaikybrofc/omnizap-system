@@ -236,17 +236,14 @@ const processGroupNews = async (groupId) => {
 
       if (!sent) {
         await sendAndStore(sock, groupId, { text: caption });
-        sent = true;
       }
 
-      if (sent) {
-        sentIds.add(nextItem.id);
-        const updatedSentIds = trimSentIds(Array.from(sentIds));
-        await groupConfigStore.updateGroupConfig(groupId, {
-          newsSentIds: updatedSentIds,
-          newsLastSentAt: new Date().toISOString(),
-        });
-      }
+      sentIds.add(nextItem.id);
+      const updatedSentIds = trimSentIds(Array.from(sentIds));
+      await groupConfigStore.updateGroupConfig(groupId, {
+        newsSentIds: updatedSentIds,
+        newsLastSentAt: new Date().toISOString(),
+      });
     } catch (error) {
       if (isGroupUnavailableError(error)) {
         shouldSchedule = false;

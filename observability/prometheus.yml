@@ -20,6 +20,9 @@ scrape_configs:
 
   - job_name: omnizap
     metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/secrets/omnizap_metrics_token
     static_configs:
       - targets: ["host.docker.internal:9102"]
 

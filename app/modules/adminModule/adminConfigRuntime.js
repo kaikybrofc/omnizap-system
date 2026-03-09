@@ -37,16 +37,21 @@ const normalizeCommandToken = (value) =>
     .toLowerCase();
 
 const loadConfigFromDisk = () => {
-  const stat = fs.statSync(CONFIG_PATH);
-  if (cachedConfig && stat.mtimeMs === cachedMtimeMs) {
-    return cachedConfig;
-  }
+  const descriptor = fs.openSync(CONFIG_PATH, 'r');
+  try {
+    const stat = fs.fstatSync(descriptor);
+    if (cachedConfig && stat.mtimeMs === cachedMtimeMs) {
+      return cachedConfig;
+    }
 
-  const parsed = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-  cachedConfig = parsed;
-  cachedMtimeMs = stat.mtimeMs;
-  cachedRegistry = null;
-  return parsed;
+    const parsed = JSON.parse(fs.readFileSync(descriptor, 'utf8'));
+    cachedConfig = parsed;
+    cachedMtimeMs = stat.mtimeMs;
+    cachedRegistry = null;
+    return parsed;
+  } finally {
+    fs.closeSync(descriptor);
+  }
 };
 
 export const getAdminModuleConfig = () => {

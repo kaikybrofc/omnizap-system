@@ -1257,7 +1257,6 @@ const processPlayRequest = async ({ sock, remoteJid, messageInfo, expirationMess
       if (!previewDelivered && caption) {
         try {
           await sendAndStore(sock, remoteJid, { text: caption }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
-          previewDelivered = true;
         } catch (error) {
           logger.warn('Falha ao enviar preview textual do áudio.', {
             requestId,

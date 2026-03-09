@@ -22,16 +22,21 @@ export const createModuleCommandConfigRuntime = ({ configPath, fallbackConfig = 
   let cachedRegistry = null;
 
   const loadConfigFromDisk = () => {
-    const stat = fs.statSync(normalizedPath);
-    if (cachedConfig && stat.mtimeMs === cachedMtimeMs) {
-      return cachedConfig;
-    }
+    const descriptor = fs.openSync(normalizedPath, 'r');
+    try {
+      const stat = fs.fstatSync(descriptor);
+      if (cachedConfig && stat.mtimeMs === cachedMtimeMs) {
+        return cachedConfig;
+      }
 
-    const parsed = JSON.parse(fs.readFileSync(normalizedPath, 'utf8'));
-    cachedConfig = parsed;
-    cachedMtimeMs = stat.mtimeMs;
-    cachedRegistry = null;
-    return parsed;
+      const parsed = JSON.parse(fs.readFileSync(descriptor, 'utf8'));
+      cachedConfig = parsed;
+      cachedMtimeMs = stat.mtimeMs;
+      cachedRegistry = null;
+      return parsed;
+    } finally {
+      fs.closeSync(descriptor);
+    }
   };
 
   const getModuleConfig = () => {

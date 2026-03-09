@@ -1131,7 +1131,7 @@ export const createStickerCatalogAdminHandlers = ({ executeQuery, tables, logger
       return;
     }
     const password = String(payload?.password || '').trim();
-    let sessionRole = 'owner';
+    let sessionRole;
     if (eligibility.role === 'owner') {
       if (!password || !constantTimeStringEqual(password, ADMIN_PANEL_PASSWORD)) {
         sendJson(req, res, 401, { error: 'Senha do painel admin invalida.' });

@@ -832,8 +832,8 @@ const vectorNorm = (vector) =>
 
 const cosineSimilarity = (left, right) => {
   if (!left || !right) return 0;
-  const leftKeys = Object.keys(left || {});
-  const rightKeys = Object.keys(right || {});
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
   if (!leftKeys.length || !rightKeys.length) return 0;
 
   const leftNorm = vectorNorm(left);
@@ -3119,7 +3119,6 @@ const reconcileAutoPackVolume = async ({ op, enableAdditions, enableRebuild, bud
           }
           if (error?.code === 'PACK_LIMIT_REACHED') {
             packLimitSkips += 1;
-            availableSlots = 0;
             break;
           }
 

@@ -1014,7 +1014,7 @@ const parseReverseMappingPhoneDigits = (content) => {
   const raw = String(content || '').trim();
   if (!raw) return '';
 
-  let parsed = raw;
+  let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch {

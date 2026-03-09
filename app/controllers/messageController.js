@@ -920,7 +920,6 @@ export const handleMessages = async (update, sock) => {
 
             if (autoStickerMedia && autoStickerMedia.mediaType !== 'sticker') {
               const activeGroupConfig = groupConfig || (await groupConfigStore.getGroupConfig(remoteJid));
-              groupConfig = activeGroupConfig;
               if (activeGroupConfig.autoStickerEnabled) {
                 analysisPayload.processingResult = 'autosticker_triggered';
                 analysisPayload.metadata = {

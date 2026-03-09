@@ -9,6 +9,7 @@ services:
     volumes:
       - ${PROMETHEUS_CONFIG_PATH:-./observability/prometheus.yml}:/etc/prometheus/prometheus.yml:ro
       - ${PROMETHEUS_ALERT_RULES_PATH:-./observability/alert-rules.yml}:/etc/prometheus/alert-rules.yml:ro
+      - ${PROMETHEUS_METRICS_TOKEN_FILE_PATH:-./.secrets/omnizap_metrics_token}:/etc/prometheus/secrets/omnizap_metrics_token:ro
       - prometheus_data:/prometheus
     ports:
       - "${PROMETHEUS_BIND_HOST:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"

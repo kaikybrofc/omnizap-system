@@ -439,8 +439,10 @@ const ensureFourMoves = async (moves) => {
     normalized.push(await loadMoveSnapshot('struggle'));
   }
 
+  const seedMoves = [...normalized];
   while (normalized.length < MOVESET_SIZE) {
-    normalized.push({ ...normalized[normalized.length % normalized.length] });
+    const seedIndex = (normalized.length - seedMoves.length) % seedMoves.length;
+    normalized.push({ ...seedMoves[seedIndex] });
   }
 
   return normalized.slice(0, MOVESET_SIZE);

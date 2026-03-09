@@ -4,6 +4,11 @@ import getImageBuffer from '../../utils/http/getImageBufferModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const MENU_IMAGE_ENV = 'IMAGE_MENU';
+const sanitizeLogValue = (value) =>
+  String(value ?? '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const sendMenuImage = async (sock, remoteJid, messageInfo, expirationMessage, caption) => {
   const imageUrl = process.env[MENU_IMAGE_ENV];
@@ -25,7 +30,9 @@ const sendMenuImage = async (sock, remoteJid, messageInfo, expirationMessage, ca
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
-    logger.error('Error fetching menu image:', error);
+    logger.error('Error fetching menu image.', {
+      error: sanitizeLogValue(error?.message) || 'unknown_error',
+    });
     await sendAndStore(sock, remoteJid, { text: 'Ocorreu um erro ao carregar a imagem do menu.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   }
 };

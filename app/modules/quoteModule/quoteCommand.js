@@ -502,25 +502,21 @@ const fitAuthorFontSize = (ctx, authorName, maxWidth) => {
  */
 const fitQuoteLines = (ctx, quoteText, maxWidth) => {
   let fontSize = QUOTE_TEXT_FONT_MAX;
-  let lines = [''];
+  ctx.font = `500 ${fontSize}px ${QUOTE_FONT_FAMILY}`;
+  let lines = wrapTextLines(ctx, quoteText, maxWidth, fontSize);
 
-  while (fontSize > QUOTE_TEXT_FONT_MIN) {
+  while (fontSize > QUOTE_TEXT_FONT_MIN && lines.length > QUOTE_MAX_LINES) {
+    fontSize -= 2;
     ctx.font = `500 ${fontSize}px ${QUOTE_FONT_FAMILY}`;
     lines = wrapTextLines(ctx, quoteText, maxWidth, fontSize);
-    if (lines.length <= QUOTE_MAX_LINES) {
-      return { fontSize, lines };
-    }
-    fontSize -= 2;
   }
 
-  ctx.font = `500 ${QUOTE_TEXT_FONT_MIN}px ${QUOTE_FONT_FAMILY}`;
-  lines = wrapTextLines(ctx, quoteText, maxWidth, QUOTE_TEXT_FONT_MIN);
   if (lines.length > QUOTE_MAX_LINES) {
     lines = lines.slice(0, QUOTE_MAX_LINES);
-    lines[QUOTE_MAX_LINES - 1] = ellipsizeLine(ctx, lines[QUOTE_MAX_LINES - 1], maxWidth, QUOTE_TEXT_FONT_MIN);
+    lines[QUOTE_MAX_LINES - 1] = ellipsizeLine(ctx, lines[QUOTE_MAX_LINES - 1], maxWidth, fontSize);
   }
 
-  return { fontSize: QUOTE_TEXT_FONT_MIN, lines };
+  return { fontSize, lines };
 };
 
 const buildFallbackAvatarBuffer = (seed) => {

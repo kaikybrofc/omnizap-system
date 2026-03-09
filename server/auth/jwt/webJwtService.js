@@ -65,7 +65,7 @@ export const extractBearerTokenFromRequest = (req) => {
   if (!scheme || !token) return '';
   if (scheme.toLowerCase() !== 'bearer') return '';
 
-  return String(token || '').trim();
+  return token.trim();
 };
 
 export const signWebAuthJwt = ({ sub = '', sessionToken = '', ownerJid = '', ownerPhone = '', email = '', name = '', authMethod = 'google' } = {}, { expiresInSeconds = null } = {}) => {

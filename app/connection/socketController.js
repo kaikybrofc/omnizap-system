@@ -1094,7 +1094,7 @@ export async function connectToWhatsApp() {
           groupCount: updates.length,
           groupIds: updates.map((u) => u.id),
         });
-        handleGroupUpdate(updates, sock);
+        handleGroupUpdate(updates);
       } catch (err) {
         logger.error('Erro no evento groups.update:', {
           error: err.message,
@@ -1367,7 +1367,6 @@ async function handleMessageUpdate(updates, sock) {
  * Atualiza metadados de grupos no banco MySQL a partir dos eventos do Baileys.
  * @async
  * @param {Array<import('@whiskeysockets/baileys').GroupUpdate>} updates - Eventos de atualização de grupos.
- * @param {import('@whiskeysockets/baileys').WASocket} sock - Instância do socket do WhatsApp.
  * @returns {Promise<void>} Conclusão das atualizações em lote.
  * @description
  * Processa alterações de grupo (título, descrição, proprietário e participantes)

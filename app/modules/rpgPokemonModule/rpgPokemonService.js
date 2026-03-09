@@ -1055,7 +1055,7 @@ const toPvpDuelLabels = ({ battleSnapshot, challengerJid, opponentJid }) => {
 const buildEngagementMentions = (...jids) =>
   Array.from(
     new Set(
-      (jids || [])
+      jids
         .flat()
         .map((jid) => toMentionJid(jid))
         .filter(Boolean),
@@ -2214,12 +2214,11 @@ const handleExplore = async ({ ownerJid, chatJid, commandPrefix }) => {
       actionKey: 'explore',
     });
 
-    let playerLevelForEncounter = Math.max(1, toInt(player.level, 1));
     let playerXpCurrent = Math.max(0, toInt(player.xp, 0));
     const playerGoldCurrent = Math.max(0, toInt(player.gold, 0));
     if (socialBonus.playerXpBonus > 0) {
       playerXpCurrent = Math.max(0, playerXpCurrent + socialBonus.playerXpBonus);
-      playerLevelForEncounter = calculatePlayerLevelFromXp(playerXpCurrent);
+      const playerLevelForEncounter = calculatePlayerLevelFromXp(playerXpCurrent);
       await updatePlayerProgress(
         {
           jid: ownerJid,

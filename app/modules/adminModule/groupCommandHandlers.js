@@ -1677,12 +1677,7 @@ ${JSON.stringify(response, null, 2)}`,
             break;
           }
 
-          let updatedNetworks = allowedNetworks;
-          if (subCommand === 'allow') {
-            updatedNetworks = Array.from(new Set([...allowedNetworks, ...validNetworks]));
-          } else {
-            updatedNetworks = allowedNetworks.filter((name) => !validNetworks.includes(name));
-          }
+          const updatedNetworks = subCommand === 'allow' ? Array.from(new Set([...allowedNetworks, ...validNetworks])) : allowedNetworks.filter((name) => !validNetworks.includes(name));
 
           await groupConfigStore.updateGroupConfig(remoteJid, {
             antilinkAllowedNetworks: updatedNetworks,
@@ -1721,12 +1716,7 @@ ${JSON.stringify(response, null, 2)}`,
             break;
           }
 
-          let updatedDomains = allowedDomains;
-          if (subCommand === 'add') {
-            updatedDomains = Array.from(new Set([...allowedDomains, ...normalizedDomains]));
-          } else {
-            updatedDomains = allowedDomains.filter((domain) => !normalizedDomains.includes(domain));
-          }
+          const updatedDomains = subCommand === 'add' ? Array.from(new Set([...allowedDomains, ...normalizedDomains])) : allowedDomains.filter((domain) => !normalizedDomains.includes(domain));
 
           await groupConfigStore.updateGroupConfig(remoteJid, {
             antilinkAllowedDomains: updatedDomains,

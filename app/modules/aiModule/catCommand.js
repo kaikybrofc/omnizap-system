@@ -857,9 +857,7 @@ export async function handleCatImageCommand({ sock, remoteJid, messageInfo, expi
   const effectiveSystemPrompt = userPreference || BASE_SYSTEM_PROMPT;
 
   const content = [];
-  if (prompt) {
-    content.push({ type: 'input_text', text: prompt });
-  }
+  content.push({ type: 'input_text', text: prompt });
   if (imageResult.dataUrl) {
     content.push({ type: 'input_image', image_url: imageResult.dataUrl });
   }
