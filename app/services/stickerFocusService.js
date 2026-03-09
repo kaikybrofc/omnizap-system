@@ -129,6 +129,15 @@ const isIgnoredSystemMessageType = (type) => {
   return false;
 };
 
+const isAlbumMediaMessageType = (type) => {
+  const normalized = String(type || '')
+    .trim()
+    .toLowerCase();
+  if (!normalized) return false;
+  if (normalized === 'album') return true;
+  return normalized.startsWith('album');
+};
+
 export const clampStickerFocusMessageCooldownMinutes = (value, fallback = DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES) => normalizeMinutes(value, fallback, MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES, MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES);
 export const clampStickerFocusMessageAllowance = (value, fallback = DEFAULT_STICKER_FOCUS_MESSAGE_ALLOWANCE) => normalizeMinutes(value, fallback, MIN_STICKER_FOCUS_MESSAGE_ALLOWANCE, MAX_STICKER_FOCUS_MESSAGE_ALLOWANCE);
 
@@ -181,11 +190,12 @@ export const resolveStickerFocusMessageClassification = ({ messageInfo, extracte
   const messageTypes = normalizeMessageTypes(mediaEntries);
   const filteredTypes = messageTypes.filter((type) => !isIgnoredSystemMessageType(type));
   const primaryType = filteredTypes[0] || messageTypes[0] || 'unknown';
+  const nonThrottledType = filteredTypes.find((type) => NON_THROTTLED_MESSAGE_TYPES.has(type) || isAlbumMediaMessageType(type));
 
-  if (filteredTypes.some((type) => NON_THROTTLED_MESSAGE_TYPES.has(type))) {
+  if (nonThrottledType) {
     return {
       isThrottleCandidate: false,
-      messageType: filteredTypes.find((type) => NON_THROTTLED_MESSAGE_TYPES.has(type)) || primaryType,
+      messageType: nonThrottledType || primaryType,
       reason: 'sticker_flow_media',
     };
   }
