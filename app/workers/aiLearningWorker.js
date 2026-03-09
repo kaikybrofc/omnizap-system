@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import logger from '../../utils/logger/loggerModule.js';
 import { insertLearnedKeywords, insertLearnedPatterns, listPendingLearningEvents, markLearningEventsProcessed } from '../services/aiLearningRepository.js';
+import { getAllToolRecords, getToolRegistryStats } from '../services/moduleToolRegistryService.js';
 import { markToolCandidateLearningCacheDirty } from '../services/toolCandidateSelectorService.js';
 
 const DEFAULT_INTERVAL_MS = 10 * 60 * 1000;
@@ -9,6 +10,11 @@ const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_MODEL = 'gpt-4o-mini';
 const DEFAULT_MAX_PATTERNS_PER_EVENT = 5;
 const DEFAULT_MAX_KEYWORDS_PER_EVENT = 12;
+const DEFAULT_CONFIG_SEED_ENABLED = true;
+const DEFAULT_CONFIG_SEED_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const DEFAULT_CONFIG_SEED_MAX_PATTERNS_PER_TOOL = 24;
+const DEFAULT_CONFIG_SEED_MAX_KEYWORDS_PER_TOOL = 40;
+const CONFIG_SEED_EVENT_ID_BASE = 9_000_000_000;
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -31,11 +37,17 @@ const AI_LEARNING_WORKER_TIMEOUT_MS = parseEnvInt(process.env.AI_LEARNING_WORKER
 const AI_LEARNING_WORKER_MODEL = String(process.env.AI_LEARNING_WORKER_MODEL || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
 const AI_LEARNING_WORKER_MAX_PATTERNS = parseEnvInt(process.env.AI_LEARNING_WORKER_MAX_PATTERNS, DEFAULT_MAX_PATTERNS_PER_EVENT, 1, 12);
 const AI_LEARNING_WORKER_MAX_KEYWORDS = parseEnvInt(process.env.AI_LEARNING_WORKER_MAX_KEYWORDS, DEFAULT_MAX_KEYWORDS_PER_EVENT, 3, 30);
+const AI_LEARNING_WORKER_CONFIG_SEED_ENABLED = parseEnvBool(process.env.AI_LEARNING_WORKER_CONFIG_SEED_ENABLED, DEFAULT_CONFIG_SEED_ENABLED);
+const AI_LEARNING_WORKER_CONFIG_SEED_INTERVAL_MS = parseEnvInt(process.env.AI_LEARNING_WORKER_CONFIG_SEED_INTERVAL_MS, DEFAULT_CONFIG_SEED_INTERVAL_MS, 5 * 60 * 1000, 7 * 24 * 60 * 60 * 1000);
+const AI_LEARNING_WORKER_CONFIG_SEED_MAX_PATTERNS = parseEnvInt(process.env.AI_LEARNING_WORKER_CONFIG_SEED_MAX_PATTERNS, DEFAULT_CONFIG_SEED_MAX_PATTERNS_PER_TOOL, 4, 96);
+const AI_LEARNING_WORKER_CONFIG_SEED_MAX_KEYWORDS = parseEnvInt(process.env.AI_LEARNING_WORKER_CONFIG_SEED_MAX_KEYWORDS, DEFAULT_CONFIG_SEED_MAX_KEYWORDS_PER_TOOL, 8, 140);
 
 let schedulerHandle = null;
 let schedulerStarted = false;
 let cycleInProgress = false;
 let cachedClient = null;
+let lastConfigSeedSignature = '';
+let nextConfigSeedAt = 0;
 
 const normalizeText = (value) =>
   String(value || '')
@@ -47,10 +59,68 @@ const normalizeText = (value) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const ensureArray = (value) => (Array.isArray(value) ? value : []);
+
+const readCommandUsage = (entry = {}) => {
+  const usageV2 = ensureArray(entry?.usage);
+  if (usageV2.length) return usageV2;
+  const docsUsage = ensureArray(entry?.docs?.usage_examples);
+  if (docsUsage.length) return docsUsage;
+  return ensureArray(entry?.metodos_de_uso);
+};
+
+const readCommandDiscovery = (entry = {}) => {
+  if (!entry?.discovery || typeof entry.discovery !== 'object' || Array.isArray(entry.discovery)) {
+    return {};
+  }
+  return entry.discovery;
+};
+
+const readCommandFaqPatterns = (entry = {}) => {
+  const discovery = readCommandDiscovery(entry);
+  const source = ensureArray(discovery.faq_queries).length ? discovery.faq_queries : entry?.faq_patterns;
+  return ensureArray(source);
+};
+
+const readCommandUserPhrasings = (entry = {}) => {
+  const discovery = readCommandDiscovery(entry);
+  const source = ensureArray(discovery.user_phrasings).length ? discovery.user_phrasings : entry?.user_phrasings;
+  return ensureArray(source);
+};
+
+const readCommandKeywords = (entry = {}) => {
+  const discovery = readCommandDiscovery(entry);
+  const source = ensureArray(discovery.keywords).length ? discovery.keywords : entry?.capability_keywords;
+  return ensureArray(source);
+};
+
+const readCommandCategory = (entry = {}) => String(entry?.category || entry?.categoria || '').trim();
+
+const readCommandContexts = (entry = {}) => {
+  const contextsV2 = ensureArray(entry?.contexts);
+  if (contextsV2.length) return contextsV2;
+  return ensureArray(entry?.local_de_uso);
+};
+
+const normalizeCommandToken = (value) => normalizeText(value).replace(/\s+/g, '').slice(0, 64);
+
 const uniqueList = (items = []) =>
   Array.from(new Set((Array.isArray(items) ? items : []).map((item) => normalizeText(item))))
     .filter(Boolean)
     .map((item) => item.trim());
+
+const uniqueTokenList = (items = []) => {
+  const tokens = [];
+  for (const value of Array.isArray(items) ? items : []) {
+    const normalized = normalizeText(value);
+    if (!normalized) continue;
+    for (const token of normalized.split(/\s+/)) {
+      if (!token || token.length < 3) continue;
+      if (!tokens.includes(token)) tokens.push(token);
+    }
+  }
+  return tokens;
+};
 
 const sanitizePattern = (value) => {
   const normalized = String(value || '')
@@ -66,6 +136,18 @@ const sanitizeKeyword = (value) => {
 };
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+
+const hashToolNameToUint32 = (value) => {
+  const input = String(value || '');
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return hash >>> 0;
+};
+
+const toConfigSeedEventId = (toolName) => CONFIG_SEED_EVENT_ID_BASE + hashToolNameToUint32(toolName);
 
 const extractTextFromAssistantMessage = (message = {}) => {
   if (typeof message?.content === 'string') return message.content.trim();
@@ -156,6 +238,144 @@ const generateLearningArtifacts = async (event) => {
   };
 };
 
+const buildConfigSeedRowsFromRecord = (record = {}) => {
+  const commandEntry = record?.commandEntry && typeof record.commandEntry === 'object' ? record.commandEntry : {};
+  const toolName = normalizeCommandToken(record?.toolName);
+  const commandName = normalizeCommandToken(record?.commandName || commandEntry?.name);
+  if (!toolName || !commandName) {
+    return {
+      patternRows: [],
+      keywordRows: [],
+    };
+  }
+
+  const aliases = ensureArray(commandEntry?.aliases)
+    .map((alias) => normalizeCommandToken(alias))
+    .filter(Boolean);
+  const usageHints = readCommandUsage(commandEntry);
+  const faqPatterns = readCommandFaqPatterns(commandEntry);
+  const userPhrasings = readCommandUserPhrasings(commandEntry);
+
+  const seedPatternCandidates = uniqueList([...faqPatterns, ...userPhrasings, ...usageHints, `como usar ${commandName}`, `o que faz ${commandName}`, `comando ${commandName}`, ...aliases.map((alias) => `comando ${alias}`), ...aliases.map((alias) => `como usar ${alias}`)]).slice(0, AI_LEARNING_WORKER_CONFIG_SEED_MAX_PATTERNS);
+
+  const category = readCommandCategory(commandEntry);
+  const contexts = readCommandContexts(commandEntry);
+  const keywordTokens = uniqueTokenList([...readCommandKeywords(commandEntry), ...faqPatterns, ...userPhrasings, ...usageHints, commandName, ...aliases, category, ...contexts]).slice(0, AI_LEARNING_WORKER_CONFIG_SEED_MAX_KEYWORDS);
+
+  const sourceEventId = toConfigSeedEventId(toolName);
+  const patternRows = seedPatternCandidates
+    .map((pattern) => sanitizePattern(pattern))
+    .filter(Boolean)
+    .map((pattern) => ({
+      pattern,
+      tool: toolName,
+      confidence: 0.62,
+      sourceEventId,
+    }));
+
+  const keywordRows = keywordTokens
+    .map((keyword) => sanitizeKeyword(keyword))
+    .filter(Boolean)
+    .map((keyword) => ({
+      keyword,
+      tool: toolName,
+      weight: 0.68,
+      sourceEventId,
+    }));
+
+  return {
+    patternRows,
+    keywordRows,
+  };
+};
+
+const seedLearningFromCommandConfig = async ({ reason = 'scheduler' } = {}) => {
+  if (!AI_LEARNING_WORKER_CONFIG_SEED_ENABLED) {
+    return {
+      executed: false,
+      skipped: 'disabled',
+      insertedPatterns: 0,
+      insertedKeywords: 0,
+      toolCount: 0,
+      candidatePatterns: 0,
+      candidateKeywords: 0,
+    };
+  }
+
+  const nowMs = Date.now();
+  const registryStats = getToolRegistryStats();
+  const registrySignature = String(registryStats?.signature || '');
+
+  if (registrySignature && registrySignature === lastConfigSeedSignature && nextConfigSeedAt > nowMs) {
+    return {
+      executed: false,
+      skipped: 'cooldown',
+      insertedPatterns: 0,
+      insertedKeywords: 0,
+      toolCount: Number(registryStats?.toolCount || 0),
+      candidatePatterns: 0,
+      candidateKeywords: 0,
+      nextRunAt: new Date(nextConfigSeedAt).toISOString(),
+    };
+  }
+
+  const records = getAllToolRecords();
+  if (!records.length) {
+    lastConfigSeedSignature = registrySignature;
+    nextConfigSeedAt = nowMs + AI_LEARNING_WORKER_CONFIG_SEED_INTERVAL_MS;
+    return {
+      executed: false,
+      skipped: 'empty_registry',
+      insertedPatterns: 0,
+      insertedKeywords: 0,
+      toolCount: 0,
+      candidatePatterns: 0,
+      candidateKeywords: 0,
+    };
+  }
+
+  const allPatternRows = [];
+  const allKeywordRows = [];
+  for (const record of records) {
+    const rows = buildConfigSeedRowsFromRecord(record);
+    allPatternRows.push(...rows.patternRows);
+    allKeywordRows.push(...rows.keywordRows);
+  }
+
+  const insertedPatterns = await insertLearnedPatterns(allPatternRows);
+  const insertedKeywords = await insertLearnedKeywords(allKeywordRows);
+
+  if (insertedPatterns > 0 || insertedKeywords > 0) {
+    markToolCandidateLearningCacheDirty();
+  }
+
+  lastConfigSeedSignature = registrySignature;
+  nextConfigSeedAt = nowMs + AI_LEARNING_WORKER_CONFIG_SEED_INTERVAL_MS;
+
+  logger.info('Seed de aprendizado IA por commandConfig processado.', {
+    action: 'ai_learning_config_seed_processed',
+    reason,
+    registry_signature: registrySignature || null,
+    tool_count: records.length,
+    candidate_patterns: allPatternRows.length,
+    candidate_keywords: allKeywordRows.length,
+    inserted_patterns: insertedPatterns,
+    inserted_keywords: insertedKeywords,
+    next_run_at: new Date(nextConfigSeedAt).toISOString(),
+  });
+
+  return {
+    executed: true,
+    skipped: null,
+    insertedPatterns,
+    insertedKeywords,
+    toolCount: records.length,
+    candidatePatterns: allPatternRows.length,
+    candidateKeywords: allKeywordRows.length,
+    nextRunAt: new Date(nextConfigSeedAt).toISOString(),
+  };
+};
+
 const processLearningBatch = async ({ reason = 'scheduler' } = {}) => {
   if (cycleInProgress) return;
   if (!isWorkerReady()) return;
@@ -182,13 +402,34 @@ const processLearningBatch = async ({ reason = 'scheduler' } = {}) => {
     }
 
     if (!events.length) {
+      let configSeedResult = {
+        executed: false,
+        skipped: 'disabled',
+        insertedPatterns: 0,
+        insertedKeywords: 0,
+        toolCount: 0,
+      };
+      try {
+        configSeedResult = await seedLearningFromCommandConfig({ reason });
+      } catch (error) {
+        logger.warn('Falha ao executar seed de aprendizado IA por commandConfig.', {
+          action: 'ai_learning_config_seed_failed',
+          reason,
+          error: error?.message,
+        });
+      }
+
       logger.info('Nenhum evento pendente para aprendizado IA.', {
         action: 'ai_learning_batch_processed',
         reason,
         fetched_events: 0,
         processed_events: 0,
-        generated_patterns: 0,
-        generated_keywords: 0,
+        generated_patterns: configSeedResult.insertedPatterns,
+        generated_keywords: configSeedResult.insertedKeywords,
+        config_seed_enabled: AI_LEARNING_WORKER_CONFIG_SEED_ENABLED,
+        config_seed_executed: configSeedResult.executed,
+        config_seed_skipped: configSeedResult.skipped,
+        config_seed_tool_count: configSeedResult.toolCount,
         duration_ms: Date.now() - startedAt,
       });
       return;
@@ -294,6 +535,8 @@ export const startAiLearningWorker = () => {
     interval_ms: AI_LEARNING_WORKER_INTERVAL_MS,
     batch_size: AI_LEARNING_WORKER_BATCH_SIZE,
     model: AI_LEARNING_WORKER_MODEL,
+    config_seed_enabled: AI_LEARNING_WORKER_CONFIG_SEED_ENABLED,
+    config_seed_interval_ms: AI_LEARNING_WORKER_CONFIG_SEED_INTERVAL_MS,
   });
 };
 
@@ -317,5 +560,9 @@ export const getAiLearningWorkerConfig = () => ({
   timeoutMs: AI_LEARNING_WORKER_TIMEOUT_MS,
   maxPatternsPerEvent: AI_LEARNING_WORKER_MAX_PATTERNS,
   maxKeywordsPerEvent: AI_LEARNING_WORKER_MAX_KEYWORDS,
+  configSeedEnabled: AI_LEARNING_WORKER_CONFIG_SEED_ENABLED,
+  configSeedIntervalMs: AI_LEARNING_WORKER_CONFIG_SEED_INTERVAL_MS,
+  configSeedMaxPatternsPerTool: AI_LEARNING_WORKER_CONFIG_SEED_MAX_PATTERNS,
+  configSeedMaxKeywordsPerTool: AI_LEARNING_WORKER_CONFIG_SEED_MAX_KEYWORDS,
   hasApiKey: Boolean(process.env.OPENAI_API_KEY),
 });
