@@ -23,6 +23,7 @@ const GLOBAL_TOOL_CALLING_MODEL = String(process.env.GLOBAL_TOOL_CALLING_MODEL |
 const GLOBAL_TOOL_CALLING_TIMEOUT_MS = parseEnvInt(process.env.GLOBAL_TOOL_CALLING_TIMEOUT_MS, 20_000, 2_000, 60_000);
 const GLOBAL_TOOL_CALLING_MAX_TOOL_CALLS = parseEnvInt(process.env.GLOBAL_TOOL_CALLING_MAX_TOOL_CALLS, 1, 1, 1);
 const GLOBAL_TOOL_CALLING_DEFAULT_CANDIDATE_LIMIT = parseEnvInt(process.env.TOOL_SELECTION_MAX_CANDIDATES, 8, 1, 32);
+const GLOBAL_TOOL_CALLING_TEMPERATURE = Number.parseFloat(String(process.env.GLOBAL_TOOL_CALLING_TEMPERATURE ?? '0'));
 
 let cachedClient = null;
 
@@ -38,6 +39,12 @@ const getOpenAIClient = () => {
 };
 
 const normalizeText = (value) => String(value || '').trim();
+
+const supportsCustomTemperature = (modelName) => {
+  const normalized = normalizeText(modelName).toLowerCase();
+  if (!normalized) return true;
+  return !normalized.startsWith('gpt-5');
+};
 
 const parseJsonSafe = (value) => {
   if (!value) return {};
@@ -102,9 +109,8 @@ export const maybeResolveAndExecuteToolCall = async ({ question, context = {} } 
 
   let completion = null;
   try {
-    completion = await client.chat.completions.create({
+    const payload = {
       model: GLOBAL_TOOL_CALLING_MODEL,
-      temperature: 0,
       messages: [
         {
           role: 'system',
@@ -117,7 +123,13 @@ export const maybeResolveAndExecuteToolCall = async ({ question, context = {} } 
       ],
       tools,
       tool_choice: 'auto',
-    });
+    };
+
+    if (Number.isFinite(GLOBAL_TOOL_CALLING_TEMPERATURE) && supportsCustomTemperature(GLOBAL_TOOL_CALLING_MODEL)) {
+      payload.temperature = GLOBAL_TOOL_CALLING_TEMPERATURE;
+    }
+
+    completion = await client.chat.completions.create(payload);
   } catch (error) {
     logger.warn('Falha ao resolver tool call global via OpenAI.', {
       action: 'global_tool_calling_failed',
