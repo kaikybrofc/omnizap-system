@@ -2,11 +2,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import OpenAI from 'openai';
 import { getAiHelpCachedResponse, upsertAiHelpCachedResponse } from './aiHelpResponseCacheRepository.js';
+import { createGeminiTextService, DEFAULT_GEMINI_MODEL } from './geminiService.js';
 
 const DEFAULT_FAQ_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_MAX_RESPONSE_CHARS = 3400;
 const DEFAULT_MAX_AGENT_CONTEXT_CHARS = 12000;
 const DEFAULT_TIMEOUT_MS = 25000;
+const DEFAULT_OPENAI_MODEL = 'gpt-5-nano';
 const CACHE_SCOPE_QUESTION = 'question';
 const CACHE_SCOPE_COMMAND_EXPLAIN = 'command_explain';
 
@@ -157,6 +159,29 @@ const clampText = (value, maxChars) => {
   return `${text.slice(0, Math.max(0, maxChars - 20)).trimEnd()}\n\n[resposta truncada]`;
 };
 
+const normalizeLlmProvider = (value, fallback = 'gemini') => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'gemini') return 'gemini';
+  if (normalized === 'openai') return 'openai';
+  return fallback;
+};
+
+const looksLikeGeminiModel = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .includes('gemini');
+
+const looksLikeOpenAiModel = (value) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (!normalized) return false;
+  return normalized.startsWith('gpt-') || normalized.startsWith('o1') || normalized.startsWith('o3') || normalized.startsWith('o4') || normalized.startsWith('text-');
+};
+
 const normalizeCacheSource = (value) => {
   const base = String(value || 'deterministic')
     .trim()
@@ -215,6 +240,19 @@ export const createModuleAiHelpService = ({ moduleKey, moduleLabel = 'modulo', e
     const cachePathValue = String(faq.cache_file || '').trim();
     const cachePath = cachePathValue ? path.resolve(process.cwd(), cachePathValue) : path.join(process.cwd(), 'data', 'cache', `${moduleKey}-ai-faq-cache.json`);
 
+    const provider = normalizeLlmProvider(envValue('PROVIDER') || llm.provider || process.env.AI_HELP_LLM_PROVIDER, process.env.GEMINI_API_KEY ? 'gemini' : 'openai');
+    const defaultModelByProvider = provider === 'gemini' ? process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL : process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
+    const rawModel = String(envValue('MODEL') || llm.model || defaultModelByProvider).trim() || defaultModelByProvider;
+    const modelFromEnv = String(envValue('MODEL') || '').trim();
+    const hasExplicitModelOverride = Boolean(modelFromEnv);
+    let resolvedModel = rawModel;
+    if (provider === 'gemini' && !hasExplicitModelOverride && !looksLikeGeminiModel(rawModel) && looksLikeOpenAiModel(rawModel)) {
+      resolvedModel = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+    }
+    if (provider === 'openai' && !hasExplicitModelOverride && looksLikeGeminiModel(rawModel)) {
+      resolvedModel = process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
+    }
+
     return {
       enabled: aiHelp.enabled !== false,
       faq: {
@@ -231,7 +269,8 @@ export const createModuleAiHelpService = ({ moduleKey, moduleLabel = 'modulo', e
           String(envValue('ENABLE_LLM') || 'true')
             .trim()
             .toLowerCase() !== 'false',
-        model: String(envValue('MODEL') || llm.model || process.env.OPENAI_MODEL || 'gpt-5-nano').trim() || 'gpt-5-nano',
+        provider,
+        model: resolvedModel,
         maxResponseChars: Math.max(400, toPositiveInt(envValue('MAX_RESPONSE_CHARS') || llm.max_response_chars, DEFAULT_MAX_RESPONSE_CHARS, 400)),
         maxAgentContextChars: Math.max(2_000, toPositiveInt(envValue('MAX_AGENT_CONTEXT_CHARS') || llm.max_agent_context_chars, DEFAULT_MAX_AGENT_CONTEXT_CHARS, 2_000)),
         timeoutMs: Math.max(1_000, toPositiveInt(envValue('TIMEOUT_MS') || llm.timeout_ms, DEFAULT_TIMEOUT_MS, 1_000)),
@@ -245,6 +284,7 @@ export const createModuleAiHelpService = ({ moduleKey, moduleLabel = 'modulo', e
   let cacheWriteChain = Promise.resolve();
   let faqGenerationPromise = null;
   let cachedOpenAIClient = null;
+  let cachedGeminiService = null;
 
   const createEmptyCache = () => ({
     version: FAQ_CACHE_VERSION,
@@ -399,12 +439,30 @@ export const createModuleAiHelpService = ({ moduleKey, moduleLabel = 'modulo', e
       .join('\n');
   };
 
+  const isGeminiReady = () => Boolean(String(process.env.GEMINI_API_KEY || '').trim());
+  const isOpenAIReady = () => Boolean(String(process.env.OPENAI_API_KEY || '').trim());
+  const isProviderReady = (provider) => (provider === 'gemini' ? isGeminiReady() : isOpenAIReady());
+
   const canUseLLM = () => {
     const config = getAiHelpConfig();
-    return config.enabled && config.llm.enabled && Boolean(process.env.OPENAI_API_KEY);
+    return config.enabled && config.llm.enabled && (isGeminiReady() || isOpenAIReady());
+  };
+
+  const getGeminiService = () => {
+    if (!isGeminiReady()) return null;
+    const config = getAiHelpConfig();
+    if (!cachedGeminiService) {
+      cachedGeminiService = createGeminiTextService({
+        apiKey: process.env.GEMINI_API_KEY,
+        defaultModel: config.llm.model || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+        timeoutMs: config.llm.timeoutMs,
+      });
+    }
+    return cachedGeminiService;
   };
 
   const getOpenAIClient = () => {
+    if (!isOpenAIReady()) return null;
     const config = getAiHelpConfig();
     if (!cachedOpenAIClient) {
       cachedOpenAIClient = new OpenAI({
@@ -414,6 +472,55 @@ export const createModuleAiHelpService = ({ moduleKey, moduleLabel = 'modulo', e
       });
     }
     return cachedOpenAIClient;
+  };
+
+  const callGeminiLLM = async ({ instructions, userPrompt, model }) => {
+    const service = getGeminiService();
+    if (!service) return null;
+
+    const response = await service.generateText({
+      instructions,
+      userPrompt,
+      model,
+    });
+
+    const text = String(response?.text || '').trim();
+    if (!text) return null;
+    return {
+      provider: 'gemini',
+      model: String(response?.model || model || '').trim() || model,
+      text,
+    };
+  };
+
+  const callOpenAiLLM = async ({ instructions, userPrompt, model }) => {
+    const client = getOpenAIClient();
+    if (!client) return null;
+
+    const response = await client.responses.create({
+      model,
+      instructions,
+      input: [
+        {
+          role: 'user',
+          content: [{ type: 'input_text', text: userPrompt }],
+        },
+      ],
+    });
+
+    const text = String(response?.output_text || '').trim();
+    if (!text) return null;
+    return {
+      provider: 'openai',
+      model,
+      text,
+    };
+  };
+
+  const resolveLlmCallOrder = (provider = 'gemini') => {
+    const primary = normalizeLlmProvider(provider, 'gemini');
+    const fallback = primary === 'gemini' ? 'openai' : 'gemini';
+    return [primary, fallback];
   };
 
   const askLLM = async ({ mode, question, commandName, commandPrefix = '/', context = {}, deterministicDraft }) => {
@@ -428,30 +535,41 @@ export const createModuleAiHelpService = ({ moduleKey, moduleLabel = 'modulo', e
 
     const userPrompt = [`Modo: ${mode}`, commandName ? `Comando alvo: ${commandName}` : '', question ? `Pergunta: ${question}` : '', `Contexto: ${contextSummary}`, '', 'Rascunho deterministico:', deterministicDraft || '(vazio)', '', 'Resumo de comandos:', configSummary, '', 'Trecho do AGENT.md:', agentExcerpt].filter(Boolean).join('\n');
 
-    try {
-      const client = getOpenAIClient();
-      const response = await client.responses.create({
-        model: config.llm.model,
-        instructions,
-        input: [
-          {
-            role: 'user',
-            content: [{ type: 'input_text', text: userPrompt }],
-          },
-        ],
-      });
+    const providerOrder = resolveLlmCallOrder(config.llm.provider);
+    for (const provider of providerOrder) {
+      if (!isProviderReady(provider)) continue;
 
-      const text = String(response?.output_text || '').trim();
-      if (!text) return null;
-      return clampText(text, config.llm.maxResponseChars);
-    } catch (error) {
-      logger.warn(`${moduleKey}_ai_help: falha no LLM.`, {
-        mode,
-        commandName,
-        error: error?.message,
-      });
-      return null;
+      try {
+        const result =
+          provider === 'gemini'
+            ? await callGeminiLLM({
+                instructions,
+                userPrompt,
+                model: config.llm.model,
+              })
+            : await callOpenAiLLM({
+                instructions,
+                userPrompt,
+                model: config.llm.model,
+              });
+
+        if (!result?.text) continue;
+        return {
+          provider,
+          model: result.model,
+          text: clampText(result.text, config.llm.maxResponseChars),
+        };
+      } catch (error) {
+        logger.warn(`${moduleKey}_ai_help: falha no LLM.`, {
+          mode,
+          provider,
+          commandName,
+          error: error?.message,
+        });
+      }
     }
+
+    return null;
   };
 
   const incrementCacheMetric = async (metricKey) => {
@@ -740,22 +858,23 @@ export const createModuleAiHelpService = ({ moduleKey, moduleLabel = 'modulo', e
       deterministicDraft: deterministic,
     });
 
-    if (llmAnswer) {
+    if (llmAnswer?.text) {
+      const llmSource = `llm_${llmAnswer.provider || 'unknown'}`;
       await incrementCacheMetric('llm_calls');
       await saveQuestionCacheEntry({
         question: explainCacheKey,
-        answer: llmAnswer,
-        source: 'llm',
+        answer: llmAnswer.text,
+        source: llmSource,
         command: canonical,
         scope: CACHE_SCOPE_COMMAND_EXPLAIN,
-        modelName: getAiHelpConfig().llm.model,
-        metadata: { mode: 'explain_command', module: moduleKey },
+        modelName: llmAnswer.model || getAiHelpConfig().llm.model,
+        metadata: { mode: 'explain_command', module: moduleKey, provider: llmAnswer.provider || 'unknown' },
       });
       return {
         ok: true,
         commandName: canonical,
-        source: 'llm',
-        text: llmAnswer,
+        source: llmSource,
+        text: llmAnswer.text,
       };
     }
 
@@ -846,21 +965,22 @@ export const createModuleAiHelpService = ({ moduleKey, moduleLabel = 'modulo', e
       deterministicDraft: deterministicFallback,
     });
 
-    if (llmAnswer) {
+    if (llmAnswer?.text) {
+      const llmSource = `llm_${llmAnswer.provider || 'unknown'}`;
       await incrementCacheMetric('llm_calls');
       await saveQuestionCacheEntry({
         question: rawQuestion,
-        answer: llmAnswer,
-        source: 'llm',
+        answer: llmAnswer.text,
+        source: llmSource,
         command: explicitCommand,
-        modelName: getAiHelpConfig().llm.model,
-        metadata: { mode: 'answer_question', module: moduleKey },
+        modelName: llmAnswer.model || getAiHelpConfig().llm.model,
+        metadata: { mode: 'answer_question', module: moduleKey, provider: llmAnswer.provider || 'unknown' },
       });
       return {
         ok: true,
-        source: 'llm',
+        source: llmSource,
         commandName: explicitCommand,
-        text: llmAnswer,
+        text: llmAnswer.text,
       };
     }
 
