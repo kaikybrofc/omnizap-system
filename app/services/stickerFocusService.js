@@ -1,4 +1,9 @@
-import { normalizeJid } from '../config/index.js';
+import { jidNormalizedUser } from '@whiskeysockets/baileys';
+
+const normalizeJid = (jid) => {
+  if (!jid) return '';
+  return jidNormalizedUser(jid);
+};
 
 const parseEnvInt = (value, fallback, min, max) => {
   const numeric = Number(value);
