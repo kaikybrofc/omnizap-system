@@ -1,34 +1,34 @@
-# Politica de Notice-and-Takedown
+# Política de Notice-and-Takedown
 
-Versao: 2026-03-07
+Versão: 2026-03-07
 
 ## 1) Escopo
 
-Canal formal para notificacoes sobre conteudo/uso ilicito, violacao de direitos autorais, marca, imagem, privacidade ou descumprimento de lei.
+Canal formal para notificações sobre conteúdo/uso ilícito, violação de direitos autorais, marca, imagem, privacidade ou descumprimento de lei.
 
-## 2) Requisitos minimos de prova
+## 2) Requisitos mínimos de prova
 
-A notificacao deve conter:
+A notificação deve conter:
 
-- Identificacao do notificante (nome e contato valido).
-- URL, ID ou evidencia objetiva do conteudo alvo.
-- Fundamentacao juridica resumida (qual direito foi violado).
-- Declaracao de boa-fe e veracidade.
-- Prova minima (captura, hash, documento de titularidade ou procuração, quando aplicavel).
+- Identificação do notificante (nome e contato válido).
+- URL, ID ou evidência objetiva do conteúdo alvo.
+- Fundamentação jurídica resumida (qual direito foi violado).
+- Declaração de boa-fé e veracidade.
+- Prova mínima (captura, hash, documento de titularidade ou procuração, quando aplicável).
 
-## 3) SLA publico
+## 3) SLA público
 
-- Confirmacao de recebimento: ate 24 horas uteis.
-- Triagem inicial: ate 48 horas uteis.
-- Decisao cautelar inicial (manter, restringir ou remover): ate 72 horas uteis.
+- Confirmação de recebimento: até 24 horas úteis.
+- Triagem inicial: até 48 horas úteis.
+- Decisão cautelar inicial (manter, restringir ou remover): até 72 horas úteis.
 
 Casos tecnicamente complexos podem exigir prazo adicional, com registro de justificativa.
 
-## 4) Resultado e contraditorio
+## 4) Resultado e contraditório
 
-- O resultado e comunicado ao notificante quando houver contato valido.
-- Quando cabivel, o usuario afetado pode apresentar contraponto/evidencias.
+- O resultado é comunicado ao notificante quando houver contato válido.
+- Quando cabível, o usuário afetado pode apresentar contraponto/evidências.
 
-## 5) Preservacao de evidencias
+## 5) Preservação de evidências
 
-- Logs e metadados tecnicos podem ser preservados para auditoria, defesa e cooperacao com autoridades.
+- Logs e metadados técnicos podem ser preservados para auditoria, defesa e cooperação com autoridades.

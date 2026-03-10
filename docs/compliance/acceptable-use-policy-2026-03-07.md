@@ -1,35 +1,35 @@
-# Politica de Uso Aceitavel (AUP)
+# Política de Uso Aceitável (AUP)
 
-Versao: 2026-03-07
+Versão: 2026-03-07
 
 ## 1) Objetivo
 
-Definir usos permitidos e proibidos na plataforma OmniZap para reduzir risco juridico, regulatorio e de seguranca.
+Definir usos permitidos e proibidos na plataforma OmniZap para reduzir risco jurídico, regulatório e de segurança.
 
 ## 2) Uso permitido
 
-- Automacao e integracoes legitimas, com observancia de lei e termos de terceiros.
-- Operacao com transparencia para usuarios e participantes dos grupos/canais.
+- Automação e integrações legítimas, com observância de lei e termos de terceiros.
+- Operação com transparência para usuários e participantes dos grupos/canais.
 
 ## 3) Casos proibidos (lista objetiva)
 
-- Envio de spam, flood, disparo em massa nao solicitado ou manipulacao enganosa de origem.
+- Envio de spam, flood, disparo em massa não solicitado ou manipulação enganosa de origem.
 - Phishing, fraude, malware, engenharia social ou qualquer atividade criminosa.
-- Operacao em setores regulados sem licenca/autorizacao valida (ex.: saude, credito, apostas, cripto, educacao regulada), quando exigido por lei.
-- Coleta, tratamento ou compartilhamento de dados pessoais sem base legal valida.
-- Monitoramento clandestino de comunicacoes sem ciencia dos envolvidos ou sem fundamento legal.
-- Uso para violacao de direitos autorais, marca, imagem, privacidade ou segredo comercial.
-- Tentativas de burlar limites tecnicos, politicas de plataformas terceiras ou controles de seguranca.
-- Varredura agressiva, teste de intrusao sem autorizacao formal ou degradacao deliberada do servico.
+- Operação em setores regulados sem licença/autorização válida (ex.: saúde, crédito, apostas, cripto, educação regulada), quando exigido por lei.
+- Coleta, tratamento ou compartilhamento de dados pessoais sem base legal válida.
+- Monitoramento clandestino de comunicações sem ciência dos envolvidos ou sem fundamento legal.
+- Uso para violação de direitos autorais, marca, imagem, privacidade ou segredo comercial.
+- Tentativas de burlar limites técnicos, políticas de plataformas terceiras ou controles de segurança.
+- Varredura agressiva, teste de intrusão sem autorização formal ou degradação deliberada do serviço.
 
 ## 4) Medidas de enforcement
 
-- Remocao de conteudo.
-- Suspensao temporaria de acesso.
-- Bloqueio de conta e preservacao de evidencias.
-- Comunicacao a autoridades competentes, quando cabivel.
+- Remoção de conteúdo.
+- Suspensão temporária de acesso.
+- Bloqueio de conta e preservação de evidências.
+- Comunicação a autoridades competentes, quando cabível.
 
-## 5) Canal de denuncia
+## 5) Canal de denúncia
 
-- Pagina formal: `/notice-and-takedown/`.
+- Página formal: `/notice-and-takedown/`.
 - Contato oficial: https://wa.me/559591122954.

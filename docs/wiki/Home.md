@@ -6,9 +6,9 @@ Esta página é o ponto de entrada para entender o projeto, subir o ambiente loc
 
 ## Status Atual
 
-- Versao do projeto: `2.5.6`
+- Versão do projeto: `2.5.6`
 - Snapshot desta wiki: `2026-03-08`
-- Roadmap tecnico recente: consolidacao de config/runtime do bot e reducao de duplicacao entre controller/socket.
+- Roadmap técnico recente: consolidação de configuração/tempo de execução do bot e redução de duplicação entre controlador/socket.
 
 ## Links rápidos
 
@@ -61,16 +61,16 @@ Operação
   -> observability/ (Prometheus, Grafana, Loki)
 ```
 
-## Mudancas Recentes
+## Mudanças Recentes
 
-- Refactor de config: entrada unificada em `app/config/index.js` com reexport de `app/configParts/*`.
-- Consolidacao de estado/socket/LID no `baileysConfig` e sincronizacao de consumo em:
+- Refatoração de configuração: entrada unificada em `app/config/index.js` com reexport de `app/configParts/*`.
+- Consolidação de estado/socket/LID no `baileysConfig` e sincronização de consumo em:
   - `app/connection/socketController.js`
   - `app/controllers/messageController.js`
-- Remocao de arquivo orfao de middleware HTTP:
+- Remoção de arquivo órfão de middleware HTTP:
   - `server/middleware/requestLogger.js`
-- Atualizacao dos audits de `stickerCatalogController` para novo snapshot.
-- Atualizacao do runbook de banco para incluir migracoes `d31` a `d34`.
+- Atualização dos audits de `stickerCatalogController` para novo snapshot.
+- Atualização do runbook de banco para incluir migrações `d31` a `d34`.
 
 ## Navegação da wiki
 
@@ -78,14 +78,14 @@ Páginas recomendadas para criar/expandir em seguida:
 
 - `[[Arquitetura]]`
 - `[[Setup-Local]]`
-- `[[Configuracao-.env]]`
+- `[[Configuração-.env]]`
 - `[[Bot-e-Comandos]]`
-- `[[Autenticacao-Web-e-Login-com-Google]]`
-- `[[Deploy-e-Operacao]]`
+- `[[Autenticação-Web-e-Login-com-Google]]`
+- `[[Deploy-e-Operação]]`
 - `[[Observabilidade]]`
 - `[[Troubleshooting]]`
-- `[[Contribuicao-e-Padroes]]`
-- `[[Seguranca-e-Resposta-a-Incidentes]]`
+- `[[Contribuição-e-Padrões]]`
+- `[[Segurança-e-Resposta-a-Incidentes]]`
 
 ## Governança de documentação
 
@@ -104,9 +104,9 @@ Páginas recomendadas para criar/expandir em seguida:
 - Checklist mensal de compliance: `docs/compliance/monthly-compliance-checklist-2026-03-07.md`
 - Playbook SEO BR: `docs/seo/omnizap-seo-playbook-br-2026-02-28.md`
 - Template de páginas satélite: `docs/seo/satellite-page-template.md`
-- Mudancas recentes (detalhado): `docs/wiki/recent-changes-2026-03-08.md`
+- Mudanças recentes (detalhado): `docs/wiki/recent-changes-2026-03-08.md`
 - Audit (escopo): `docs/audits/stickerCatalogController-out-of-scope.md`
-- Audit (simbolos): `docs/audits/stickerCatalogController-symbols.md`
+- Audit (símbolos): `docs/audits/stickerCatalogController-symbols.md`
 
 ## Referências externas úteis
 

@@ -17,7 +17,7 @@ Objetivo: posicionar o OmniZap como "bot pronto para WhatsApp" para usuário fin
   - `/comandos/`
 - Template padrão para escala em lote:
   - Gerador: `scripts/generate-seo-satellite-pages.mjs`
-  - Config principal: `docs/seo/satellite-pages-phase1.json`
+  - Configuração principal: `docs/seo/satellite-pages-phase1.json`
   - Guia de uso: `docs/seo/satellite-page-template.md`
 
 ## 1) FAQ + JSON-LD prontos

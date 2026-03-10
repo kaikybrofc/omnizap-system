@@ -4,44 +4,44 @@ Data: 2026-03-07
 
 ## 1) Objetivo
 
-Padronizar resposta para direitos do titular: acesso, correcao, exclusao, oposicao e portabilidade.
+Padronizar resposta para direitos do titular: acesso, correção, exclusão, oposição e portabilidade.
 
 ## 2) Canais de entrada
 
 - WhatsApp oficial: https://wa.me/559591122954
-- Canal interno de compliance (registro em ticket obrigatorio)
+- Canal interno de compliance (registro em ticket obrigatório)
 
-## 3) Papéis e responsaveis
+## 3) Papéis e responsáveis
 
 - DPO/Privacidade (owner do caso): valida base legal e resposta final.
-- Engenharia: localiza dados, executa exportacao/correcao/exclusao.
-- Seguranca: valida risco e cadeia de evidencia.
+- Engenharia: localiza dados, executa exportação/correção/exclusão.
+- Segurança: valida risco e cadeia de evidência.
 - Suporte: confirma identidade e comunica status ao titular.
 
 ## 4) Prazos operacionais
 
-| Tipo de solicitacao                        | Prazo alvo interno   |
+| Tipo de solicitação                        | Prazo alvo interno   |
 | ------------------------------------------ | -------------------- |
-| Confirmacao de recebimento                 | ate 2 dias corridos  |
-| Acesso/confirmacao de tratamento           | ate 7 dias corridos  |
-| Correcao                                   | ate 7 dias corridos  |
-| Exclusao/anonimizacao (quando cabivel)     | ate 15 dias corridos |
-| Oposicao/revisao                           | ate 10 dias corridos |
-| Portabilidade (quando tecnicamente viavel) | ate 15 dias corridos |
+| Confirmação de recebimento                 | até 2 dias corridos  |
+| Acesso/confirmação de tratamento           | até 7 dias corridos  |
+| Correção                                   | até 7 dias corridos  |
+| Exclusão/anonimização (quando cabível)     | até 15 dias corridos |
+| Oposição/revisão                           | até 10 dias corridos |
+| Portabilidade (quando tecnicamente viável) | até 15 dias corridos |
 
-Observacao: prevalecem prazos legais aplicaveis quando menores.
-Para pedidos enquadrados no art. 19 da LGPD, observar resposta simplificada imediata quando possivel e declaracao clara/completa em ate 15 dias.
+Observação: prevalecem prazos legais aplicáveis quando menores.
+Para pedidos enquadrados no art. 19 da LGPD, observar resposta simplificada imediata quando possível e declaração clara/completa em até 15 dias.
 
 ## 5) Fluxo operacional
 
-1. Registrar ticket com ID unico e timestamp UTC.
-2. Confirmar identidade minima do solicitante.
-3. Classificar direito solicitado e base juridica.
+1. Registrar ticket com ID único e timestamp UTC.
+2. Confirmar identidade mínima do solicitante.
+3. Classificar direito solicitado e base jurídica.
 4. Mapear sistemas/tabelas afetadas.
-5. Executar acao tecnica (consulta, ajuste, exclusao, exportacao).
-6. Revisao juridica/privacidade.
-7. Responder titular com protocolo e resumo da acao.
-8. Encerrar com evidencias anexas e metricas de SLA.
+5. Executar ação técnica (consulta, ajuste, exclusão, exportação).
+6. Revisão jurídica/privacidade.
+7. Responder titular com protocolo e resumo da ação.
+8. Encerrar com evidências anexas e métricas de SLA.
 
 ## 6) Matriz por direito
 
@@ -50,37 +50,37 @@ Para pedidos enquadrados no art. 19 da LGPD, observar resposta simplificada imed
 - Entregar resumo dos dados tratados e finalidades.
 - Incluir categorias, origem e compartilhamentos principais.
 
-### 6.2 Correcao
+### 6.2 Correção
 
 - Corrigir dado incompleto/inexato/desatualizado.
-- Registrar antes/depois e fundamento da alteracao.
+- Registrar antes/depois e fundamento da alteração.
 
-### 6.3 Exclusao
+### 6.3 Exclusão
 
-- Eliminar ou anonimizar quando nao houver base legal de retencao.
-- Se houver retencao obrigatoria, informar bloqueio e justificativa.
+- Eliminar ou anonimizar quando não houver base legal de retenção.
+- Se houver retenção obrigatória, informar bloqueio e justificativa.
 
-### 6.4 Oposicao
+### 6.4 Oposição
 
-- Avaliar legitimidade do pedido conforme base legal aplicavel.
-- Suspender tratamento contestado quando juridicamente cabivel.
+- Avaliar legitimidade do pedido conforme base legal aplicável.
+- Suspender tratamento contestado quando juridicamente cabível.
 
 ### 6.5 Portabilidade
 
-- Fornecer formato estruturado e interoperavel quando tecnicamente viavel.
-- Excluir segredos comerciais e dados de terceiros nao transferiveis.
+- Fornecer formato estruturado e interoperável quando tecnicamente viável.
+- Excluir segredos comerciais e dados de terceiros não transferíveis.
 
-## 7) Evidencias obrigatorias
+## 7) Evidências obrigatórias
 
-- ID do ticket, timestamps e responsaveis por etapa.
+- ID do ticket, timestamps e responsáveis por etapa.
 - Comprovante de identidade validado.
-- Consulta tecnica executada e resultado.
+- Consulta técnica executada e resultado.
 - Mensagem de resposta final ao titular.
 
 ## 8) Escalonamento
 
-Escalonar para juridico + seguranca quando houver:
+Escalonar para jurídico + segurança quando houver:
 
-- risco de incidente de seguranca;
+- risco de incidente de segurança;
 - pedido envolvendo alto volume de titulares;
-- conflito entre pedido e obrigacao legal de retencao.
+- conflito entre pedido e obrigação legal de retenção.
