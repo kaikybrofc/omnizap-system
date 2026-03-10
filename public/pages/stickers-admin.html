@@ -3,20 +3,29 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OmniZap | Painel Admin</title>
+    <title>Admin Stickers | OmniZap System</title>
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#020617" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="manifest" href="/site.webmanifest" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/assets/css/stickers-admin.css" />
+    <style>
+      body {
+        margin: 0;
+        background: #020617;
+        color: #fff;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      #stickers-admin-root {
+        min-height: 100vh;
+      }
+    </style>
   </head>
   <body>
-    <div id="stickers-admin-root" data-api-base-path="/api" data-web-path="/stickers" data-admin-web-path="/stickers/admin"></div>
-
+    <div id="stickers-admin-root" data-api-base-path="/api/sticker-packs" data-login-path="/login" data-web-path="/stickers"></div>
     <script type="module" src="/assets/js/stickers-admin.bundle.js"></script>
   </body>
 </html>

@@ -3,72 +3,156 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Politica de Uso Aceitavel (AUP) | OmniZap</title>
-    <meta name="description" content="Politica de Uso Aceitavel do OmniZap com lista objetiva de casos proibidos." />
+    <title>Política de Uso Aceitável (AUP) | OmniZap</title>
+    <meta name="description" content="Política de Uso Aceitável do OmniZap com lista objetiva de casos proibidos." />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://omnizap.shop/aup/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Sora:wght@100..800&display=swap" rel="stylesheet" />
     <style>
+      :root {
+        --bc: 210 40% 96%;
+        --p: 142 71% 45%;
+        --s: 217 91% 60%;
+      }
+      * {
+        box-sizing: border-box;
+      }
       body {
-        font-family: 'Trebuchet MS', sans-serif;
         margin: 0;
-        background: #0e172d;
-        color: #eff5ff;
+        background: #020617;
+        background-image: radial-gradient(at 0% 0%, hsla(142, 71%, 45%, 0.12) 0px, transparent 50%), radial-gradient(at 100% 0%, hsla(217, 91%, 60%, 0.12) 0px, transparent 50%);
+        color: hsl(var(--bc));
+        font-family: 'Sora', sans-serif;
+        line-height: 1.6;
+        min-height: 100vh;
       }
-      main {
-        width: min(900px, 92vw);
+      .container {
+        width: min(900px, 94vw);
         margin: 0 auto;
-        padding: 24px 0 40px;
+        padding: 40px 0 80px;
       }
-      a {
-        color: #57d4ff;
+      .navbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 0;
+        margin-bottom: 3rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       }
-      .card {
-        background: #13203e;
-        border: 1px solid #2c3e67;
-        border-radius: 14px;
-        padding: 16px;
-        margin-bottom: 10px;
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        color: inherit;
+        font-weight: 800;
+        font-size: 1.2rem;
+      }
+      .logo img {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+      }
+      .nav-links a {
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: rgba(255, 255, 255, 0.6);
+        text-decoration: none;
+        font-size: 0.8rem;
+        font-weight: 600;
+        transition: all 0.2s;
+      }
+      .nav-links a:hover {
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+
+      .glass-card {
+        background: rgba(255, 255, 255, 0.02);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 2rem;
+        padding: 2.5rem;
+        margin-bottom: 1.5rem;
+      }
+      h1 {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin: 0 0 1rem;
+      }
+      h2 {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0 0 1.2rem;
+        color: hsla(142, 71%, 45%, 1);
+      }
+      p,
+      li {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.95rem;
+      }
+      ul {
+        padding-left: 1.2rem;
       }
       li {
-        color: #c4d2f4;
-        margin-bottom: 8px;
+        margin-bottom: 0.8rem;
       }
-      .top a {
-        margin-right: 8px;
+      .footer {
+        text-align: center;
+        margin-top: 4rem;
+        opacity: 0.3;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.2em;
       }
     </style>
   </head>
   <body>
-    <main>
-      <nav class="top">
-        <a href="/">Inicio</a>
-        <a href="/termos-de-uso/">Termos</a>
-        <a href="/politica-de-privacidade/">Privacidade</a>
-      </nav>
-      <section class="card">
-        <h1>Politica de Uso Aceitavel (AUP)</h1>
-        <p>Versao 2026-03-07.</p>
-      </section>
-      <section class="card">
-        <h2>Casos proibidos</h2>
-        <ul>
-          <li>Spam, flood, disparos em massa nao solicitados.</li>
-          <li>Phishing, fraude, malware, engenharia social e atividades criminosas.</li>
-          <li>Operar setores regulados sem licenca/autorizacao valida quando exigida por lei.</li>
-          <li>Coletar/tratar dados pessoais sem base legal adequada.</li>
-          <li>Monitorar comunicacoes sem ciencia dos envolvidos ou sem base legal.</li>
-          <li>Violar direitos autorais, marca, imagem, privacidade ou segredo comercial.</li>
-          <li>Burlar limites tecnicos, politicas de terceiros ou mecanismos de seguranca.</li>
-        </ul>
-      </section>
-      <section class="card">
-        <h2>Medidas de enforcement</h2>
-        <ul>
-          <li>Remocao de conteudo e bloqueio cautelar.</li>
-          <li>Suspensao/encerramento de conta e preservacao de evidencias.</li>
-          <li>Comunicacao a autoridades competentes quando aplicavel.</li>
-        </ul>
-      </section>
-    </main>
+    <div class="container">
+      <header class="navbar">
+        <a href="/" class="logo">
+          <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" />
+          <span>OmniZap<span style="color: hsla(142, 71%, 45%, 1)">.</span></span>
+        </a>
+        <nav class="nav-links">
+          <a href="/">Início</a>
+          <a href="/termos-de-uso/">Termos</a>
+          <a href="/politica-de-privacidade/">Privacidade</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="glass-card">
+          <h1>Política de Uso Aceitável</h1>
+          <p>Versão: 07/03/2026</p>
+          <p>Esta política define as diretrizes para o uso ético e legal do OmniZap System.</p>
+        </section>
+
+        <section class="glass-card">
+          <h2>Casos Proibidos</h2>
+          <ul>
+            <li>Spam, flood e disparos em massa não solicitados.</li>
+            <li>Phishing, fraude, malware e engenharia social.</li>
+            <li>Operar setores regulados sem licença válida.</li>
+            <li>Coletar dados pessoais sem base legal adequada.</li>
+            <li>Violar direitos autorais ou marcas registradas.</li>
+            <li>Burlar limites técnicos ou mecanismos de segurança.</li>
+          </ul>
+        </section>
+
+        <section class="glass-card">
+          <h2>Medidas de Enforcement</h2>
+          <p>Violações podem resultar em remoção imediata de conteúdo, suspensão de acesso e comunicação às autoridades competentes.</p>
+        </section>
+      </main>
+
+      <footer class="footer">© 2026 OMNIZAP SYSTEM · AUP V2</footer>
+    </div>
   </body>
 </html>

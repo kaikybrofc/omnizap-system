@@ -3,20 +3,38 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OmniZap | Criar novo Pack</title>
-    <meta name="description" content="Crie um novo pack com fluxo visual passo a passo. Adicione stickers, escolha capa e publique no catálogo OmniZap." />
+    <title>Criar Pack de Stickers | OmniZap System</title>
+    <meta name="description" content="Crie seus próprios pacotes de figurinhas para WhatsApp de forma simples e integrada." />
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#020617" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="manifest" href="/site.webmanifest" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/assets/css/create-pack-react.css" />
+    <style>
+      body {
+        margin: 0;
+        background: #020617;
+        color: #f8fafc;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      #create-pack-react-root {
+        min-height: 100vh;
+      }
+    </style>
   </head>
-  <body class="min-h-screen bg-app-base text-slate-100">
-    <div id="create-pack-react-root" data-api-base-path="/api/sticker-packs" data-web-path="/stickers" data-login-path="__STICKER_LOGIN_WEB_PATH__"></div>
+  <body>
+    <div id="create-pack-react-root" data-api-base-path="/api/sticker-packs" data-login-path="/login" data-home-path="/" data-terms-url="/termos-de-uso/" data-privacy-url="/politica-de-privacidade/"></div>
+
+    <noscript>
+      <main style="max-width: 800px; margin: 50px auto; padding: 20px; text-align: center">
+        <h1>OmniZap - Criar Pack</h1>
+        <p>JavaScript é necessário para usar o editor de packs.</p>
+        <a href="/stickers/" style="color: #22c55e">Voltar ao Catálogo</a>
+      </main>
+    </noscript>
 
     <script type="module" src="/assets/js/create-pack-react.bundle.js"></script>
   </body>

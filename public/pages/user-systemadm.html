@@ -13,8 +13,32 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Sora:wght@100..800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/assets/css/user-systemadm.css" />
+    <style>
+      body {
+        background: #020617 !important;
+        background-image: radial-gradient(at 0% 0%, hsla(142, 71%, 45%, 0.08) 0px, transparent 50%), radial-gradient(at 100% 0%, hsla(217, 91%, 60%, 0.08) 0px, transparent 50%) !important;
+        font-family: 'Sora', sans-serif !important;
+      }
+      .admin-shell {
+        background: transparent !important;
+      }
+      .sidebar {
+        background: rgba(255, 255, 255, 0.02) !important;
+        backdrop-filter: blur(10px);
+        border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+      }
+      .glass-card,
+      .metric-card,
+      .health-card,
+      .section {
+        background: rgba(255, 255, 255, 0.03) !important;
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        border-radius: 1.5rem !important;
+      }
+    </style>
   </head>
   <body>
     <main id="user-app-root" class="admin-shell" data-api-base-path="/api" data-login-path="/login" data-stickers-path="/stickers">

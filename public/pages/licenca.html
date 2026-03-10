@@ -3,236 +3,153 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Licença | OmniZap System</title>
+    <title>Licença MIT | OmniZap System</title>
     <meta name="description" content="Informações jurídicas de licença do OmniZap System (MIT License)." />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://omnizap.shop/licenca/" />
-    <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="manifest" href="/site.webmanifest" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Sora:wght@100..800&display=swap" rel="stylesheet" />
     <style>
       :root {
-        --bg: #0f172a;
-        --bg-2: #111827;
-        --line: rgba(255, 255, 255, 0.05);
-        --text: #f8fafc;
-        --muted: #94a3b8;
-        --card: #1e293bcc;
+        --bc: 210 40% 96%;
+        --p: 142 71% 45%;
+        --s: 217 91% 60%;
       }
       * {
         box-sizing: border-box;
       }
       body {
         margin: 0;
-        font-family:
-          'Manrope',
-          system-ui,
-          -apple-system,
-          sans-serif;
-        color: var(--text);
-        background: radial-gradient(58rem 24rem at -8% -12%, #2563eb26, transparent 60%), radial-gradient(58rem 24rem at 112% -10%, #7c3aed22, transparent 58%), linear-gradient(165deg, var(--bg), var(--bg-2));
+        background: #020617;
+        background-image: radial-gradient(at 0% 0%, hsla(142, 71%, 45%, 0.12) 0px, transparent 50%), radial-gradient(at 100% 0%, hsla(217, 91%, 60%, 0.12) 0px, transparent 50%);
+        color: hsl(var(--bc));
+        font-family: 'Sora', sans-serif;
+        line-height: 1.6;
+        min-height: 100vh;
       }
-      .wrap {
-        width: min(960px, 92vw);
+      .container {
+        width: min(1000px, 94vw);
         margin: 0 auto;
-        padding: 24px 0 42px;
+        padding: 40px 0 80px;
       }
-      .top {
+      .navbar {
         display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 0;
+        margin-bottom: 3rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      .logo {
+        display: flex;
+        align-items: center;
         gap: 10px;
-        flex-wrap: wrap;
-        margin-bottom: 16px;
-      }
-      .top a {
-        color: var(--text);
         text-decoration: none;
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        padding: 8px 12px;
-        background: #111827;
+        color: inherit;
+        font-weight: 800;
+        font-size: 1.2rem;
       }
-      .card {
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        background: var(--card);
-        padding: 18px;
-        margin-bottom: 12px;
+      .logo img {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
       }
-      h1,
-      h2,
-      h3 {
-        margin: 0 0 10px;
+      .nav-links a {
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: rgba(255, 255, 255, 0.6);
+        text-decoration: none;
+        font-size: 0.8rem;
+        font-weight: 600;
+        transition: all 0.2s;
+      }
+      .nav-links a:hover {
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+
+      .glass-card {
+        background: rgba(255, 255, 255, 0.02);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 2rem;
+        padding: 2.5rem;
+        margin-bottom: 1.5rem;
       }
       h1 {
-        font-size: clamp(28px, 4.2vw, 38px);
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin: 0 0 1rem;
       }
       h2 {
-        font-size: 20px;
-        margin-top: 8px;
-      }
-      h3 {
-        font-size: 17px;
-        margin-top: 12px;
-        color: #dbeafe;
-      }
-      p {
-        color: var(--muted);
-        line-height: 1.6;
-        margin: 0 0 10px;
-      }
-      li {
-        color: var(--muted);
-        line-height: 1.6;
-      }
-      ul {
-        margin: 0;
-        padding-left: 18px;
-      }
-      a {
-        color: #2563eb;
-      }
-      .note {
-        font-size: 14px;
-        color: #c7d8f4;
-      }
-      .updated {
-        color: #bcd1ef;
-        font-size: 14px;
-      }
-      .contact-actions {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin: 10px 0 6px;
-      }
-      .contact-btn {
-        text-decoration: none;
-        border-radius: 999px;
-        padding: 8px 12px;
-        font-size: 14px;
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1.5rem;
         font-weight: 700;
-        border: 1px solid var(--line);
-        display: inline-flex;
-        align-items: center;
+        margin: 0 0 1.2rem;
+        color: hsla(142, 71%, 45%, 1);
       }
-      .contact-btn.wa {
-        background: linear-gradient(180deg, #163528, #112a1f);
-        color: #ddffec;
-        border-color: #2ba66b88;
+      p,
+      li {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.95rem;
       }
-      .contact-btn.ig {
-        background: linear-gradient(180deg, #3f1d29, #2f1720);
-        color: #ffe5ef;
-        border-color: #d14b7888;
-      }
+
       pre {
-        margin: 0;
-        white-space: pre-wrap;
-        line-height: 1.5;
-        color: #d6e4fa;
-        border: 1px solid #314669;
-        border-radius: 12px;
-        background: #0f1729;
-        padding: 14px;
-        overflow: auto;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 1.5rem;
+        border-radius: 1.5rem;
+        font-family: monospace;
+        font-size: 0.85rem;
+        color: hsla(142, 71%, 45%, 0.8);
+        overflow-x: auto;
+      }
+
+      .footer {
+        text-align: center;
+        margin-top: 4rem;
+        opacity: 0.2;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.2em;
+      }
+
+      @media (max-width: 768px) {
+        .glass-card {
+          padding: 1.5rem;
+        }
       }
     </style>
   </head>
   <body>
-    <main class="wrap">
-      <nav class="top" aria-label="Navegação">
-        <a href="/">Início</a>
-        <a href="/stickers/">Stickers</a>
-        <a href="/api-docs/">API</a>
-        <a href="/termos-de-uso/">Termos de Uso</a>
-      </nav>
+    <div class="container">
+      <header class="navbar">
+        <a href="/" class="logo">
+          <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" />
+          <span>OmniZap<span style="color: hsla(142, 71%, 45%, 1)">.</span></span>
+        </a>
+        <nav class="nav-links">
+          <a href="/">Início</a>
+          <a href="/termos-de-uso/">Termos</a>
+          <a href="https://github.com/kaikybrofc/omnizap-system" target="_blank">GitHub</a>
+        </nav>
+      </header>
 
-      <section class="card">
-        <h1>Licença</h1>
-        <p class="updated">Última atualização: 07/03/2026</p>
-        <p>
-          O código-fonte do OmniZap System é disponibilizado sob a licença
-          <strong>MIT License</strong> (SPDX: <code>MIT</code>), de natureza permissiva.
-        </p>
-        <p class="note"><strong>Regra de interpretação:</strong> em caso de divergência entre resumos explicativos e o texto legal da licença, prevalece o texto oficial da MIT (em inglês).</p>
-        <p class="note"><strong>Contato direto:</strong> +55 95 9112-2954 (número no link: 559591122954).</p>
-        <div class="contact-actions" aria-label="Canais oficiais de contato">
-          <a class="contact-btn wa" href="https://wa.me/559591122954" target="_blank" rel="noreferrer noopener">WhatsApp oficial</a>
-          <a class="contact-btn ig" href="https://www.instagram.com/kaikybrofc/" target="_blank" rel="noreferrer noopener">Instagram @kaikybrofc</a>
-        </div>
-        <p>Copyright (c) 2025 Kaiky Brito</p>
-      </section>
+      <main>
+        <section class="glass-card">
+          <h1>Licença de Software</h1>
+          <p>O OmniZap System é distribuído sob a licença <strong>MIT</strong>. Isso significa que você é livre para usar, copiar, modificar e distribuir o código, desde que mantenha os créditos originais.</p>
+        </section>
 
-      <section class="card">
-        <h2>1. Escopo da licença e objeto licenciado</h2>
-        <ul>
-          <li>Esta licença incide sobre o código e arquivos do projeto publicados sob MIT no repositório oficial.</li>
-          <li>APIs, serviços externos, marcas, nomes empresariais e conteúdos de terceiros não são automaticamente licenciados por este instrumento.</li>
-        </ul>
-      </section>
+        <section class="glass-card">
+          <h2>Texto Oficial (Inglês)</h2>
+          <pre>
+Copyright (c) 2025-2026 Kaiky Brito
 
-      <section class="card">
-        <h2>2. Direitos concedidos pela MIT</h2>
-        <ul>
-          <li>Uso para fins pessoais, acadêmicos e comerciais.</li>
-          <li>Cópia, modificação, publicação, distribuição e sublicenciamento.</li>
-          <li>Incorporação em projetos proprietários, observadas as condições de atribuição.</li>
-        </ul>
-      </section>
-
-      <section class="card">
-        <h2>3. Condições obrigatórias de redistribuição</h2>
-        <ul>
-          <li>É obrigatório manter o aviso de copyright e o texto da MIT License em cópias ou porções substanciais do software.</li>
-          <li>O redistribuidor deve respeitar legislação aplicável e direitos de terceiros, inclusive propriedade intelectual e proteção de dados.</li>
-        </ul>
-      </section>
-
-      <section class="card">
-        <h2>4. Exclusões de licença (marca, nomes e terceiros)</h2>
-        <ul>
-          <li>Esta licença não concede direito de uso de marca, logotipo, nome comercial ou identidade visual do projeto fora de hipóteses legalmente permitidas.</li>
-          <li>Dependências e componentes de terceiros permanecem sujeitos às respectivas licenças e termos próprios.</li>
-          <li>Cabe ao usuário avaliar compatibilidade de licenças ao distribuir versões derivadas.</li>
-        </ul>
-      </section>
-
-      <section class="card">
-        <h2>5. Isenção de garantias e limitação de responsabilidade</h2>
-        <ul>
-          <li>O software é fornecido "AS IS", sem garantias expressas ou implícitas, incluindo comercialização, adequação a finalidade específica e não infração.</li>
-          <li>Na extensão permitida por lei, autores e detentores de direitos não respondem por perdas, danos ou interrupções decorrentes do uso do software.</li>
-        </ul>
-        <p class="note"><strong>Nota:</strong> esta cláusula reproduz a lógica da MIT e não afasta direitos legalmente indisponíveis.</p>
-      </section>
-
-      <section class="card">
-        <h2>6. Conformidade legal do usuário</h2>
-        <ul>
-          <li>O uso do software deve observar legislação aplicável, incluindo regras de proteção de dados, propriedade intelectual, consumidor e normas setoriais pertinentes.</li>
-          <li>O usuário é responsável pela conformidade jurídica do uso de sua instância e de suas integrações.</li>
-        </ul>
-      </section>
-
-      <section class="card">
-        <h2>7. Relação com Termos de Uso e privacidade</h2>
-        <ul>
-          <li>
-            A MIT regula direitos sobre o código-fonte; regras de uso da plataforma, tratamento de dados e condutas operacionais constam em
-            <a href="/termos-de-uso/">Termos de Uso</a>.
-          </li>
-          <li>Em ambiente hospedado (SaaS), aplicam-se obrigações contratuais e regulatórias específicas, além da licença de software.</li>
-        </ul>
-      </section>
-
-      <section class="card">
-        <h2>8. Projeto não oficial</h2>
-        <p>O OmniZap System é projeto independente e não oficial, sem autorização, afiliação, parceria comercial ou endosso da Meta Platforms, Inc.</p>
-      </section>
-
-      <section class="card">
-        <h2>9. Texto oficial da MIT License</h2>
-        <pre>
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -250,32 +167,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.</pre
-        >
-      </section>
+          >
+        </section>
 
-      <section class="card">
-        <h2>10. Referências e histórico</h2>
-        <ul>
-          <li>
-            Repositório oficial (arquivo LICENSE):
-            <a href="https://github.com/kaikybrofc/omnizap-system/blob/main/LICENSE" target="_blank" rel="noreferrer noopener">GitHub</a>.
-          </li>
-          <li>
-            MIT License (Open Source Initiative):
-            <a href="https://opensource.org/license/mit" target="_blank" rel="noreferrer noopener">opensource.org/license/mit</a>.
-          </li>
-          <li>
-            SPDX License List (MIT):
-            <a href="https://spdx.org/licenses/MIT.html" target="_blank" rel="noreferrer noopener">spdx.org/licenses/MIT.html</a>.
-          </li>
-        </ul>
-        <h3>Histórico de alterações</h3>
-        <ul>
-          <li><strong>07/03/2026:</strong> revisão jurídica da página de licença, com escopo licenciado, condições de redistribuição, exclusões de marca/terceiros, conformidade legal e relação com Termos de Uso.</li>
-          <li><strong>28/02/2026:</strong> revisão da página de licença com resumo em linguagem simples, direitos/obrigações da MIT, limites legais, aviso de projeto não oficial e contatos rápidos.</li>
-          <li><strong>26/02/2026:</strong> versão inicial da página de licença publicada.</li>
-        </ul>
-      </section>
-    </main>
+        <section class="glass-card">
+          <h2>Isenção de Responsabilidade</h2>
+          <p>O software é fornecido "como está", sem garantias de qualquer tipo. Os autores não se responsabilizam por danos decorrentes do uso ou mau uso desta ferramenta.</p>
+        </section>
+      </main>
+
+      <footer class="footer">© 2026 OMNIZAP SYSTEM · MIT LICENSE V2</footer>
+    </div>
   </body>
 </html>

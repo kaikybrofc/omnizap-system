@@ -3,124 +3,225 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>DPA Padrao B2B | OmniZap</title>
-    <meta name="description" content="DPA padrao para clientes B2B com anexos tecnicos de suboperadores, seguranca, incidente e SLA de cooperacao." />
+    <title>DPA Padrão B2B | OmniZap System</title>
+    <meta name="description" content="DPA padrão para clientes B2B com anexos técnicos de suboperadores, segurança, incidente e SLA de cooperação." />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://omnizap.shop/dpa/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Sora:wght@100..800&display=swap" rel="stylesheet" />
     <style>
+      :root {
+        --bc: 210 40% 96%;
+        --p: 142 71% 45%;
+        --s: 217 91% 60%;
+      }
+      * {
+        box-sizing: border-box;
+      }
       body {
-        font-family: 'Trebuchet MS', sans-serif;
         margin: 0;
-        background: #0f172a;
-        color: #f3f8ff;
+        background: #020617;
+        background-image: radial-gradient(at 0% 0%, hsla(142, 71%, 45%, 0.1) 0px, transparent 50%), radial-gradient(at 100% 0%, hsla(217, 91%, 60%, 0.1) 0px, transparent 50%);
+        color: hsl(var(--bc));
+        font-family: 'Sora', sans-serif;
+        line-height: 1.6;
+        min-height: 100vh;
+        overflow-x: hidden;
       }
-      main {
-        width: min(980px, 92vw);
+      .container {
+        width: min(1100px, 92vw);
         margin: 0 auto;
-        padding: 24px 0 40px;
+        padding: 20px 0 60px;
       }
-      a {
-        color: #62d9ff;
+      .navbar {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem 0;
+        margin-bottom: 2rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       }
-      .card {
-        background: #162442;
-        border: 1px solid #334b77;
-        border-radius: 14px;
-        padding: 16px;
-        margin-bottom: 10px;
+      @media (min-width: 768px) {
+        .navbar {
+          flex-direction: row;
+          justify-content: space-between;
+          align-items: center;
+        }
       }
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        color: inherit;
+        font-weight: 800;
+        font-size: 1.1rem;
+      }
+      .logo img {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+      }
+      .nav-links {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+      }
+      .nav-links::-webkit-scrollbar {
+        display: none;
+      }
+      .nav-links a {
+        padding: 5px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: rgba(255, 255, 255, 0.5);
+        text-decoration: none;
+        font-size: 0.75rem;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .glass-card {
+        background: rgba(255, 255, 255, 0.02);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 1.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        word-wrap: break-word;
+      }
+      @media (min-width: 768px) {
+        .glass-card {
+          padding: 2.5rem;
+          border-radius: 2rem;
+        }
+      }
+      h1 {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: clamp(1.8rem, 8vw, 3rem);
+        font-weight: 800;
+        margin: 0 0 0.5rem;
+        letter-spacing: -0.02em;
+        line-height: 1.1;
+      }
+      h2 {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: clamp(1.2rem, 5vw, 1.5rem);
+        font-weight: 700;
+        margin: 0 0 1rem;
+        color: hsla(142, 71%, 45%, 1);
+      }
+      p,
+      li {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.9rem;
+      }
+      @media (min-width: 768px) {
+        p,
+        li {
+          font-size: 0.95rem;
+        }
+      }
+
       table {
         width: 100%;
         border-collapse: collapse;
+        margin: 1.5rem 0;
+        min-width: 500px;
       }
       th,
       td {
-        border: 1px solid #334b77;
-        padding: 8px;
+        padding: 0.75rem;
         text-align: left;
-        vertical-align: top;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: 0.8rem;
       }
       th {
-        background: #1d2f56;
+        background: rgba(255, 255, 255, 0.03);
+        color: #fff;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-size: 0.65rem;
+      }
+
+      .footer {
+        text-align: center;
+        margin-top: 3rem;
+        padding-top: 2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        opacity: 0.2;
+        font-size: 0.6rem;
+        font-weight: 700;
+        letter-spacing: 0.2em;
       }
     </style>
   </head>
   <body>
-    <main>
-      <section class="card">
-        <h1>DPA Padrao para Clientes B2B</h1>
-        <p>Versao 2026-03-07. Este resumo nao substitui contrato principal e assinatura entre as partes.</p>
-      </section>
+    <div class="container">
+      <header class="navbar">
+        <a href="/" class="logo">
+          <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" />
+          <span>OmniZap<span style="color: hsla(142, 71%, 45%, 1)">.</span></span>
+        </a>
+        <nav class="nav-links">
+          <a href="/">Início</a>
+          <a href="/politica-de-privacidade/">Privacidade</a>
+          <a href="/suboperadores/">Parceiros</a>
+        </nav>
+      </header>
 
-      <section class="card">
-        <h2>Anexos tecnicos</h2>
-        <ul>
-          <li>Anexo I: suboperadores.</li>
-          <li>Anexo II: medidas de seguranca.</li>
-          <li>Anexo III: fluxo de incidente.</li>
-          <li>Anexo IV: SLA de cooperacao (incidente e DSAR).</li>
-        </ul>
-      </section>
+      <main>
+        <section class="glass-card">
+          <h1>DPA Padrão para Clientes B2B</h1>
+          <p>Versão: 07/03/2026</p>
+          <p>Este documento regula o processamento de dados pessoais em relações empresariais (Business-to-Business) no contexto do OmniZap System.</p>
+        </section>
 
-      <section class="card">
-        <h2>Anexo I - Suboperadores (resumo)</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Categoria</th>
-              <th>Finalidade</th>
-              <th>Dados</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Cloud/Infra</td>
-              <td>Hospedagem e banco</td>
-              <td>Dados de conta, logs e operacao</td>
-            </tr>
-            <tr>
-              <td>E-mail</td>
-              <td>Reset de senha e comunicados</td>
-              <td>E-mail e metadados de entrega</td>
-            </tr>
-            <tr>
-              <td>Monitoramento</td>
-              <td>Logs e alertas</td>
-              <td>Telemetria e eventos tecnicos</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
+        <section class="glass-card">
+          <h2>Anexos Técnicos</h2>
+          <ul>
+            <li><strong>Anexo I:</strong> Inventário de suboperadores e regiões.</li>
+            <li><strong>Anexo II:</strong> Medidas de segurança e criptografia.</li>
+            <li><strong>Anexo III:</strong> Fluxo de resposta a incidentes.</li>
+            <li><strong>Anexo IV:</strong> SLA de cooperação regulatória.</li>
+          </ul>
+        </section>
 
-      <section class="card">
-        <h2>Anexo IV - SLA de cooperacao</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Evento</th>
-              <th>SLA</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Ack de incidente critico</td>
-              <td>ate 4h uteis</td>
-            </tr>
-            <tr>
-              <td>Atualizacao inicial</td>
-              <td>ate 24h</td>
-            </tr>
-            <tr>
-              <td>Cooperacao DSAR simples</td>
-              <td>ate 5 dias corridos</td>
-            </tr>
-            <tr>
-              <td>Cooperacao DSAR complexo</td>
-              <td>ate 10 dias corridos</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-    </main>
+        <section class="glass-card">
+          <h2>SLA de Cooperação</h2>
+          <div style="overflow-x: auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>Evento</th>
+                  <th>Prazo Alvo</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Confirmação de incidente crítico</td>
+                  <td>Até 4h úteis</td>
+                </tr>
+                <tr>
+                  <td>Atualização de status de mitigação</td>
+                  <td>Até 24h</td>
+                </tr>
+                <tr>
+                  <td>Suporte em solicitações DSAR</td>
+                  <td>Até 5 dias</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">© 2026 OMNIZAP SYSTEM · DPA B2B V2</footer>
+    </div>
   </body>
 </html>

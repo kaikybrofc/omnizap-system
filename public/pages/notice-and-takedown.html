@@ -3,130 +3,232 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Notice-and-Takedown | OmniZap</title>
-    <meta name="description" content="Canal formal de notice-and-takedown com formulario, requisitos minimos de prova e SLA publico." />
+    <title>Notice-and-Takedown | OmniZap System</title>
+    <meta name="description" content="Canal formal de notice-and-takedown com formulário, requisitos mínimos de prova e SLA público." />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://omnizap.shop/notice-and-takedown/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Sora:wght@100..800&display=swap" rel="stylesheet" />
     <style>
+      :root {
+        --bc: 210 40% 96%;
+        --p: 142 71% 45%;
+        --s: 217 91% 60%;
+      }
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
-        background: #0a1120;
-        color: #eff4ff;
-        font-family: 'Trebuchet MS', sans-serif;
+        background: #020617;
+        background-image: radial-gradient(at 0% 0%, hsla(142, 71%, 45%, 0.12) 0px, transparent 50%), radial-gradient(at 100% 0%, hsla(217, 91%, 60%, 0.12) 0px, transparent 50%);
+        color: hsl(var(--bc));
+        font-family: 'Sora', sans-serif;
+        line-height: 1.6;
+        min-height: 100vh;
       }
-      main {
-        width: min(980px, 92vw);
+      .container {
+        width: min(1000px, 94vw);
         margin: 0 auto;
-        padding: 24px 0 48px;
+        padding: 40px 0 80px;
       }
-      .card {
-        background: #111d36;
-        border: 1px solid #2d4165;
-        border-radius: 16px;
-        padding: 16px;
-        margin-bottom: 12px;
+      .navbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 0;
+        margin-bottom: 3rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       }
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        color: inherit;
+        font-weight: 800;
+        font-size: 1.2rem;
+      }
+      .logo img {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+      }
+      .nav-links a {
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: rgba(255, 255, 255, 0.6);
+        text-decoration: none;
+        font-size: 0.8rem;
+        font-weight: 600;
+        transition: all 0.2s;
+      }
+      .nav-links a:hover {
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+
+      .glass-card {
+        background: rgba(255, 255, 255, 0.02);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 2rem;
+        padding: 2.5rem;
+        margin-bottom: 1.5rem;
+      }
+      h1 {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin: 0 0 1rem;
+      }
+      h2 {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0 0 1.2rem;
+        color: hsla(142, 71%, 45%, 1);
+      }
+      p,
+      li {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.95rem;
+      }
+
       label {
         display: block;
-        font-weight: 700;
-        margin-bottom: 6px;
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 0.5rem;
+        color: rgba(255, 255, 255, 0.4);
       }
       input,
       textarea {
         width: 100%;
-        border: 1px solid #3a5482;
-        background: #0f1a31;
-        color: #f1f6ff;
-        border-radius: 10px;
-        padding: 10px;
-        margin-bottom: 10px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        padding: 1rem;
+        color: #fff;
+        font-family: inherit;
+        font-size: 0.95rem;
+        margin-bottom: 1.5rem;
       }
-      button {
-        border: 1px solid #2d906f;
-        background: #1d5e49;
-        color: #d9ffee;
-        border-radius: 999px;
-        padding: 10px 16px;
-        font-weight: 700;
+      input:focus,
+      textarea:focus {
+        outline: none;
+        border-color: hsla(142, 71%, 45%, 0.5);
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .btn-primary {
+        background: hsla(142, 71%, 45%, 1);
+        color: #000;
+        border: none;
+        padding: 1rem 2rem;
+        border-radius: 1rem;
+        font-weight: 800;
+        font-size: 1rem;
         cursor: pointer;
+        transition: transform 0.2s;
       }
-      li,
-      p {
-        color: #c3d2ee;
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        filter: brightness(1.1);
       }
-      .sla {
+
+      .sla-grid {
         display: grid;
-        gap: 8px;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
       }
-      .sla div {
-        border: 1px solid #2d4165;
-        border-radius: 12px;
-        padding: 10px;
-        background: #0d1830;
+      .sla-item {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 1.5rem;
+        border-radius: 1.2rem;
       }
-      a {
-        color: #66d4ff;
+      .sla-item strong {
+        display: block;
+        color: #fff;
+        margin-bottom: 0.5rem;
+      }
+
+      .footer {
+        text-align: center;
+        margin-top: 4rem;
+        opacity: 0.2;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.2em;
+      }
+
+      @media (max-width: 768px) {
+        .glass-card {
+          padding: 1.5rem;
+        }
       }
     </style>
   </head>
   <body>
-    <main>
-      <section class="card">
-        <h1>Notice-and-Takedown</h1>
-        <p>Canal formal para denuncias de conteudo ilicito, violacao de direitos autorais, marca, imagem e privacidade.</p>
-      </section>
+    <div class="container">
+      <header class="navbar">
+        <a href="/" class="logo">
+          <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" />
+          <span>OmniZap<span style="color: hsla(142, 71%, 45%, 1)">.</span></span>
+        </a>
+        <nav class="nav-links">
+          <a href="/">Início</a>
+          <a href="/termos-de-uso/">Termos</a>
+          <a href="/politica-de-privacidade/">Privacidade</a>
+        </nav>
+      </header>
 
-      <section class="card">
-        <h2>Requisitos minimos de prova</h2>
-        <ul>
-          <li>Identificacao e contato valido do notificante.</li>
-          <li>URL/ID do conteudo denunciado.</li>
-          <li>Fundamentacao juridica objetiva.</li>
-          <li>Evidencia minima (captura, hash, documento de titularidade, quando aplicavel).</li>
-          <li>Declaracao de boa-fe e veracidade.</li>
-        </ul>
-      </section>
+      <main>
+        <section class="glass-card">
+          <h1>Notice-and-Takedown</h1>
+          <p>Canal formal para denúncias de conteúdo ilícito, violação de direitos autorais, marca, imagem e privacidade.</p>
+        </section>
 
-      <section class="card">
-        <h2>SLA publico</h2>
-        <div class="sla">
-          <div><strong>Recebimento</strong><br />ate 24h uteis</div>
-          <div><strong>Triagem inicial</strong><br />ate 48h uteis</div>
-          <div><strong>Decisao cautelar</strong><br />ate 72h uteis</div>
-        </div>
-      </section>
+        <section class="glass-card">
+          <h2>SLA de Atendimento</h2>
+          <div class="sla-grid">
+            <div class="sla-item"><strong>Recebimento</strong>Até 24h úteis</div>
+            <div class="sla-item"><strong>Triagem</strong>Até 48h úteis</div>
+            <div class="sla-item"><strong>Decisão</strong>Até 72h úteis</div>
+          </div>
+        </section>
 
-      <section class="card">
-        <h2>Formulario de notificacao</h2>
-        <form method="post" action="mailto:kaikybritoribeiro@gmail.com?subject=Notice-and-Takedown%20OmniZap" enctype="text/plain">
-          <label for="name">Nome do notificante</label>
-          <input id="name" name="name" required />
+        <section class="glass-card">
+          <h2>Formulário de Notificação</h2>
+          <form method="post" action="mailto:kaikybritoribeiro@gmail.com?subject=Notice-and-Takedown%20OmniZap" enctype="text/plain">
+            <label for="name">Nome Completo</label>
+            <input id="name" name="name" required />
 
-          <label for="email">E-mail de contato</label>
-          <input id="email" name="email" type="email" required />
+            <label for="email">E-mail de Contato</label>
+            <input id="email" name="email" type="email" required />
 
-          <label for="evidence_url">URL/ID do conteudo denunciado</label>
-          <input id="evidence_url" name="evidence_url" required />
+            <label for="evidence_url">URL ou ID do Conteúdo</label>
+            <input id="evidence_url" name="evidence_url" required />
 
-          <label for="legal_basis">Fundamentacao juridica</label>
-          <textarea id="legal_basis" name="legal_basis" rows="3" required></textarea>
+            <label for="legal_basis">Fundamentação Jurídica</label>
+            <textarea id="legal_basis" name="legal_basis" rows="3" required placeholder="Qual direito foi violado?"></textarea>
 
-          <label for="proof">Prova minima (descricao)</label>
-          <textarea id="proof" name="proof" rows="3" required></textarea>
+            <label for="proof">Evidências</label>
+            <textarea id="proof" name="proof" rows="3" required placeholder="Descreva as provas ou anexe links."></textarea>
 
-          <label for="declaration">Declaracao de boa-fe</label>
-          <textarea id="declaration" name="declaration" rows="2" required>
-Declaro, sob boa-fe, que as informacoes acima sao verdadeiras.
-          </textarea>
+            <button type="submit" class="btn-primary">Enviar Notificação</button>
+          </form>
+        </section>
+      </main>
 
-          <button type="submit">Enviar notificacao</button>
-        </form>
-        <p>
-          Alternativa: envie pelo WhatsApp oficial
-          <a href="https://wa.me/559591122954">+55 95 9112-2954</a>.
-        </p>
-      </section>
-    </main>
+      <footer class="footer">© 2026 OMNIZAP SYSTEM · TAKEDOWN V2</footer>
+    </div>
   </body>
 </html>

@@ -1,114 +1,115 @@
-:root {
-  --bg: #0f172a;
-  --bg-2: #111827;
-  --line: rgba(255, 255, 255, 0.05);
-  --text: #f8fafc;
-  --muted: #94a3b8;
-  --card: #1e293bcc;
-}
-* {
-  box-sizing: border-box;
-}
-body {
-  margin: 0;
-  font-family:
-    'Manrope',
-    system-ui,
-    -apple-system,
-    sans-serif;
-  color: var(--text);
-  background: radial-gradient(58rem 24rem at -8% -12%, #2563eb26, transparent 60%), radial-gradient(58rem 24rem at 112% -10%, #7c3aed22, transparent 58%), linear-gradient(165deg, var(--bg), var(--bg-2));
-}
-.wrap {
-  width: min(960px, 92vw);
-  margin: 0 auto;
-  padding: 24px 0 42px;
-}
-.top {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-.top a {
-  color: var(--text);
-  text-decoration: none;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 8px 12px;
-  background: #111827;
-}
-.card {
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--card);
-  padding: 18px;
-  margin-bottom: 12px;
-}
-h1,
-h2 {
-  margin: 0 0 10px;
-}
-h1 {
-  font-size: clamp(28px, 4.2vw, 38px);
-}
-h2 {
-  font-size: 20px;
-  margin-top: 8px;
-}
-h3 {
-  margin: 8px 0 6px;
-  color: #dbeafe;
-  font-size: 16px;
-}
-p,
-li {
-  color: var(--muted);
-  line-height: 1.6;
-}
-a {
-  color: #2563eb;
-}
-ul,
-ol {
-  margin: 0;
-  padding-left: 18px;
-}
-.note {
-  font-size: 14px;
-  color: #c7d8f4;
-}
-.updated {
-  color: #bcd1ef;
-  font-size: 14px;
-}
-.contact-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin: 10px 0 6px;
-}
-.contact-btn {
-  text-decoration: none;
-  border-radius: 999px;
-  padding: 8px 12px;
-  font-size: 14px;
-  font-weight: 700;
-  border: 1px solid var(--line);
-  display: inline-flex;
-  align-items: center;
-}
-.contact-btn.wa {
-  background: linear-gradient(180deg, #163528, #112a1f);
-  color: #ddffec;
-  border-color: #2ba66b88;
-}
-.contact-btn.ig {
-  background: linear-gradient(180deg, #3f1d29, #2f1720);
-  color: #ffe5ef;
-  border-color: #d14b7888;
+@import 'tailwindcss';
+@plugin "daisyui" {
+  themes: night --default;
 }
 
-#terms-react-root {
-  min-height: 100dvh;
+@source "../../pages/termos-de-uso.html";
+@source "../../js/apps/termsReactApp.js";
+
+@layer base {
+  html[data-theme='night'] {
+    --b1: 222 47% 11%;
+    --b2: 222 44% 9%;
+    --b3: 222 40% 8%;
+    --bc: 210 40% 96%;
+    --p: 142 71% 45%;
+    --pc: 222 47% 11%;
+    --s: 217 91% 60%;
+    --sc: 210 40% 98%;
+    --rounded-box: 2rem;
+    --rounded-btn: 1rem;
+  }
+
+  body {
+    color: hsl(var(--bc));
+    background: #020617;
+    background-image: radial-gradient(at 0% 0%, hsla(142, 71%, 45%, 0.12) 0px, transparent 50%), radial-gradient(at 100% 0%, hsla(217, 91%, 60%, 0.12) 0px, transparent 50%);
+    min-height: 100vh;
+    font-family: 'Sora', sans-serif;
+  }
+}
+
+@layer components {
+  [data-reveal] {
+    opacity: 0;
+    transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+    will-change: transform, opacity;
+  }
+
+  [data-reveal='fade-up'] {
+    transform: translateY(30px);
+  }
+
+  [data-reveal].is-visible {
+    opacity: 1;
+    transform: translate(0, 0) !important;
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .terms-container {
+    width: min(1100px, 94vw);
+    margin: 0 auto;
+    padding: 2rem 0 5rem;
+  }
+
+  /* Estilos específicos para o conteúdo dos termos injetado */
+  .terms-card {
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    @apply rounded-[2rem] p-6 lg:p-10 mb-6;
+  }
+
+  .terms-card h1 {
+    @apply text-3xl lg:text-5xl font-black tracking-tight mb-4;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  .terms-card h2 {
+    @apply text-xl lg:text-2xl font-black tracking-tight text-primary mt-8 mb-4 border-l-4 border-primary pl-4;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  .terms-card h3 {
+    @apply text-lg font-bold text-white mt-6 mb-2;
+  }
+
+  .terms-card p,
+  .terms-card li {
+    @apply text-base-content/60 text-sm lg:text-base leading-relaxed mb-4;
+  }
+
+  .terms-card ul {
+    @apply list-disc pl-6 mb-4;
+  }
+
+  .terms-card .accent {
+    @apply text-primary font-bold;
+  }
+
+  .terms-card .updated {
+    @apply text-xs font-bold uppercase tracking-widest text-base-content/30 mb-6 block;
+  }
+
+  .contact-btn {
+    @apply inline-flex items-center px-4 py-2 rounded-xl font-bold text-xs lg:text-sm transition-transform hover:-translate-y-0.5;
+  }
+  .contact-btn.wa {
+    @apply bg-success text-success-content;
+  }
+  .contact-btn.ig {
+    @apply bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 text-white;
+  }
 }

@@ -1,49 +1,41 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="night">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Termos de Uso | OmniZap System</title>
-    <meta name="description" content="Termos de Uso e diretrizes de privacidade do OmniZap System." />
+    <meta name="description" content="Termos de Uso oficiais do OmniZap System: regras de acesso, condutas proibidas, privacidade e responsabilidades." />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://omnizap.shop/termos-de-uso/" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="manifest" href="/site.webmanifest" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="/assets/css/terms-react.css" />
-    <script>
-      document.documentElement.classList.add('js');
-    </script>
     <style>
+      body {
+        margin: 0;
+        background: #020617;
+        color: #fff;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
       #terms-react-root {
-        display: none;
-      }
-      #terms-static-shell {
-        min-height: 100dvh;
-      }
-      .js #terms-react-root {
-        display: block;
-      }
-      .js #terms-static-shell {
-        display: none;
-      }
-      .terms-static-frame {
-        width: 100%;
-        min-height: 100dvh;
-        border: 0;
+        min-height: 100vh;
       }
     </style>
   </head>
   <body>
     <div id="terms-react-root"></div>
-    <main id="terms-static-shell" class="wrap">
-      <iframe class="terms-static-frame" src="/termos-de-uso/texto-integral.html" title="Termos de Uso (texto integral)"></iframe>
-      <p class="note">
-        Se o seu navegador bloquear o iframe, abra
-        <a href="/termos-de-uso/texto-integral.html">/termos-de-uso/texto-integral.html</a>.
-      </p>
-    </main>
-
+    <noscript>
+      <main style="max-width: 800px; margin: 50px auto; padding: 20px; text-align: center">
+        <h1>OmniZap - Termos de Uso</h1>
+        <p>JavaScript é necessário para carregar a experiência completa dos termos.</p>
+        <div style="margin-top: 20px">
+          <a href="/termos-de-uso-texto-integral.html" style="color: #22c55e">Acesse a versão em texto integral (sem JavaScript)</a>
+        </div>
+      </main>
+    </noscript>
     <script type="module" src="/assets/js/terms-react.bundle.js"></script>
   </body>
 </html>

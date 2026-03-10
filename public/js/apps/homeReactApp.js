@@ -26,7 +26,21 @@ const NAV_ITEMS = [
   { href: '#recursos', label: 'Recursos' },
   { href: '#comandos', label: 'Comandos' },
   { href: '/stickers/', label: 'Marketplace' },
-  { href: '#faq', label: 'Dúvidas' },
+  { href: '#guias', label: 'Guias' },
+  { href: '#faq', label: 'FAQ' },
+];
+
+const GUIDES = [
+  { href: '/seo/bot-whatsapp-para-grupo/', title: 'Bot para Grupos', desc: 'Guia de entrada rápida para iniciantes.' },
+  { href: '/seo/como-moderar-grupo-whatsapp/', title: 'Guia de Moderação', desc: 'Como manter seu grupo limpo e seguro.' },
+  { href: '/seo/como-evitar-spam-no-whatsapp/', title: 'Anti-Spam 101', desc: 'Proteja sua comunidade de bots invasores.' },
+  { href: '/seo/melhor-bot-whatsapp-para-grupos/', title: 'Comparativo', desc: 'Por que o OmniZap é a melhor escolha.' },
+];
+
+const FAQS = [
+  { q: 'Preciso saber programar?', a: 'Não. O bot é plug-and-play. Basta adicionar ao grupo e enviar /iniciar.' },
+  { q: 'É seguro para meus dados?', a: 'Sim. Seguimos a LGPD rigorosamente. Veja nossa política de privacidade para detalhes.' },
+  { q: 'Funciona em comunidades?', a: 'Com certeza! O OmniZap escala perfeitamente de pequenos grupos a grandes comunidades.' },
 ];
 
 const FEATURES = [
@@ -400,6 +414,64 @@ const App = () => {
                   <a href="/comandos/" className="btn btn-block btn-outline border-base-300 rounded-2xl h-14 font-bold"> Ver Todos os ${metrics.commands} Comandos </a>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Resources Section -->
+        <section id="guias" className="py-20 bg-base-200/20">
+          <div className="container mx-auto px-4">
+            <div data-reveal="fade-up" className="mb-12">
+              <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-4">Guias e Recursos</h2>
+              <p className="text-base-content/50 max-w-2xl">Aprenda a extrair o máximo do seu bot com nossos guias práticos de operação e crescimento.</p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              ${GUIDES.map(
+                (guide) => html`
+                  <a href=${guide.href} data-reveal="fade-up" className="p-6 rounded-3xl bg-base-100 border border-base-200 hover:border-primary/40 transition-all group">
+                    <h3 className="font-black mb-2 group-hover:text-primary transition-colors">${guide.title}</h3>
+                    <p className="text-xs text-base-content/40 leading-relaxed">${guide.desc}</p>
+                  </a>
+                `,
+              )}
+            </div>
+          </div>
+        </section>
+
+        <!-- FAQ Section -->
+        <section id="faq" className="py-24">
+          <div className="container mx-auto px-4 max-w-4xl">
+            <div data-reveal="fade-up" className="text-center mb-16 space-y-4">
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight">Dúvidas Frequentes</h2>
+              <p className="text-base-content/60">Tudo o que você precisa saber para começar agora mesmo.</p>
+            </div>
+
+            <div className="space-y-4">
+              ${FAQS.map(
+                (faq) => html`
+                  <div data-reveal="fade-up" className="collapse collapse-plus bg-base-200/50 border border-base-300 rounded-3xl">
+                    <input type="checkbox" />
+                    <div className="collapse-title text-base font-bold text-base-content/80 p-6">${faq.q}</div>
+                    <div className="collapse-content px-6 pb-6">
+                      <p className="text-sm text-base-content/50 leading-relaxed">${faq.a}</p>
+                    </div>
+                  </div>
+                `,
+              )}
+            </div>
+          </div>
+        </section>
+
+        <!-- Compliance Strip -->
+        <section className="py-12 border-y border-base-200 bg-base-200/10">
+          <div className="container mx-auto px-4 text-center space-y-6">
+            <div className="flex flex-wrap justify-center gap-x-8 gap-y-4 opacity-40 hover:opacity-100 transition-opacity">
+              <a href="/politica-de-privacidade/" className="text-[10px] font-bold uppercase tracking-widest hover:text-primary">Privacidade LGPD</a>
+              <a href="/termos-de-uso/" className="text-[10px] font-bold uppercase tracking-widest hover:text-primary">Termos de Uso</a>
+              <a href="/aup/" className="text-[10px] font-bold uppercase tracking-widest hover:text-primary">Uso Aceitável</a>
+              <a href="/dpa/" className="text-[10px] font-bold uppercase tracking-widest hover:text-primary">DPA B2B</a>
+              <a href="/suboperadores/" className="text-[10px] font-bold uppercase tracking-widest hover:text-primary">Suboperadores</a>
             </div>
           </div>
         </section>

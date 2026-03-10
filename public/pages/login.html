@@ -3,30 +3,38 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OmniZap System | Login</title>
-    <meta name="description" content="Acesse o OmniZap com WhatsApp, Google ou email e senha em um fluxo de login seguro." />
+    <title>Entrar | OmniZap System</title>
+    <meta name="description" content="Acesse sua conta no OmniZap de forma segura via WhatsApp e Google." />
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#020617" />
     <link rel="canonical" href="https://omnizap.shop/login/" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="manifest" href="/site.webmanifest" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="/assets/css/login-react.css" />
+    <style>
+      body {
+        margin: 0;
+        background: #020617;
+        color: #fff;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      #login-react-root {
+        min-height: 100vh;
+      }
+    </style>
   </head>
   <body>
-    <div id="login-react-root" data-api-base-path="/api" data-home-path="/" data-panel-path="/user/" data-terms-url="/termos-de-uso/" data-privacy-url="/politica-de-privacidade/" data-aup-url="/aup/" data-support-url="https://wa.me/559591122954" data-docs-url="/api-docs/" data-status-url="/healthz" data-brand-name="OmniZap System" data-brand-logo="/assets/images/brand-logo-128.webp"></div>
-
+    <div id="login-react-root" data-api-base-path="/api" data-panel-path="/user/"></div>
     <noscript>
-      <main style="color: #e2e8f0; font-family: sans-serif; max-width: 960px; margin: 48px auto; padding: 0 16px">
-        <h1>Login OmniZap</h1>
-        <p>Ative o JavaScript para acessar o login da conta.</p>
-        <p>
-          <a href="/">Inicio</a> · <a href="/termos-de-uso/">Termos</a> · <a href="/politica-de-privacidade/">Privacidade</a> · <a href="/aup/">AUP</a> ·
-          <a href="/user/">Painel</a>
-        </p>
+      <main style="max-width: 600px; margin: 100px auto; text-align: center; padding: 20px">
+        <h1>OmniZap Login</h1>
+        <p>JavaScript é necessário para realizar o login seguro.</p>
+        <a href="/" style="color: #22c55e">Voltar para Home</a>
       </main>
     </noscript>
-
     <script type="module" src="/assets/js/login-react.bundle.js"></script>
   </body>
 </html>

@@ -5,39 +5,28 @@ import htm from 'htm';
 const html = htm.bind(React.createElement);
 
 const TERMS_CONTENT_HTML = String.raw`
-      <nav class="top" aria-label="Navegação">
-        <a href="/">Início</a>
-        <a href="/stickers/">Stickers</a>
-        <a href="/api-docs/">API</a>
-        <a href="/politica-de-privacidade/">Privacidade</a>
-        <a href="/licenca/">Licença</a>
-      </nav>
-
-      <section class="card">
+      <section class="terms-card" style="border-bottom: 4px solid hsla(142, 71%, 45%, 0.3)">
         <h1>Termos de Uso</h1>
-        <p class="updated">Última atualização: 07/03/2026</p>
-        <p class="note"><strong>Contato oficial (WhatsApp):</strong> +55 95 9112-2954 (número no link: 559591122954).</p>
-        <div class="contact-actions" aria-label="Acesso rápido aos contatos">
-          <a class="contact-btn wa" href="https://wa.me/559591122954" target="_blank" rel="noreferrer noopener">WhatsApp oficial</a>
-          <a class="contact-btn ig" href="https://www.instagram.com/kaikybrofc/" target="_blank" rel="noreferrer noopener">Instagram @kaikybrofc</a>
-        </div>
-        <p class="note"><strong>Aviso institucional:</strong> o OmniZap System é um <strong>projeto independente e não oficial</strong>, sem autorização, afiliação ou endosso da Meta Platforms, Inc.</p>
+        <span class="updated">Última atualização: 07/03/2026</span>
         <p>Este instrumento regula o acesso e uso do site, API, painel e funcionalidades de automação disponibilizadas pelo OmniZap System.</p>
-        <p>Ao utilizar a plataforma, o usuário declara ciência e concordância integral com estes Termos de Uso e com a Política de Privacidade publicada em página própria.</p>
+        <div class="flex flex-wrap gap-3 mt-6">
+          <a class="contact-btn wa" href="https://wa.me/559591122954" target="_blank">WhatsApp Oficial</a>
+          <a class="contact-btn ig" href="https://www.instagram.com/kaikybrofc/" target="_blank">Instagram</a>
+        </div>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>1. Identificação do responsável</h2>
         <ul>
           <li>Responsável/Titular: <strong>Kaiky Brito Ribeiro</strong>.</li>
           <li>Nome empresarial: <strong>59.034.123 KAIKY BRITO RIBEIRO</strong>.</li>
           <li>CNPJ: <strong>59.034.123/0001-96</strong>.</li>
           <li>UF do registro: <strong>RR</strong>.</li>
-          <li>Canal de contato principal: <a href="https://wa.me/559591122954" target="_blank" rel="noreferrer noopener">https://wa.me/559591122954</a>.</li>
+          <li>Canal de contato principal: <a href="https://wa.me/559591122954" target="_blank" class="accent">https://wa.me/559591122954</a>.</li>
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>2. Aceitação, vigência e capacidade civil</h2>
         <ul>
           <li>O uso da plataforma caracteriza aceite eletrônico, livre e informado destes Termos.</li>
@@ -47,7 +36,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>3. Definições contratuais</h2>
         <ul>
           <li><strong>Plataforma:</strong> ambiente digital OmniZap System (site, API, integrações e painel).</li>
@@ -60,7 +49,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>4. Objeto e escopo de uso</h2>
         <ul>
           <li>Estes Termos se aplicam ao uso do serviço oficial do OmniZap System (site, API, painel administrativo e módulos de automação operados pelos canais oficiais).</li>
@@ -71,7 +60,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>5. Cadastro, autenticação e segurança da conta</h2>
         <ul>
           <li>O usuário deve fornecer dados verdadeiros, atualizados e completos para cadastro e manutenção da conta.</li>
@@ -87,7 +76,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>6. Uso permitido e condutas proibidas</h2>
         <ul>
           <li>É permitido utilizar a plataforma para automação e integração, desde que observadas a legislação aplicável e as políticas de terceiros integrados.</li>
@@ -101,7 +90,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>7. Tratamento de dados e fundamentos jurídicos</h2>
         <p>O tratamento de dados pessoais poderá ocorrer, conforme o caso concreto, com fundamento nas bases legais do art. 7º da LGPD, incluindo:</p>
         <ul>
@@ -113,9 +102,9 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2 id="politica-de-privacidade">8. Política de Privacidade (resumo contratual)</h2>
-        <p>Esta cláusula é complementar. A versão principal e separada está em <a href="/politica-de-privacidade/">/politica-de-privacidade/</a>.</p>
+        <p>Esta cláusula é complementar. A versão principal e separada está em <a href="/politica-de-privacidade/" class="accent">/politica-de-privacidade/</a>.</p>
         <ul>
           <li><strong>Finalidade:</strong> dados são tratados para operação da plataforma, autenticação, segurança, suporte e evolução técnica do serviço.</li>
           <li><strong>Necessidade:</strong> coleta limitada ao mínimo necessário para execução das funcionalidades contratadas/ativadas.</li>
@@ -149,7 +138,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>9. Direitos do titular (LGPD)</h2>
         <p>Nos termos do art. 18 da Lei nº 13.709/2018 (LGPD), o titular poderá requerer, quando cabível:</p>
         <ul>
@@ -162,13 +151,13 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
         <p>Quando aplicável, o atendimento observará resposta simplificada imediata e declaração clara/completa em até 15 (quinze) dias, conforme LGPD art. 19.</p>
         <p>Para exercício de direitos e demandas de privacidade:</p>
-        <div class="contact-actions" aria-label="Contatos para privacidade">
-          <a class="contact-btn wa" href="https://wa.me/559591122954?text=Ol%C3%A1%2C%20gostaria%20de%20exercer%20meus%20direitos%20de%20titular%20de%20dados%20(LGPD)." target="_blank" rel="noreferrer noopener">Solicitar via WhatsApp</a>
-          <a class="contact-btn ig" href="https://www.instagram.com/kaikybrofc/" target="_blank" rel="noreferrer noopener">Contato no Instagram</a>
+        <div class="flex flex-wrap gap-3 mt-4">
+          <a class="contact-btn wa" href="https://wa.me/559591122954?text=Ol%C3%A1%2C%20gostaria%20de%20exercer%20meus%20direitos%20de%20titular%20de%20dados%20(LGPD)." target="_blank">Solicitar via WhatsApp</a>
+          <a class="contact-btn ig" href="https://www.instagram.com/kaikybrofc/" target="_blank">Contato no Instagram</a>
         </div>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>10. Compartilhamento, operadores e transferência internacional</h2>
         <ul>
           <li>Poderá haver compartilhamento com operadores e fornecedores de infraestrutura, monitoramento, autenticação, comunicação e suporte.</li>
@@ -176,11 +165,11 @@ const TERMS_CONTENT_HTML = String.raw`
           <li>Operadores que tratem conteúdo de mensagens deverão observar dever de confidencialidade, segurança da informação e uso restrito à finalidade contratada.</li>
           <li>Dados poderão ser fornecidos a autoridades públicas mediante obrigação legal, ordem judicial ou requisição válida.</li>
           <li>Em transferências internacionais, serão adotados mecanismos compatíveis com a LGPD e regulamentação da ANPD, incluindo cláusulas contratuais e medidas técnicas de segurança.</li>
-          <li>O inventário público de suboperadores em <a href="/suboperadores/">/suboperadores/</a> descreve categorias, escopo de dados, região de processamento e status de atualização.</li>
+          <li>O inventário público de suboperadores em <a href="/suboperadores/" class="accent">/suboperadores/</a> descreve categorias, escopo de dados, região de processamento e status de atualização.</li>
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>11. Retenção, registros e evidências digitais</h2>
         <ul>
           <li>Dados e logs podem ser armazenados pelo período necessário para cumprimento de finalidades contratuais, segurança e obrigações legais.</li>
@@ -191,7 +180,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>12. Segurança da informação e resposta a incidentes</h2>
         <ul>
           <li>São adotadas práticas de hardening, controle de acesso, limitação de taxa, segregação de ambientes e monitoramento de eventos críticos.</li>
@@ -203,7 +192,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>13. Propriedade intelectual e conteúdo de terceiros</h2>
         <ul>
           <li>O usuário declara possuir direitos, licenças e autorizações necessárias sobre os conteúdos submetidos à plataforma.</li>
@@ -213,7 +202,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>14. API, disponibilidade e alterações técnicas</h2>
         <ul>
           <li>A API e demais recursos podem sofrer evolução, descontinuidade, limitação de uso, versionamento e janelas de manutenção.</li>
@@ -222,7 +211,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>15. Suspensão, bloqueio cautelar e encerramento</h2>
         <ul>
           <li>Poderá ocorrer suspensão ou bloqueio cautelar em caso de indício de abuso, fraude, violação de segurança, risco regulatório ou ordem de autoridade competente.</li>
@@ -231,7 +220,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>16. Responsabilidade do usuário e indenização regressiva</h2>
         <ul>
           <li>O usuário compromete-se a indenizar regressivamente o OmniZap System por danos, custos e despesas decorrentes de uso ilícito ou violação destes Termos.</li>
@@ -240,13 +229,13 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>17. Limitação de responsabilidade</h2>
         <p>Na extensão máxima permitida pela legislação aplicável, o OmniZap System não será responsável por danos indiretos, lucros cessantes, perdas de oportunidade, indisponibilidade de terceiros, bloqueios externos de conta, força maior, caso fortuito, atos de terceiros ou uso indevido da plataforma pelo usuário.</p>
-        <p class="note"><strong>Nota:</strong> nada neste instrumento exclui responsabilidade nos casos em que a legislação brasileira expressamente proíba limitação ou exclusão.</p>
+        <p class="note"><strong>Nota:</strong> nada neste instrumento regula responsabilidade nos casos em que a legislação brasileira expressamente proíba limitação ou exclusão.</p>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>18. Comunicações, notificações e validade eletrônica</h2>
         <ul>
           <li>Comunicações operacionais e de segurança podem ser realizadas por e-mail, painéis internos, avisos no site e canais oficiais de atendimento.</li>
@@ -255,52 +244,52 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>19. Alterações destes Termos</h2>
         <p>Estes Termos poderão ser atualizados para refletir mudanças legais, regulatórias, jurisprudenciais, técnicas ou operacionais. Em alterações materiais, será publicado aviso com antecedência razoável e registro de versão/data nesta página. A continuidade de uso após vigência da nova versão caracteriza novo aceite, sem prejuízo dos direitos legais do usuário.</p>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>20. Contato e foro</h2>
         <p>Para questões contratuais, privacidade e proteção de dados, utilize os canais oficiais abaixo.</p>
-        <div class="contact-actions" aria-label="Canais oficiais de contato">
-          <a class="contact-btn wa" href="https://wa.me/559591122954" target="_blank" rel="noreferrer noopener">WhatsApp oficial</a>
-          <a class="contact-btn ig" href="https://www.instagram.com/kaikybrofc/" target="_blank" rel="noreferrer noopener">Instagram oficial</a>
+        <div class="flex flex-wrap gap-3 mt-4">
+          <a class="contact-btn wa" href="https://wa.me/559591122954" target="_blank">WhatsApp oficial</a>
+          <a class="contact-btn ig" href="https://www.instagram.com/kaikybrofc/" target="_blank">Instagram oficial</a>
         </div>
-        <ul>
+        <ul class="mt-6">
           <li>WhatsApp oficial: <strong>+55 95 9112-2954</strong>.</li>
-          <li>Link direto: <a href="https://wa.me/559591122954" target="_blank" rel="noreferrer noopener">https://wa.me/559591122954</a>.</li>
-          <li>Instagram oficial: <a href="https://www.instagram.com/kaikybrofc/" target="_blank" rel="noreferrer noopener">https://www.instagram.com/kaikybrofc/</a>.</li>
+          <li>Link direto: <a href="https://wa.me/559591122954" target="_blank" class="accent">https://wa.me/559591122954</a>.</li>
+          <li>Instagram oficial: <a href="https://www.instagram.com/kaikybrofc/" target="_blank" class="accent">https://www.instagram.com/kaikybrofc/</a>.</li>
           <li>Contato complementar para notificações formais: privacidade@omnizap.shop.</li>
           <li>Encarregado (LGPD art. 41): Kaiky Brito Ribeiro, contato pelo canal oficial de privacidade.</li>
           <li>Para relações empresariais (B2B), fica eleito o foro da Comarca de Boa Vista/RR, ressalvadas hipóteses legais de competência absoluta. Em relações de consumo, prevalece o foro do domicílio do consumidor quando a legislação assim determinar.</li>
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>21. Referências legais oficiais (Brasil)</h2>
         <ul>
-          <li>Constituição Federal de 1988 (direitos e garantias fundamentais): <a href="https://www.planalto.gov.br/ccivil_03/constituicao/constituicao.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
-          <li>Lei nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais - LGPD): <a href="https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
-          <li>Lei nº 12.965/2014 (Marco Civil da Internet): <a href="https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2014/lei/l12965.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
-          <li>Decreto nº 8.771/2016 (regulamenta o Marco Civil da Internet): <a href="https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2016/decreto/d8771.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
-          <li>Lei nº 8.078/1990 (Código de Defesa do Consumidor): <a href="https://www.planalto.gov.br/ccivil_03/leis/l8078compilado.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
-          <li>Lei nº 10.406/2002 (Código Civil): <a href="https://www.planalto.gov.br/ccivil_03/leis/2002/l10406compilada.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
-          <li>Lei nº 9.610/1998 (Direitos Autorais): <a href="https://www.planalto.gov.br/ccivil_03/leis/l9610.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
-          <li>Lei nº 9.609/1998 (Lei de Software): <a href="https://www.planalto.gov.br/ccivil_03/leis/l9609.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
-          <li>ANPD - direitos do titular e canais institucionais: <a href="https://www.gov.br/anpd/pt-br" target="_blank" rel="noreferrer noopener">gov.br/anpd</a>.</li>
-          <li>ANPD - comunicação de incidente de segurança (CIS): <a href="https://www.gov.br/anpd/pt-br/canais_atendimento/agente-de-tratamento/comunicado-de-incidente-de-seguranca-cis" target="_blank" rel="noreferrer noopener">gov.br/anpd/cis</a>.</li>
-          <li>Resolução CD/ANPD nº 15/2024 (comunicação de incidente): <a href="https://dspace.mj.gov.br/handle/1/12879" target="_blank" rel="noreferrer noopener">dspace.mj.gov.br/handle/1/12879</a>.</li>
-          <li>Resolução CD/ANPD nº 18/2024 (encarregado): <a href="https://dspace.mj.gov.br/handle/1/13151" target="_blank" rel="noreferrer noopener">dspace.mj.gov.br/handle/1/13151</a>.</li>
-          <li>Resolução CD/ANPD nº 19/2024 (transferência internacional): <a href="https://dspace.mj.gov.br/handle/1/13458" target="_blank" rel="noreferrer noopener">dspace.mj.gov.br/handle/1/13458</a>.</li>
-          <li>Resolução CD/ANPD nº 32/2026 (adequação da União Europeia): <a href="https://www.gov.br/anpd/pt-br/acesso-a-informacao/institucional/atos-normativos/regulamentacoes_anpd" target="_blank" rel="noreferrer noopener">gov.br/anpd/regulamentacoes_anpd</a>.</li>
-          <li>WhatsApp Business Terms: <a href="https://www.whatsapp.com/legal/business-terms/" target="_blank" rel="noreferrer noopener">whatsapp.com/legal/business-terms</a>.</li>
-          <li>WhatsApp Business Messaging Policy: <a href="https://business.whatsapp.com/policy" target="_blank" rel="noreferrer noopener">business.whatsapp.com/policy</a>.</li>
-          <li>WhatsApp Brand Guidelines: <a href="https://about.meta.com/brand/resources/whatsapp/whatsapp-brand/" target="_blank" rel="noreferrer noopener">about.meta.com/brand/resources</a>.</li>
+          <li>Constituição Federal de 1988 (direitos e garantias fundamentais): <a href="https://www.planalto.gov.br/ccivil_03/constituicao/constituicao.htm" target="_blank" class="accent">Planalto</a>.</li>
+          <li>Lei nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais - LGPD): <a href="https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm" target="_blank" class="accent">Planalto</a>.</li>
+          <li>Lei nº 12.965/2014 (Marco Civil da Internet): <a href="https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2014/lei/l12965.htm" target="_blank" class="accent">Planalto</a>.</li>
+          <li>Decreto nº 8.771/2016 (regulamenta o Marco Civil da Internet): <a href="https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2016/decreto/d8771.htm" target="_blank" class="accent">Planalto</a>.</li>
+          <li>Lei nº 8.078/1990 (Código de Defesa do Consumidor): <a href="https://www.planalto.gov.br/ccivil_03/leis/l8078compilado.htm" target="_blank" class="accent">Planalto</a>.</li>
+          <li>Lei nº 10.406/2002 (Código Civil): <a href="https://www.planalto.gov.br/ccivil_03/leis/2002/l10406compilada.htm" target="_blank" class="accent">Planalto</a>.</li>
+          <li>Lei nº 9.610/1998 (Direitos Autorais): <a href="https://www.planalto.gov.br/ccivil_03/leis/l9610.htm" target="_blank" class="accent">Planalto</a>.</li>
+          <li>Lei nº 9.609/1998 (Lei de Software): <a href="https://www.planalto.gov.br/ccivil_03/leis/l9609.htm" target="_blank" class="accent">Planalto</a>.</li>
+          <li>ANPD - direitos do titular e canais institucionais: <a href="https://www.gov.br/anpd/pt-br" target="_blank" class="accent">gov.br/anpd</a>.</li>
+          <li>ANPD - comunicação de incidente de segurança (CIS): <a href="https://www.gov.br/anpd/pt-br/canais_atendimento/agente-de-tratamento/comunicado-de-incidente-de-seguranca-cis" target="_blank" class="accent">gov.br/anpd/cis</a>.</li>
+          <li>Resolução CD/ANPD nº 15/2024 (comunicação de incidente): <a href="https://dspace.mj.gov.br/handle/1/12879" target="_blank" class="accent">dspace.mj.gov.br/handle/1/12879</a>.</li>
+          <li>Resolução CD/ANPD nº 18/2024 (encarregado): <a href="https://dspace.mj.gov.br/handle/1/13151" target="_blank" class="accent">dspace.mj.gov.br/handle/1/13151</a>.</li>
+          <li>Resolução CD/ANPD nº 19/2024 (transferência internacional): <a href="https://dspace.mj.gov.br/handle/1/13458" target="_blank" class="accent">dspace.mj.gov.br/handle/1/13458</a>.</li>
+          <li>Resolução CD/ANPD nº 32/2026 (adequação da União Europeia): <a href="https://www.gov.br/anpd/pt-br/acesso-a-informacao/institucional/atos-normativos/regulamentacoes_anpd" target="_blank" class="accent">gov.br/anpd/regulamentacoes_anpd</a>.</li>
+          <li>WhatsApp Business Terms: <a href="https://www.whatsapp.com/legal/business-terms/" target="_blank" class="accent">whatsapp.com/legal/business-terms</a>.</li>
+          <li>WhatsApp Business Messaging Policy: <a href="https://business.whatsapp.com/policy" target="_blank" class="accent">business.whatsapp.com/policy</a>.</li>
+          <li>WhatsApp Brand Guidelines: <a href="https://about.meta.com/brand/resources/whatsapp/whatsapp-brand/" target="_blank" class="accent">about.meta.com/brand/resources</a>.</li>
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>22. Disposições gerais</h2>
         <ul>
           <li>A eventual tolerância quanto ao descumprimento de obrigação não importará novação, renúncia de direito ou alteração contratual tácita.</li>
@@ -310,7 +299,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>23. Cláusulas adicionais de proteção jurídica</h2>
         <h3>23.1 Papéis LGPD entre as partes</h3>
         <ul>
@@ -372,7 +361,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>24. Programa reforçado de conformidade e governança</h2>
         <p>As obrigações desta seção se aplicam à operação do serviço oficial. Operadores de instâncias derivadas/self-host devem implementar governança equivalente sob sua própria responsabilidade jurídica.</p>
         <h3>24.1 Política de conteúdo e categorias reguladas</h3>
@@ -424,7 +413,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
       </section>
 
-      <section class="card">
+      <section class="terms-card">
         <h2>25. Histórico de alterações</h2>
         <ul>
           <li><strong>07/03/2026:</strong> revisão jurídica complementar com reforço de direitos do titular (incluindo prazo do art. 19), transparência de transferência internacional (Res. 19/2024), encarregado (Res. 18/2024), ajustes de foro para relações de consumo, critérios de proporcionalidade em cláusula penal, detalhamento da comunicação de incidentes (Res. 15/2024) e delimitação expressa entre serviço oficial e instâncias derivadas/self-host do projeto open source.</li>
@@ -436,7 +425,41 @@ const TERMS_CONTENT_HTML = String.raw`
       </section>
 `;
 
-const TermsReactApp = () => html` <main className="wrap" dangerouslySetInnerHTML=${{ __html: TERMS_CONTENT_HTML }}></main> `;
+const TermsReactApp = () => html`
+  <div className="min-h-screen flex flex-col">
+    <!-- Navbar -->
+    <header className="sticky top-0 z-50 border-b border-base-200 bg-base-100/80 backdrop-blur-xl">
+      <div className="container mx-auto px-4">
+        <div className="flex h-16 items-center justify-between gap-4">
+          <div className="flex-1">
+            <a href="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+              <img src="/assets/images/brand-logo-128.webp" className="w-8 h-8 rounded-xl shadow-sm" alt="Logo" />
+              <span className="text-base sm:text-lg font-black tracking-tight">OmniZap<span className="text-primary">.</span></span>
+            </a>
+          </div>
+
+          <nav className="hidden lg:flex items-center gap-4">
+            <a href="/" className="text-sm font-bold opacity-60 hover:opacity-100 transition-opacity">Início</a>
+            <a href="/stickers/" className="text-sm font-bold opacity-60 hover:opacity-100 transition-opacity">Marketplace</a>
+            <a href="/politica-de-privacidade/" className="text-sm font-bold opacity-60 hover:opacity-100 transition-opacity">Privacidade</a>
+          </nav>
+
+          <div className="flex items-center gap-3">
+            <a href="/login/" className="btn btn-primary btn-sm h-9 min-h-0 rounded-xl font-bold px-4"> Entrar </a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main className="terms-container">
+      <div dangerouslySetInnerHTML=${{ __html: TERMS_CONTENT_HTML }}></div>
+    </main>
+
+    <footer className="py-12 border-t border-base-200 mt-auto text-center">
+      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-base-content/20">© 2026 OMNIZAP SYSTEM · TERMS OF SERVICE V2</p>
+    </footer>
+  </div>
+`;
 
 const useHashAnchorSync = () => {
   React.useEffect(() => {
@@ -458,8 +481,42 @@ const useHashAnchorSync = () => {
   }, []);
 };
 
-const TermsReactAppWithAnchors = () => {
+const useRevealEffect = () => {
+  React.useEffect(() => {
+    const observer =
+      typeof globalThis.IntersectionObserver === 'function'
+        ? new globalThis.IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                  entry.target.classList.add('is-visible');
+                  observer.unobserve(entry.target);
+                }
+              });
+            },
+            { threshold: 0.1 },
+          )
+        : null;
+
+    document.querySelectorAll('.terms-card').forEach((el, i) => {
+      el.setAttribute('data-reveal', 'fade-up');
+      el.style.setProperty('--reveal-delay', `${Math.min(i * 60, 400)}ms`);
+      if (observer) {
+        observer.observe(el);
+      } else {
+        el.classList.add('is-visible');
+      }
+    });
+
+    return () => {
+      if (observer) observer.disconnect();
+    };
+  }, []);
+};
+
+const TermsReactAppWithEffects = () => {
   useHashAnchorSync();
+  useRevealEffect();
   return html`<${TermsReactApp} />`;
 };
 
@@ -467,5 +524,5 @@ const rootElement = document.getElementById('terms-react-root');
 
 if (rootElement) {
   const root = createRoot(rootElement);
-  root.render(html`<${TermsReactAppWithAnchors} />`);
+  root.render(html`<${TermsReactAppWithEffects} />`);
 }
