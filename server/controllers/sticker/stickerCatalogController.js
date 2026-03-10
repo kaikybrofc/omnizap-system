@@ -24,13 +24,22 @@ import { listStickerPackScoreSnapshotsByPackIds } from '../../../app/modules/sti
 import { createCatalogApiRouter } from '../../routes/sticker/catalogRouter.js';
 import { createStickerCatalogNonCatalogHandlers } from './nonCatalogHandlers.js';
 import { normalizeGoogleSubject } from '../../auth/googleWebAuth/googleWebAuthRuntime.js';
-import { appendSetCookie, buildCookieString, getCookieValuesFromRequest, parseCookies, readJsonBody, resolveRequestRemoteIp, sendJson, sendText } from '../../http/httpRequestUtils.js';
+import { appendSetCookie, buildCookieString, formatDuration, getCookieValuesFromRequest, normalizeBasePath, parseCookies, readJsonBody, resolveRequestRemoteIp, sendJson, sendText, toIsoOrNull } from '../../http/httpRequestUtils.js';
 import { getSiteRoutingConfig, maybeRedirectToCanonicalHost, toRequestHost, toSiteAbsoluteUrl } from '../../http/siteRoutingUtils.js';
+import { fetchGitHubProjectSummary } from '../system/githubController.js';
+import { fetchPrometheusSummary } from '../system/systemMetricsController.js';
+import { handlePublicDataAssetRequest, listDataImageFiles, toImageMimeType, toPublicDataUrlFromStoragePath } from '../system/storageController.js';
+import { buildBotContactInfo, buildSupportInfo, resolveCatalogBotPhone } from '../system/contactController.js';
+import { trackWebVisitMetric } from '../system/visitController.js';
+import { scheduleGlobalRankingPreload, systemContext, systemHandlers } from '../system/systemController.js';
+
+const { handleSystemSummaryRequest, handleReadmeSummaryRequest, handleReadmeMarkdownRequest, handleGlobalRankingSummaryRequest, handleMarketplaceGlobalStatsRequest, handleGitHubProjectSummaryRequest, handleSupportInfoRequest, handleBotContactInfoRequest } = systemHandlers;
+const { withTimeout, getSystemSummaryCached, getReadmeSummaryCached, resolveBotUserCandidates, sanitizeRankingPayloadByBot, getGlobalRankingSummaryCached, getMarketplaceGlobalStatsCached } = systemContext;
+
 import { createStickerCatalogAuthContext } from '../../auth/stickerCatalogAuthContext.js';
 import { queueAutomatedEmail, queueWelcomeEmail } from '../../email/emailAutomationService.js';
 import { createStickerCatalogAdminBanContext, createStickerCatalogAdminHandlersContext } from '../admin/stickerCatalogAdminContext.js';
 import { createStickerCatalogSeoContext } from '../seo/stickerCatalogSeoContext.js';
-import { createStickerCatalogSystemContext } from '../system/stickerCatalogSystemContext.js';
 import { buildAdminMenu, buildAiMenu, buildAnimeMenu, buildMediaMenu, buildMenuCaption, buildQuoteMenu, buildStatsMenu, buildStickerMenu } from '../../../app/modules/menuModule/common.js';
 import { getMarketplaceDriftSnapshot } from '../../../app/modules/stickerPackModule/stickerMarketplaceDriftService.js';
 import { getStickerAssetExternalUrl, getStickerStorageConfig, readStickerAssetBuffer, saveStickerAssetFromBuffer } from '../../../app/modules/stickerPackModule/stickerStorageService.js';
@@ -40,7 +49,7 @@ import stickerPackService from '../../../app/modules/stickerPackModule/stickerPa
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from '../../../app/modules/stickerPackModule/stickerPackErrors.js';
 import { getFeatureFlagsSnapshot, isFeatureEnabled, refreshFeatureFlags } from '../../../app/services/featureFlagService.js';
 
-const parseEnvBool = (value, fallback) => {
+const parseEnvBool = (value, fallback = false) => {
   if (value === undefined || value === null || value === '') return fallback;
   const normalized = String(value).trim().toLowerCase();
   if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
@@ -48,14 +57,7 @@ const parseEnvBool = (value, fallback) => {
   return fallback;
 };
 
-export const normalizeBasePath = (value, fallback) => {
-  const raw = String(value || '').trim() || fallback;
-  const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
-  return withoutTrailingSlash || fallback;
-};
-
-export const normalizeCatalogVisibility = (value) => {
+const normalizeCatalogVisibility = (value) => {
   const normalized = String(value || '')
     .trim()
     .toLowerCase();
@@ -101,7 +103,7 @@ const parseMaxPacksPerOwnerLimit = (value, fallback = 50) => {
 };
 const serializePackOwnerLimit = (value) => (Number.isFinite(value) ? Math.max(1, Number(value) || 1) : null);
 
-const STICKER_CATALOG_ENABLED = parseEnvBool(process.env.STICKER_CATALOG_ENABLED, true);
+const STICKER_CATALOG_ENABLED = Boolean(process.env.STICKER_CATALOG_ENABLED !== 'false');
 const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stickers');
 const STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PATH, '/api/sticker-packs');
 const USER_API_BASE_PATH = normalizeBasePath(process.env.USER_API_BASE_PATH || process.env.AUTH_API_BASE_PATH, '/api');
@@ -129,7 +131,6 @@ const DEFAULT_ORPHAN_LIST_LIMIT = clampInt(process.env.STICKER_ORPHAN_LIST_LIMIT
 const MAX_ORPHAN_LIST_LIMIT = clampInt(process.env.STICKER_ORPHAN_LIST_MAX_LIMIT, 300, 1, 500);
 const DEFAULT_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_LIMIT, 50, 1, 200);
 const MAX_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_MAX_LIMIT, 200, 1, 500);
-const MAX_DATA_SCAN_FILES = clampInt(process.env.STICKER_DATA_SCAN_MAX_FILES, 10000, 100, 50000);
 const ASSET_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_ASSET_CACHE_SECONDS, 60 * 60 * 24 * 30, 60 * 60, 60 * 60 * 24 * 365);
 const STATIC_TEXT_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_STATIC_TEXT_CACHE_SECONDS, 60 * 60, 60, 60 * 60 * 24 * 30);
 const IMMUTABLE_ASSET_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_IMMUTABLE_ASSET_CACHE_SECONDS, 60 * 60 * 24 * 365, 60 * 60, 60 * 60 * 24 * 365);
@@ -143,19 +144,13 @@ const PACK_CREATE_MAX_ITEMS = Math.max(1, Number(process.env.STICKER_PACK_MAX_IT
 const PACK_CREATE_MAX_PACKS_PER_OWNER = parseMaxPacksPerOwnerLimit(process.env.STICKER_PACK_MAX_PACKS_PER_OWNER, 50);
 const PACK_WEB_EDIT_TOKEN_TTL_MS = Math.max(60_000, Number(process.env.STICKER_WEB_EDIT_TOKEN_TTL_MS) || 6 * 60 * 60 * 1000);
 const STICKER_WEB_GOOGLE_CLIENT_ID = String(process.env.STICKER_WEB_GOOGLE_CLIENT_ID || '').trim();
-const STICKER_WEB_GOOGLE_AUTH_REQUIRED = parseEnvBool(process.env.STICKER_WEB_GOOGLE_AUTH_REQUIRED, Boolean(STICKER_WEB_GOOGLE_CLIENT_ID));
+const STICKER_WEB_GOOGLE_AUTH_REQUIRED = Boolean(process.env.STICKER_WEB_GOOGLE_AUTH_REQUIRED !== 'false' && (process.env.STICKER_WEB_GOOGLE_AUTH_REQUIRED === 'true' || STICKER_WEB_GOOGLE_CLIENT_ID));
 const STICKER_WEB_GOOGLE_SESSION_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.STICKER_WEB_GOOGLE_SESSION_TTL_MS) || 7 * 24 * 60 * 60 * 1000);
-const STICKER_CATALOG_ONLY_CLASSIFIED = parseEnvBool(process.env.STICKER_CATALOG_ONLY_CLASSIFIED, true);
-const METRICS_ENDPOINT = process.env.METRICS_ENDPOINT || `http://127.0.0.1:${process.env.METRICS_PORT || 9102}${process.env.METRICS_PATH || '/metrics'}`;
-const METRICS_TOKEN = String(process.env.METRICS_TOKEN || process.env.METRICS_API_KEY || '').trim();
-const METRICS_SUMMARY_TIMEOUT_MS = clampInt(process.env.STICKER_SYSTEM_METRICS_TIMEOUT_MS, 1200, 300, 5000);
-const GITHUB_REPOSITORY = String(process.env.GITHUB_REPOSITORY || 'Kaikygr/omnizap-system').trim();
-const GITHUB_TOKEN = String(process.env.GITHUB_TOKEN || '').trim();
-const GITHUB_PROJECT_CACHE_SECONDS = clampInt(process.env.GITHUB_PROJECT_CACHE_SECONDS, 300, 30, 3600);
+const STICKER_CATALOG_ONLY_CLASSIFIED = Boolean(process.env.STICKER_CATALOG_ONLY_CLASSIFIED !== 'false');
 const USER_INTERNAL_API_TOKEN = String(process.env.USER_INTERNAL_API_TOKEN || process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '').trim();
-const USER_INTERNAL_READ_REQUIRE_AUTH = parseEnvBool(process.env.USER_INTERNAL_READ_REQUIRE_AUTH, true);
-const USER_CONTACT_ENDPOINT_REQUIRE_AUTH = parseEnvBool(process.env.USER_CONTACT_ENDPOINT_REQUIRE_AUTH, true);
-const HOME_BOOTSTRAP_EXPOSE_CONTACT = parseEnvBool(process.env.HOME_BOOTSTRAP_EXPOSE_CONTACT, false);
+const USER_INTERNAL_READ_REQUIRE_AUTH = Boolean(process.env.USER_INTERNAL_READ_REQUIRE_AUTH !== 'false');
+const USER_CONTACT_ENDPOINT_REQUIRE_AUTH = Boolean(process.env.USER_CONTACT_ENDPOINT_REQUIRE_AUTH !== 'false');
+const HOME_BOOTSTRAP_EXPOSE_CONTACT = Boolean(process.env.HOME_BOOTSTRAP_EXPOSE_CONTACT === 'true');
 const ADMIN_PANEL_EMAIL =
   String(process.env.ADM_EMAIL || '')
     .trim()
@@ -178,7 +173,6 @@ const SEO_DISCOVERY_LINK_LIMIT = clampInt(process.env.STICKER_SEO_DISCOVERY_LINK
 const SEO_DISCOVERY_CACHE_SECONDS = clampInt(process.env.STICKER_SEO_DISCOVERY_CACHE_SECONDS, 180, 30, 3600);
 const PACK_PAGE_ROUTE_EXCLUSIONS = new Set(['profile', 'perfil', 'creators', 'criadores']);
 const NSFW_STICKER_PLACEHOLDER_URL = String(process.env.NSFW_STICKER_PLACEHOLDER_URL || 'https://iili.io/qfhwS6u.jpg').trim();
-const DATA_IMAGE_EXTENSIONS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.bmp']);
 const { maxStickerBytes: MAX_STICKER_UPLOAD_BYTES } = getStickerStorageConfig();
 const MAX_STICKER_SOURCE_UPLOAD_BYTES = Math.max(MAX_STICKER_UPLOAD_BYTES, Number(process.env.STICKER_WEB_UPLOAD_SOURCE_MAX_BYTES) || 20 * 1024 * 1024);
 const ALLOWED_WEB_UPLOAD_VIDEO_MIMETYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v']);
@@ -215,45 +209,14 @@ const isPackPubliclyVisible = (pack) => {
   if (packStatus === 'ready') return true;
   return packStatus === 'building' && Number(pack?.is_auto_pack || 0) === 1;
 };
-const toIsoOrNull = (value) => (value ? new Date(value).toISOString() : null);
-const GITHUB_PROJECT_CACHE = {
-  expiresAt: 0,
-  value: null,
-};
-const GLOBAL_RANK_CACHE = {
-  expiresAt: 0,
-  value: null,
-  pending: null,
-};
-const MARKETPLACE_GLOBAL_STATS_CACHE = {
-  expiresAt: 0,
-  value: null,
-  pending: null,
-};
 const HOME_MARKETPLACE_STATS_CACHE = new Map();
 const CATALOG_LIST_CACHE = new Map();
 const CATALOG_CREATOR_RANKING_CACHE = new Map();
 const CATALOG_PACK_PAYLOAD_CACHE = new Map();
 const STICKER_PREVIEW_CACHE = new Map();
-const SYSTEM_SUMMARY_CACHE = {
-  expiresAt: 0,
-  value: null,
-  pending: null,
-};
-const README_SUMMARY_CACHE = {
-  expiresAt: 0,
-  value: null,
-  pending: null,
-};
-const formatDuration = (totalSeconds) => {
-  const total = Math.max(0, Math.floor(Number(totalSeconds) || 0));
-  const days = Math.floor(total / 86400);
-  const hours = Math.floor((total % 86400) / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const seconds = total % 60;
-  const hhmmss = [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
-  return days > 0 ? `${days}d ${hhmmss}` : hhmmss;
-};
+const GLOBAL_RANK_CACHE = { expiresAt: 0, value: null, pending: null };
+const SYSTEM_SUMMARY_CACHE = { expiresAt: 0, value: null, pending: null };
+const README_SUMMARY_CACHE = { expiresAt: 0, value: null, pending: null };
 
 const buildCacheKey = (parts) => JSON.stringify(parts);
 
@@ -373,6 +336,15 @@ const hasValidInternalApiToken = (req) => {
 };
 
 const isAuthenticatedGoogleSession = (session) => Boolean(session?.sub && (session?.ownerJid || session?.ownerPhone || session?.email));
+
+const resolveSupportAdminPhone = async () => {
+  try {
+    const support = await buildSupportInfo();
+    return toWhatsAppPhoneDigits(support?.phone || '') || '';
+  } catch {
+    return '';
+  }
+};
 
 const isAdminGoogleSession = async (session) => {
   if (!isAuthenticatedGoogleSession(session)) return false;
@@ -752,326 +724,8 @@ const sendAsset = (req, res, buffer, mimetype = 'image/webp', cacheControlOverri
   res.end(buffer);
 };
 
-const normalizeGitHubRepo = (value) => {
-  const raw = String(value || '')
-    .trim()
-    .replace(/^https?:\/\/github\.com\//i, '')
-    .replace(/\.git$/i, '');
-  const [owner, repo] = raw.split('/').filter(Boolean);
-  if (!owner || !repo) return null;
-  return {
-    owner,
-    repo,
-    fullName: `${owner}/${repo}`,
-  };
-};
-
-const GITHUB_REPO_INFO = normalizeGitHubRepo(GITHUB_REPOSITORY);
-
-const githubFetchJson = async (url) => {
-  if (typeof globalThis.fetch !== 'function') {
-    throw new Error('fetch indisponivel');
-  }
-
-  const headers = {
-    Accept: 'application/vnd.github+json',
-    'User-Agent': 'omnizap-system/2.1',
-  };
-
-  if (GITHUB_TOKEN) {
-    headers.Authorization = `Bearer ${GITHUB_TOKEN}`;
-  }
-
-  const response = await globalThis.fetch(url, { headers });
-  if (!response.ok) {
-    const error = new Error(`GitHub HTTP ${response.status}`);
-    error.statusCode = response.status;
-    throw error;
-  }
-
-  return response.json();
-};
-
-const githubFetchJsonSafe = async (url, fallbackValue) => {
-  try {
-    return await githubFetchJson(url);
-  } catch {
-    return fallbackValue;
-  }
-};
-
-const mapGitHubProjectSummary = (repoData, latestReleaseData, releasesData = [], commitsData = [], languagesData = {}, openPrs = null) => ({
-  repository: repoData?.full_name || GITHUB_REPO_INFO?.fullName || null,
-  html_url: repoData?.html_url || (GITHUB_REPO_INFO ? `https://github.com/${GITHUB_REPO_INFO.fullName}` : null),
-  description: repoData?.description || null,
-  stars: Number(repoData?.stargazers_count || 0),
-  forks: Number(repoData?.forks_count || 0),
-  open_issues: Number(repoData?.open_issues_count || 0),
-  open_prs: Number.isFinite(Number(openPrs)) ? Number(openPrs) : null,
-  watchers: Number(repoData?.subscribers_count || repoData?.watchers_count || 0),
-  language: repoData?.language || null,
-  languages: Object.entries(languagesData || {})
-    .map(([name, bytes]) => ({ name, bytes: Number(bytes || 0) }))
-    .sort((left, right) => right.bytes - left.bytes)
-    .slice(0, 6),
-  topics: Array.isArray(repoData?.topics) ? repoData.topics : [],
-  size_kb: Number(repoData?.size || 0),
-  default_branch: repoData?.default_branch || null,
-  license: repoData?.license?.spdx_id || repoData?.license?.name || null,
-  created_at: toIsoOrNull(repoData?.created_at),
-  updated_at: toIsoOrNull(repoData?.updated_at),
-  pushed_at: toIsoOrNull(repoData?.pushed_at),
-  latest_release: latestReleaseData
-    ? {
-        tag: latestReleaseData.tag_name || null,
-        name: latestReleaseData.name || null,
-        published_at: toIsoOrNull(latestReleaseData.published_at),
-        html_url: latestReleaseData.html_url || null,
-      }
-    : null,
-  latest_releases: (Array.isArray(releasesData) ? releasesData : []).slice(0, 5).map((release) => ({
-    tag: release?.tag_name || null,
-    name: release?.name || null,
-    html_url: release?.html_url || null,
-    draft: Boolean(release?.draft),
-    prerelease: Boolean(release?.prerelease),
-    published_at: toIsoOrNull(release?.published_at),
-  })),
-  latest_commits: (Array.isArray(commitsData) ? commitsData : []).slice(0, 5).map((commit) => ({
-    sha: String(commit?.sha || '').slice(0, 7) || null,
-    html_url: commit?.html_url || null,
-    message: String(commit?.commit?.message || '').split('\n')[0] || null,
-    author: commit?.commit?.author?.name || commit?.author?.login || null,
-    date: toIsoOrNull(commit?.commit?.author?.date),
-  })),
-});
-
-const fetchGitHubProjectSummary = async () => {
-  if (!GITHUB_REPO_INFO) {
-    throw new Error('GITHUB_REPOSITORY invalido');
-  }
-
-  const now = Date.now();
-  if (GITHUB_PROJECT_CACHE.value && now < GITHUB_PROJECT_CACHE.expiresAt) {
-    return GITHUB_PROJECT_CACHE.value;
-  }
-
-  const repoUrl = `https://api.github.com/repos/${encodeURIComponent(GITHUB_REPO_INFO.owner)}/${encodeURIComponent(GITHUB_REPO_INFO.repo)}`;
-  const releasesUrl = `${repoUrl}/releases?per_page=5`;
-  const commitsUrl = `${repoUrl}/commits?per_page=5`;
-  const languagesUrl = `${repoUrl}/languages`;
-  const openPrsUrl = `https://api.github.com/search/issues?q=${encodeURIComponent(`repo:${GITHUB_REPO_INFO.fullName} is:pr is:open`)}&per_page=1`;
-
-  const repoData = await githubFetchJson(repoUrl);
-  const [releasesData, commitsData, languagesData, openPrsData] = await Promise.all([githubFetchJsonSafe(releasesUrl, []), githubFetchJsonSafe(commitsUrl, []), githubFetchJsonSafe(languagesUrl, {}), githubFetchJsonSafe(openPrsUrl, { total_count: null })]);
-
-  const latestReleaseData = Array.isArray(releasesData) ? releasesData[0] || null : null;
-  const summary = mapGitHubProjectSummary(repoData, latestReleaseData, releasesData, commitsData, languagesData, openPrsData?.total_count);
-  GITHUB_PROJECT_CACHE.value = summary;
-  GITHUB_PROJECT_CACHE.expiresAt = now + GITHUB_PROJECT_CACHE_SECONDS * 1000;
-  return summary;
-};
-
-const parsePrometheusLabels = (raw) => {
-  if (!raw) return {};
-  const labels = {};
-  const regex = /(\w+)="((?:\\.|[^"\\])*)"/g;
-  let match;
-  while ((match = regex.exec(raw)) !== null) {
-    labels[match[1]] = match[2].replace(/\\"/g, '"');
-  }
-  return labels;
-};
-
-const parsePrometheusText = (text) => {
-  const series = new Map();
-  const lines = String(text || '').split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-
-    const [metricPart, valuePart] = trimmed.split(/\s+/, 2);
-    if (!metricPart || !valuePart) continue;
-    const value = Number(valuePart);
-    if (!Number.isFinite(value)) continue;
-
-    let name = metricPart;
-    let labels = {};
-    const labelStart = metricPart.indexOf('{');
-    if (labelStart !== -1) {
-      name = metricPart.slice(0, labelStart);
-      const labelBody = metricPart.slice(labelStart + 1, metricPart.lastIndexOf('}'));
-      labels = parsePrometheusLabels(labelBody);
-    }
-
-    const list = series.get(name) || [];
-    list.push({ labels, value });
-    series.set(name, list);
-  }
-  return series;
-};
-
-const pickMetricValue = (series, name) => {
-  const list = series.get(name) || [];
-  return list.length ? list[0].value : null;
-};
-
-const sumMetricValues = (series, name) => {
-  const list = series.get(name) || [];
-  return list.reduce((sum, entry) => sum + (Number.isFinite(entry.value) ? entry.value : 0), 0);
-};
-
-const sumMetricValuesByLabel = (series, name, matchLabels = {}) => {
-  const list = series.get(name) || [];
-  return list.reduce((sum, entry) => {
-    if (!Number.isFinite(entry.value)) return sum;
-    for (const [labelKey, expectedValue] of Object.entries(matchLabels || {})) {
-      if (String(entry?.labels?.[labelKey] || '') !== String(expectedValue)) return sum;
-    }
-    return sum + entry.value;
-  }, 0);
-};
-
-const estimateHistogramQuantileMs = (series, metricBaseName, quantile = 0.95) => {
-  const bucketSeries = series.get(`${metricBaseName}_bucket`) || [];
-  if (!bucketSeries.length) return null;
-
-  const cumulativeByLe = new Map();
-  for (const entry of bucketSeries) {
-    const leRaw = String(entry?.labels?.le || '').trim();
-    if (!leRaw) continue;
-    const le = leRaw === '+Inf' ? Number.POSITIVE_INFINITY : Number(leRaw);
-    if (!Number.isFinite(le) && le !== Number.POSITIVE_INFINITY) continue;
-    cumulativeByLe.set(le, (cumulativeByLe.get(le) || 0) + Number(entry.value || 0));
-  }
-
-  const sorted = Array.from(cumulativeByLe.entries()).sort((left, right) => left[0] - right[0]);
-  if (!sorted.length) return null;
-
-  const total = Number(sorted[sorted.length - 1]?.[1] || 0);
-  if (!Number.isFinite(total) || total <= 0) return null;
-  const target = total * Math.max(0, Math.min(1, Number(quantile) || 0.95));
-
-  for (const [upperBound, cumulative] of sorted) {
-    if (cumulative >= target) {
-      if (!Number.isFinite(upperBound)) return null;
-      return Number(upperBound.toFixed(2));
-    }
-  }
-
-  return null;
-};
-
-const buildMetricsRequestOptions = (signal = null) => {
-  const headers = {};
-  if (METRICS_TOKEN) {
-    headers.Authorization = `Bearer ${METRICS_TOKEN}`;
-  }
-
-  return {
-    ...(signal ? { signal } : {}),
-    ...(Object.keys(headers).length > 0 ? { headers } : {}),
-  };
-};
-
-const fetchPrometheusSummary = async () => {
-  if (typeof globalThis.fetch !== 'function') {
-    throw new Error('fetch indisponivel');
-  }
-
-  const controller = typeof globalThis.AbortController === 'function' ? new globalThis.AbortController() : null;
-  const timeout = setTimeout(() => controller?.abort(), METRICS_SUMMARY_TIMEOUT_MS);
-
-  try {
-    const response = await globalThis.fetch(METRICS_ENDPOINT, buildMetricsRequestOptions(controller?.signal || null));
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const text = await response.text();
-    const series = parsePrometheusText(text);
-
-    const processStart = pickMetricValue(series, 'omnizap_process_start_time_seconds');
-    const nowSeconds = Date.now() / 1000;
-    const processUptimeSeconds = Number.isFinite(processStart) ? Math.max(0, nowSeconds - processStart) : null;
-
-    const lagP99 = pickMetricValue(series, 'omnizap_nodejs_eventloop_lag_p99_seconds');
-    const dbTotal = sumMetricValues(series, 'omnizap_db_query_total');
-    const dbSlow = sumMetricValues(series, 'omnizap_db_slow_queries_total');
-    const http5xx = sumMetricValuesByLabel(series, 'omnizap_http_requests_total', {
-      status_class: '5xx',
-    });
-    const httpLatencyP95 = estimateHistogramQuantileMs(series, 'omnizap_http_request_duration_ms', 0.95);
-
-    const queueDepthSeries = series.get('omnizap_queue_depth') || [];
-    const queuePeak = queueDepthSeries.reduce((max, entry) => {
-      if (!Number.isFinite(entry.value)) return max;
-      return Math.max(max, entry.value);
-    }, 0);
-
-    return {
-      process_uptime: processUptimeSeconds !== null ? formatDuration(processUptimeSeconds) : 'n/a',
-      lag_p99_ms: Number.isFinite(lagP99) ? Number((lagP99 * 1000).toFixed(2)) : null,
-      db_total: Math.round(dbTotal || 0),
-      db_slow: Math.round(dbSlow || 0),
-      http_5xx_total: Math.round(http5xx || 0),
-      http_latency_p95_ms: Number.isFinite(httpLatencyP95) ? Number(httpLatencyP95) : null,
-      queue_peak: Math.round(queuePeak || 0),
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-};
-
-const buildPackApiUrl = (packKey) => `${STICKER_API_BASE_PATH}/${encodeURIComponent(packKey)}`;
-const buildPackWebUrl = (packKey) => `${STICKER_WEB_PATH}/${encodeURIComponent(packKey)}`;
-const buildStickerAssetUrl = (packKey, stickerId) => `${STICKER_API_BASE_PATH}/${encodeURIComponent(packKey)}/stickers/${encodeURIComponent(stickerId)}.webp`;
-const buildStickerAssetPreviewUrl = (packKey, stickerId, versionToken = '') => {
-  const params = new URLSearchParams();
-  params.set('variant', 'preview');
-  params.set('sz', String(STICKER_PREVIEW_SIDE_PX));
-  params.set('q', String(STICKER_PREVIEW_QUALITY));
-  const normalizedVersion = String(versionToken || '').trim();
-  if (normalizedVersion) params.set('v', normalizedVersion);
-  return `${buildStickerAssetUrl(packKey, stickerId)}?${params.toString()}`;
-};
-const buildDataAssetApiBaseUrl = () => `${STICKER_API_BASE_PATH}/data-files`;
 const CATALOG_STYLES_WEB_PATH = `${STICKER_WEB_PATH}/assets/styles.css`;
 const CATALOG_SCRIPT_WEB_PATH = `${STICKER_WEB_PATH}/assets/catalog.js`;
-const buildDataAssetUrl = (relativePath) =>
-  `${STICKER_DATA_PUBLIC_PATH}/${String(relativePath)
-    .split('/')
-    .map((segment) => encodeURIComponent(segment))
-    .join('/')}`;
-
-const normalizeRelativePath = (value) =>
-  String(value || '')
-    .split(path.sep)
-    .join('/')
-    .replace(/^\/+/, '');
-const isAllowedDataImageFile = (filePath) => DATA_IMAGE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
-const isInsideDataPublicRoot = (targetPath) => targetPath === STICKER_DATA_PUBLIC_DIR || targetPath.startsWith(`${STICKER_DATA_PUBLIC_DIR}${path.sep}`);
-
-const toPublicDataUrlFromStoragePath = (storagePath) => {
-  if (!storagePath) return null;
-  const absolutePath = path.resolve(String(storagePath));
-  if (!isInsideDataPublicRoot(absolutePath)) return null;
-
-  const relativePath = normalizeRelativePath(path.relative(STICKER_DATA_PUBLIC_DIR, absolutePath));
-  if (!relativePath || relativePath.startsWith('..')) return null;
-  return buildDataAssetUrl(relativePath);
-};
-
-const toImageMimeType = (filePath) => {
-  const extension = path.extname(filePath).toLowerCase();
-  if (extension === '.png') return 'image/png';
-  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg';
-  if (extension === '.gif') return 'image/gif';
-  if (extension === '.avif') return 'image/avif';
-  if (extension === '.bmp') return 'image/bmp';
-  return 'image/webp';
-};
-
 const normalizePhoneDigits = (value) => String(value || '').replace(/\D+/g, '');
 const resolveActiveSocketBotJid = (activeSocket) => {
   if (!activeSocket) return '';
@@ -1080,35 +734,6 @@ const resolveActiveSocketBotJid = (activeSocket) => {
     const resolved = resolveBotJid(candidate) || '';
     if (resolved) return resolved;
   }
-  return '';
-};
-const resolveSocketReadyState = (activeSocket) => {
-  const raw = activeSocket?.ws?.readyState;
-  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
-  const normalized = String(raw || '')
-    .trim()
-    .toLowerCase();
-  if (normalized === 'open') return 1;
-  if (normalized === 'connecting') return 0;
-  if (normalized === 'closing') return 2;
-  if (normalized === 'closed') return 3;
-  return null;
-};
-
-const resolveCatalogBotPhone = () => {
-  const activeSocket = getActiveSocket();
-  const botJid = resolveActiveSocketBotJid(activeSocket);
-  const jidUser = getJidUser(botJid || '');
-  const fromSocket = normalizePhoneDigits(jidUser);
-  if (fromSocket) return fromSocket;
-
-  const envCandidates = [process.env.WHATSAPP_BOT_NUMBER, process.env.BOT_NUMBER, process.env.PHONE_NUMBER, process.env.BOT_PHONE_NUMBER];
-
-  for (const candidate of envCandidates) {
-    const normalized = normalizePhoneDigits(candidate);
-    if (normalized) return normalized;
-  }
-
   return '';
 };
 
@@ -1126,48 +751,6 @@ const buildPackWhatsAppInfo = (pack) => {
     text,
     url,
   };
-};
-
-const isPlausibleWhatsAppPhone = (value) => {
-  const digits = normalizePhoneDigits(value);
-  return digits.length >= 10 && digits.length <= 15 ? digits : '';
-};
-
-const toOwnerJid = (value) => {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  if (raw.includes('@')) {
-    return normalizeJid(raw) || '';
-  }
-  const digits = normalizePhoneDigits(raw);
-  if (!digits) return '';
-  return normalizeJid(`${digits}@s.whatsapp.net`) || '';
-};
-
-const _resolveWebCreateOwnerJid = async (explicitOwner = '') => {
-  const explicit = toOwnerJid(explicitOwner);
-  if (explicit) return explicit;
-
-  const activeSocket = getActiveSocket();
-  const botJid = resolveActiveSocketBotJid(activeSocket);
-  const fromSocket = toOwnerJid(botJid);
-  if (fromSocket) return fromSocket;
-
-  try {
-    const resolvedAdminJid = await resolveAdminJid();
-    const fromAdmin = toOwnerJid(resolvedAdminJid);
-    if (fromAdmin) return fromAdmin;
-  } catch {
-    // Ignore fallback errors while resolving owner identity.
-  }
-
-  const adminCandidates = [getAdminRawValue(), getAdminPhone(), process.env.USER_ADMIN, process.env.WHATSAPP_SUPPORT_NUMBER];
-  for (const candidate of adminCandidates) {
-    const normalized = toOwnerJid(candidate);
-    if (normalized) return normalized;
-  }
-
-  return '';
 };
 
 const saveWebPackEditToken = ({ packId, ownerJid }) => {
@@ -1428,130 +1011,6 @@ const convertUploadMediaToWebp = async ({ ownerJid, buffer, mimetype }) => {
   throw new StickerPackError(STICKER_PACK_ERROR_CODES.INVALID_INPUT, `Não foi possível converter a mídia para sticker no limite de ${Math.round(MAX_STICKER_UPLOAD_BYTES / 1024)}KB.`, lastError);
 };
 
-const resolveSupportAdminPhone = async () => {
-  const adminRaw = String(getAdminRawValue() || '').trim();
-
-  if (adminRaw) {
-    try {
-      const resolvedFromLidMap = await resolveUserId(extractUserIdInfo(adminRaw));
-      const resolvedPhoneFromLidMap = isPlausibleWhatsAppPhone(getJidUser(resolvedFromLidMap || ''));
-      if (resolvedPhoneFromLidMap) return resolvedPhoneFromLidMap;
-    } catch {
-      // Ignore and fallback to other admin sources.
-    }
-  }
-
-  try {
-    const resolvedAdminJid = await resolveAdminJid();
-    const resolvedPhone = isPlausibleWhatsAppPhone(getJidUser(resolvedAdminJid || ''));
-    if (resolvedPhone) return resolvedPhone;
-  } catch {
-    // Ignore and fallback to static admin phone sources.
-  }
-
-  const rawPhone = isPlausibleWhatsAppPhone(getJidUser(adminRaw) || adminRaw);
-  if (rawPhone) return rawPhone;
-
-  const adminPhone = isPlausibleWhatsAppPhone(getAdminPhone() || '');
-  if (adminPhone) return adminPhone;
-
-  const candidates = [process.env.WHATSAPP_SUPPORT_NUMBER, process.env.OWNER_NUMBER, process.env.USER_ADMIN];
-
-  for (const candidate of candidates) {
-    const digits = isPlausibleWhatsAppPhone(getJidUser(candidate || '') || candidate);
-    if (digits) return digits;
-  }
-
-  return '';
-};
-
-const buildSupportInfo = async () => {
-  const phone = await resolveSupportAdminPhone();
-  if (!phone) return null;
-  const text = String(process.env.STICKER_SUPPORT_WHATSAPP_TEXT || 'Olá! Preciso de suporte no catálogo OmniZap.').trim();
-  return {
-    phone,
-    text,
-    url: `https://wa.me/${phone}?text=${encodeURIComponent(text)}`,
-  };
-};
-
-const buildBotContactInfo = () => {
-  const phone = String(resolveCatalogBotPhone() || '').replace(/\D+/g, '');
-  if (!phone) return null;
-  const loginText = String(process.env.WHATSAPP_LOGIN_TRIGGER || 'iniciar').trim() || 'iniciar';
-  const menuText = `${PACK_COMMAND_PREFIX}menu`;
-  const buildUrl = (text) => `https://api.whatsapp.com/send/?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(String(text || '').trim())}&type=custom_url&app_absent=0`;
-
-  return {
-    phone,
-    login_text: loginText,
-    menu_text: menuText,
-    urls: {
-      login: buildUrl(loginText),
-      menu: buildUrl(menuText),
-    },
-  };
-};
-
-const listDataImageFiles = async () => {
-  const files = [];
-  const queue = [STICKER_DATA_PUBLIC_DIR];
-
-  while (queue.length && files.length < MAX_DATA_SCAN_FILES) {
-    const currentDir = queue.shift();
-    let entries = [];
-    try {
-      entries = await fs.readdir(currentDir, { withFileTypes: true });
-    } catch (error) {
-      if (error?.code === 'ENOENT') break;
-      throw error;
-    }
-
-    for (const entry of entries) {
-      const absolutePath = path.join(currentDir, entry.name);
-
-      if (!isInsideDataPublicRoot(absolutePath)) continue;
-      if (entry.isDirectory()) {
-        queue.push(absolutePath);
-        continue;
-      }
-
-      if (!entry.isFile()) continue;
-      if (!isAllowedDataImageFile(entry.name)) continue;
-
-      const relativePath = normalizeRelativePath(path.relative(STICKER_DATA_PUBLIC_DIR, absolutePath));
-      if (!relativePath || relativePath.startsWith('..')) continue;
-
-      let stat = null;
-      try {
-        stat = await fs.stat(absolutePath);
-      } catch {
-        stat = null;
-      }
-
-      files.push({
-        name: path.basename(relativePath),
-        relative_path: relativePath,
-        size_bytes: stat?.size ?? null,
-        updated_at: stat?.mtime ? stat.mtime.toISOString() : null,
-        created_at: stat?.ctime ? stat.ctime.toISOString() : null,
-        url: buildDataAssetUrl(relativePath),
-      });
-
-      if (files.length >= MAX_DATA_SCAN_FILES) break;
-    }
-  }
-
-  files.sort((left, right) => {
-    const leftTime = left.updated_at ? Date.parse(left.updated_at) : 0;
-    const rightTime = right.updated_at ? Date.parse(right.updated_at) : 0;
-    return rightTime - leftTime;
-  });
-
-  return files;
-};
-
 const PACK_TAG_MARKER_REGEX = /\[pack-tags:([^\]]+)\]/i;
 const AUTO_PACK_MARKER_REGEX = /\[(?:auto-theme|auto-tag):[^\]]+\]/gi;
 const AUTO_PACK_MARKER_TEST_REGEX = /\[(?:auto-theme|auto-tag):[^\]]+\]/i;
@@ -1647,6 +1106,20 @@ const buildPackDescriptionWithTags = (description, tags = []) => {
   const combined = `${marker}${marker && cleanDescription ? ' ' : ''}${cleanDescription}`.trim();
   return combined || null;
 };
+
+const buildPackApiUrl = (packKey) => `${STICKER_API_BASE_PATH}/${encodeURIComponent(packKey)}`;
+const buildPackWebUrl = (packKey) => `${STICKER_WEB_PATH}/${encodeURIComponent(packKey)}`;
+const buildStickerAssetUrl = (packKey, stickerId) => `${STICKER_API_BASE_PATH}/${encodeURIComponent(packKey)}/stickers/${encodeURIComponent(stickerId)}.webp`;
+const buildStickerAssetPreviewUrl = (packKey, stickerId, versionToken = '') => {
+  const params = new URLSearchParams();
+  params.set('variant', 'preview');
+  params.set('sz', String(STICKER_PREVIEW_SIDE_PX));
+  params.set('q', String(STICKER_PREVIEW_QUALITY));
+  const normalizedVersion = String(versionToken || '').trim();
+  if (normalizedVersion) params.set('v', normalizedVersion);
+  return `${buildStickerAssetUrl(packKey, stickerId)}?${params.toString()}`;
+};
+const buildDataAssetApiBaseUrl = () => `${STICKER_API_BASE_PATH}/data-files`;
 
 const mapPackSummary = (pack, engagement = null, signals = null) => {
   const safeEngagement = engagement || getEmptyStickerPackEngagement();
@@ -1851,107 +1324,36 @@ const normalizeViewerKey = (raw) =>
     .replace(/[^a-zA-Z0-9._:@-]+/g, '')
     .slice(0, 120);
 
-const normalizeVisitToken = (raw) =>
-  String(raw || '')
-    .trim()
-    .replace(/[^a-zA-Z0-9_-]+/g, '')
-    .slice(0, 80);
-
-const normalizeVisitPath = (raw) => {
-  const normalized = String(raw || '')
-    .trim()
-    .replace(/\s+/g, '')
-    .slice(0, 255);
-  if (!normalized) return '/';
-  return normalized.startsWith('/') ? normalized : `/${normalized}`;
-};
-
-const normalizeVisitSource = (raw) =>
-  String(raw || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '')
-    .slice(0, 32) || 'web';
-
-const normalizeVisitReferrer = (raw) =>
-  String(raw || '')
-    .trim()
-    .slice(0, 1024) || null;
-
-const normalizeVisitUserAgent = (raw) =>
-  String(raw || '')
-    .trim()
-    .slice(0, 512) || null;
-
-const resolveVisitPathFromReferrer = (req) => {
-  const rawReferrer = String(req?.headers?.referer || req?.headers?.referrer || '').trim();
-  if (!rawReferrer) return '/';
-  try {
-    const parsed = new URL(rawReferrer);
-    const requestHost = toRequestHost(req);
-    if (requestHost && parsed.host && parsed.host.toLowerCase() !== requestHost.toLowerCase()) return '/';
-    return normalizeVisitPath(parsed.pathname || '/');
-  } catch {
-    return '/';
-  }
-};
-
-const ensureWebVisitCookies = (req, res) => {
-  const cookies = parseCookies(req);
-  const currentVisitor = normalizeVisitToken(cookies[WEB_VISITOR_COOKIE_NAME]);
-  const currentSession = normalizeVisitToken(cookies[WEB_SESSION_COOKIE_NAME]);
-  const visitorKey = currentVisitor || randomUUID();
-  const sessionKey = currentSession || randomUUID();
-
-  if (!currentVisitor) {
-    appendSetCookie(
-      res,
-      buildCookieString(WEB_VISITOR_COOKIE_NAME, visitorKey, req, {
-        maxAgeSeconds: WEB_VISITOR_COOKIE_TTL_SECONDS,
-      }),
-    );
-  }
-
-  appendSetCookie(
-    res,
-    buildCookieString(WEB_SESSION_COOKIE_NAME, sessionKey, req, {
-      maxAgeSeconds: WEB_SESSION_COOKIE_TTL_SECONDS,
-    }),
-  );
-
-  return { visitorKey, sessionKey };
-};
-
-const trackWebVisitMetric = (req, res, { pagePath = '/', source = 'web' } = {}) => {
-  if ((req.method || '').toUpperCase() === 'HEAD') return Promise.resolve(false);
-  const { visitorKey, sessionKey } = ensureWebVisitCookies(req, res);
-  const safePath = normalizeVisitPath(pagePath || resolveVisitPathFromReferrer(req));
-  const safeSource = normalizeVisitSource(source);
-  const safeReferrer = normalizeVisitReferrer(req?.headers?.referer || req?.headers?.referrer || '');
-  const safeUserAgent = normalizeVisitUserAgent(req?.headers?.['user-agent'] || '');
-
-  return executeQuery(
-    `INSERT INTO ${TABLES.WEB_VISIT_EVENT}
-      (visitor_key, session_key, page_path, referrer, user_agent, source)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [visitorKey, sessionKey, safePath, safeReferrer, safeUserAgent, safeSource],
-  ).catch((error) => {
-    if (error?.code === 'ER_NO_SUCH_TABLE') return false;
-    throw error;
-  });
-};
-
 const resolveActorKeysFromRequest = (req, url) => {
-  const queryViewer = normalizeViewerKey(url.searchParams.get('viewer_key'));
-  const headerViewer = normalizeViewerKey(req.headers['x-viewer-key']);
-  const querySession = normalizeViewerKey(url.searchParams.get('session_key'));
-  const headerSession = normalizeViewerKey(req.headers['x-session-key']);
-  const actorKey = queryViewer || headerViewer || null;
-  const sessionKey = querySession || headerSession || null;
+  const searchParams = url?.searchParams || new URLSearchParams();
+  const cookies = parseCookies(req);
+  const normalizeHeaderValue = (value) => (Array.isArray(value) ? value[0] : value);
+  const firstKey = (...values) => {
+    for (const value of values) {
+      const normalized = normalizeViewerKey(value);
+      if (normalized) return normalized;
+    }
+    return '';
+  };
+
+  const sessionKey = firstKey(searchParams.get('session_key'), searchParams.get('sid'), cookies.omnizap_sid, cookies.session_key, normalizeHeaderValue(req.headers['x-session-key']), normalizeHeaderValue(req.headers['x-client-session']));
+
+  let actorKey = firstKey(searchParams.get('viewer_key'), searchParams.get('actor_key'), cookies.omnizap_vid, cookies.viewer_key, cookies.visitor_key, normalizeHeaderValue(req.headers['x-viewer-key']), normalizeHeaderValue(req.headers['x-visitor-key']), sessionKey);
+
+  if (!actorKey) {
+    const remoteIp = String(resolveRequestRemoteIp(req) || '').trim();
+    const userAgent = String(req.headers['user-agent'] || '')
+      .trim()
+      .slice(0, 300);
+    if (remoteIp || userAgent) {
+      actorKey = createHash('sha256').update(`${remoteIp}|${userAgent}`).digest('hex').slice(0, 64);
+    }
+  }
+
   return {
-    actorKey,
-    sessionKey,
-    source: normalizeViewerKey(req.headers['x-client-source']) || 'web',
+    actorKey: firstKey(actorKey),
+    sessionKey: firstKey(sessionKey),
+    source: firstKey(searchParams.get('source'), searchParams.get('client_source'), normalizeHeaderValue(req.headers['x-client-source']), normalizeHeaderValue(req.headers['x-source'])) || 'web',
   };
 };
 
@@ -2448,6 +1850,28 @@ const buildHomeRealtimeSnapshot = async ({ systemSummary = null } = {}) => {
   }
 
   return payload;
+};
+
+const normalizeVisitPath = (raw) => {
+  const normalized = String(raw || '')
+    .trim()
+    .replace(/\s+/g, '')
+    .slice(0, 255);
+  if (!normalized) return '/';
+  return normalized.startsWith('/') ? normalized : `/${normalized}`;
+};
+
+const resolveVisitPathFromReferrer = (req) => {
+  const rawReferrer = String(req?.headers?.referer || req?.headers?.referrer || '').trim();
+  if (!rawReferrer) return '/';
+  try {
+    const parsed = new URL(rawReferrer);
+    const requestHost = toRequestHost(req);
+    if (requestHost && parsed.host && parsed.host.toLowerCase() !== requestHost.toLowerCase()) return '/';
+    return normalizeVisitPath(parsed.pathname || '/');
+  } catch {
+    return '/';
+  }
 };
 
 const handleHomeBootstrapRequest = async (req, res, url) => {
@@ -4778,122 +4202,11 @@ const handleDataFileListRequest = async (req, res, url) => {
   });
 };
 
-const systemContext = createStickerCatalogSystemContext({
-  executeQuery,
-  tables: TABLES,
-  logger,
-  getSystemMetrics,
-  getActiveSocket,
-  resolveSocketReadyState,
-  resolveActiveSocketBotJid,
-  resolveCatalogBotPhone,
-  fetchPrometheusSummary,
-  metricsEndpoint: METRICS_ENDPOINT,
-  systemSummaryCache: SYSTEM_SUMMARY_CACHE,
-  systemSummaryCacheSeconds: SYSTEM_SUMMARY_CACHE_SECONDS,
-  readmeSummaryCache: README_SUMMARY_CACHE,
-  readmeSummaryCacheSeconds: README_SUMMARY_CACHE_SECONDS,
-  readmeMessageTypeSampleLimit: README_MESSAGE_TYPE_SAMPLE_LIMIT,
-  readmeCommandPrefix: README_COMMAND_PREFIX,
-  buildMenuCaption,
-  buildStickerMenu,
-  buildMediaMenu,
-  buildQuoteMenu,
-  buildAnimeMenu,
-  buildAiMenu,
-  buildStatsMenu,
-  buildAdminMenu,
-  profilePictureUrlFromActiveSocket,
-  normalizeJid,
-  getJidUser,
-  globalRankCache: GLOBAL_RANK_CACHE,
-  globalRankRefreshSeconds: GLOBAL_RANK_REFRESH_SECONDS,
-  marketplaceGlobalStatsCache: MARKETPLACE_GLOBAL_STATS_CACHE,
-  marketplaceGlobalStatsCacheSeconds: MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS,
-});
-
-const { withTimeout, getSystemSummaryCached, getReadmeSummaryCached, resolveBotUserCandidates, sanitizeRankingPayloadByBot, getGlobalRankingSummaryCached, scheduleGlobalRankingPreload, getMarketplaceGlobalStatsCached } = systemContext;
-
-const { handleSystemSummaryRequest, handleReadmeSummaryRequest, handleReadmeMarkdownRequest, handleGlobalRankingSummaryRequest, handleMarketplaceGlobalStatsRequest, handleGitHubProjectSummaryRequest, handleSupportInfoRequest, handleBotContactInfoRequest } = createStickerCatalogNonCatalogHandlers({
-  sendJson,
-  sendText,
-  logger,
-  getSystemSummaryCached,
-  systemSummaryCache: SYSTEM_SUMMARY_CACHE,
-  systemSummaryCacheSeconds: SYSTEM_SUMMARY_CACHE_SECONDS,
-  getReadmeSummaryCached,
-  readmeSummaryCache: README_SUMMARY_CACHE,
-  readmeSummaryCacheSeconds: README_SUMMARY_CACHE_SECONDS,
-  getGlobalRankingSummaryCached,
-  globalRankRefreshSeconds: GLOBAL_RANK_REFRESH_SECONDS,
-  globalRankCache: GLOBAL_RANK_CACHE,
-  sanitizeRankingPayloadByBot,
-  getActiveSocket,
-  resolveBotUserCandidates,
-  getMarketplaceGlobalStatsCached,
-  marketplaceGlobalStatsCacheSeconds: MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS,
-  marketplaceGlobalStatsCache: MARKETPLACE_GLOBAL_STATS_CACHE,
-  githubRepoInfo: GITHUB_REPO_INFO,
-  githubProjectCacheSeconds: GITHUB_PROJECT_CACHE_SECONDS,
-  fetchGitHubProjectSummary,
-  buildSupportInfo,
-  buildBotContactInfo,
-});
-
-const handlePublicDataAssetRequest = async (req, res, pathname) => {
-  const suffix = pathname.slice(STICKER_DATA_PUBLIC_PATH.length).replace(/^\/+/, '');
-  if (!suffix) {
-    sendJson(req, res, 400, {
-      error: 'Informe o caminho do arquivo. Exemplo: /data/stickers/arquivo.webp',
-    });
-    return true;
-  }
-
-  const decodedSegments = suffix
-    .split('/')
-    .filter(Boolean)
-    .map((segment) => {
-      try {
-        return decodeURIComponent(segment);
-      } catch {
-        return segment;
-      }
-    });
-
-  const relativePath = normalizeRelativePath(decodedSegments.join('/'));
-  if (!relativePath || relativePath.includes('..') || !isAllowedDataImageFile(relativePath)) {
-    sendJson(req, res, 400, { error: 'Caminho de imagem invalido.' });
-    return true;
-  }
-
-  const absolutePath = path.resolve(STICKER_DATA_PUBLIC_DIR, relativePath);
-  if (!isInsideDataPublicRoot(absolutePath)) {
-    sendJson(req, res, 403, { error: 'Acesso negado.' });
-    return true;
-  }
-
-  try {
-    const buffer = await fs.readFile(absolutePath);
-    sendAsset(req, res, buffer, toImageMimeType(absolutePath));
-    return true;
-  } catch (error) {
-    if (error?.code === 'ENOENT') {
-      sendJson(req, res, 404, { error: 'Imagem nao encontrada.' });
-      return true;
-    }
-
-    logger.error('Falha ao servir imagem da pasta data.', {
-      action: 'sticker_catalog_data_asset_failed',
-      error: error?.message,
-      relative_path: relativePath,
-    });
-    sendJson(req, res, 500, { error: 'Falha ao ler imagem no servidor.' });
-    return true;
-  }
-};
-
 const fetchPublicPackPayload = async (normalizedPackKey) => {
-  const cacheKey = buildCacheKey(['pack_payload', normalizedPackKey]);
+  const safePackKey = sanitizeText(normalizedPackKey, 160, { allowEmpty: false });
+  if (!safePackKey) return null;
+  const cacheKey = buildCacheKey(['public_pack_payload', safePackKey]);
+
   return getCachedSnapshot({
     cacheMap: CATALOG_PACK_PAYLOAD_CACHE,
     key: cacheKey,
@@ -5375,8 +4688,6 @@ export const getStickerCatalogConfig = () => ({
   stylesPath: buildCatalogStylesUrl(),
   scriptPath: buildCatalogScriptUrl(),
 });
-
-scheduleGlobalRankingPreload();
 
 /**
  * Manipula rotas web/API de catalogo de sticker packs.

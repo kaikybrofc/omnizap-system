@@ -107,6 +107,41 @@ export const isRequestSecure = (req) => {
 
 export const resolveRequestRemoteIp = (req) => resolveClientIp(req, { fallback: null });
 
+/**
+ * Converte um valor para string ISO ou null se inválido.
+ * @param {any} value
+ * @returns {string|null}
+ */
+export const toIsoOrNull = (value) => (value ? new Date(value).toISOString() : null);
+
+/**
+ * Formata duração em segundos para HH:MM:SS ou Dd HH:MM:SS.
+ * @param {number} totalSeconds
+ * @returns {string}
+ */
+export const formatDuration = (totalSeconds) => {
+  const total = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const hhmmss = [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+  return days > 0 ? `${days}d ${hhmmss}` : hhmmss;
+};
+
+/**
+ * Normaliza caminho base garantindo barra inicial e removendo barra final.
+ * @param {string} value
+ * @param {string} fallback
+ * @returns {string}
+ */
+export const normalizeBasePath = (value, fallback) => {
+  const raw = String(value || '').trim() || fallback;
+  const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
+  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
+  return withoutTrailingSlash || fallback;
+};
+
 export const appendSetCookie = (res, cookieValue) => {
   const current = res.getHeader('Set-Cookie');
   if (!current) {
