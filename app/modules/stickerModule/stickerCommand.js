@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URL } from 'node:url';
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { downloadMediaMessage, extractMediaDetails, getJidUser } from '../../config/index.js';
 import { addStickerMetadata } from './addStickerMetadata.js';
 import { convertToWebp } from './convertToWebp.js';

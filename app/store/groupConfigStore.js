@@ -1,4 +1,4 @@
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { findById, upsert } from '../../database/index.js';
 
 const groupConfigStore = {

@@ -1,4 +1,4 @@
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { executeQuery, TABLES } from '../../database/index.js';
 import { queueLidUpdate, flushLidQueue, resolveUserIdCached } from '../config/index.js';
 import { buildPlaceholders, createFlushRunner } from './queueUtils.js';

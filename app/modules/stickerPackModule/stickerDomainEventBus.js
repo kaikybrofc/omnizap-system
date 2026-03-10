@@ -1,4 +1,4 @@
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { isFeatureEnabled } from '../../services/featureFlagService.js';
 import { enqueueDomainEvent } from './domainEventOutboxRepository.js';
 

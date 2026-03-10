@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import groupConfigStore from '../../store/groupConfigStore.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { getWaifuPicsUsageText as getWaifuPicsRuntimeUsageText } from './waifuPicsConfigRuntime.js';

@@ -7,6 +7,9 @@
     "registry": "https://npm.pkg.github.com"
   },
   "type": "module",
+  "imports": {
+    "#logger": "./utils/logger/loggerModule.js"
+  },
   "packageManager": "npm@10.9.2",
   "keywords": [
     "whatsapp",

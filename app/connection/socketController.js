@@ -8,7 +8,7 @@ import qrcode from 'qrcode-terminal';
 import path from 'node:path';
 
 import pino from 'pino';
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { handleMessages } from '../controllers/messageController.js';
 import { syncNewsBroadcastService } from '../services/newsBroadcastService.js';
 import { setActiveSocket as storeActiveSocket, runActiveSocketMethod, isSocketOpen } from '../config/index.js';

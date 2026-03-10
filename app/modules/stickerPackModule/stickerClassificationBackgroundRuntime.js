@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { recordStickerClassificationCycle, setQueueDepth } from '../../observability/metrics.js';
 import { listStickerAssetsPendingClassification, findStickerAssetById } from './stickerAssetRepository.js';
 import { classifierConfig, ensureStickerAssetClassified } from './stickerClassificationService.js';

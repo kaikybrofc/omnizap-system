@@ -1,5 +1,5 @@
 import path from 'node:path';
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { createModuleAiHelpService } from './moduleAiHelpCoreService.js';
 import { createModuleCommandConfigRuntime } from './moduleCommandConfigRuntimeService.js';
 

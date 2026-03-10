@@ -1,4 +1,4 @@
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;

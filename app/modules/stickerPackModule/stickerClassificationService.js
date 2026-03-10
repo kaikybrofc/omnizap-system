@@ -1,4 +1,4 @@
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { findStickerClassificationByAssetId, listStickerClassificationsByAssetIds, upsertStickerAssetClassification } from './stickerAssetClassificationRepository.js';
 import { enqueueSemanticClusterResolution } from './semanticThemeClusterService.js';
 

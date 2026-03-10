@@ -4,7 +4,7 @@ import path from 'node:path';
 import OpenAI from 'openai';
 import { z } from 'zod';
 
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 
 const DEFAULT_MODEL = 'gpt-4o-mini';
 const DEFAULT_TIMEOUT_MS = 25_000;

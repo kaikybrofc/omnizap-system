@@ -1,6 +1,6 @@
 import natural from 'natural';
 import winkBm25TextSearch from 'wink-bm25-text-search';
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { getAllToolRecords, getToolRegistryStats } from './moduleToolRegistryService.js';
 import { getLearnedKnowledgeVersion, listLearnedKeywords, listLearnedPatterns } from './aiLearningRepository.js';
 import { getCommandConfigEnrichmentVersion, listAppliedCommandConfigEnrichmentStates } from './commandConfigEnrichmentRepository.js';

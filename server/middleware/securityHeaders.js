@@ -1,6 +1,6 @@
 import helmet from 'helmet';
 
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 
 const parseEnvBool = (value, fallback = false) => {
   if (value === undefined || value === null || value === '') return fallback;

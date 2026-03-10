@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { getToolRegistryStats } from './moduleToolRegistryService.js';
 import { executeTool } from './moduleToolExecutorService.js';
 import { getToolCandidateSelectorConfig, selectCandidateTools, warmupToolCandidateSelector } from './toolCandidateSelectorService.js';

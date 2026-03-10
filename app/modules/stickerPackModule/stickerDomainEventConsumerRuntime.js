@@ -1,4 +1,4 @@
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { setQueueDepth } from '../../observability/metrics.js';
 import { isFeatureEnabled } from '../../services/featureFlagService.js';
 import { claimDomainEvent, completeDomainEvent, countDomainEventsByStatus, failDomainEvent } from './domainEventOutboxRepository.js';

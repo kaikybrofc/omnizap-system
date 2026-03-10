@@ -1,5 +1,5 @@
 import axios from 'axios';
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import groupConfigStore from '../store/groupConfigStore.js';
 import { TABLES, findAll } from '../../database/index.js';
 import { getActiveSocket } from '../config/index.js';

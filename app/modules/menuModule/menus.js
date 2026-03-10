@@ -1,4 +1,4 @@
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { buildAnimeMenu, buildAiMenu, buildMediaMenu, buildMenuCaption, buildQuoteMenu, buildStatsMenu, buildStickerMenu, buildAdminMenu } from './common.js';
 import getImageBuffer from '../../utils/http/getImageBufferModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';

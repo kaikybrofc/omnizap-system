@@ -1,4 +1,4 @@
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { setQueueDepth } from '../../app/observability/metrics.js';
 import { claimEmailOutboxTask, completeEmailOutboxTask, countEmailOutboxByStatus, failEmailOutboxTask } from './emailOutboxRepository.js';
 import { isEmailTransportConfigured, sendEmailMessage } from './emailTransportService.js';

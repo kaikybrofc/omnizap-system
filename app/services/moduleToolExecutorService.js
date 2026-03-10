@@ -1,4 +1,4 @@
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { getToolRecord } from './moduleToolRegistryService.js';
 import { mapToolArgsToCommandText } from './commandToolBuilderService.js';
 import { saveLearningEvent } from './aiLearningRepository.js';

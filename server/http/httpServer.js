@@ -1,6 +1,6 @@
 import http from 'node:http';
 
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { getMetricsServerConfig, isMetricsEnabled, recordHttpRequest, resolveRouteGroup } from '../../app/observability/metrics.js';
 import { applyCachePolicy } from '../middleware/cachePolicy.js';
 import { applySensitiveRouteRateLimit } from '../middleware/endpointRateLimit.js';

@@ -1,4 +1,4 @@
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { getJidServer, isUserJid, normalizeJid } from '../../config/index.js';
 import stickerPackService from './stickerPackServiceRuntime.js';

@@ -5,7 +5,7 @@ import { extractUserIdInfo, isWhatsAppUserId, resolveUserId, resolveUserIdCached
 import { fetchBlocklistFromActiveSocket } from '../../config/index.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { MESSAGE_TYPE_SQL, TIMESTAMP_TO_DATETIME_SQL } from '../statsModule/rankingCommon.js';
 import { getAdminJid } from '../../config/index.js';
 import { getUserUsageText } from './userConfigRuntime.js';

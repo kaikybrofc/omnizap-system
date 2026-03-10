@@ -1,5 +1,5 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { getEmptyStickerPackEngagement, getStickerPackEngagementByPackId } from './stickerPackEngagementRepository.js';
 import { listStickerPackItems } from './stickerPackItemRepository.js';
 import { listStickerClassificationsByAssetIds } from './stickerAssetClassificationRepository.js';

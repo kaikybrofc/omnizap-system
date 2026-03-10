@@ -8,7 +8,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { getAdminJid } from '../../config/index.js';
 import { getPlayUsageText } from './playConfigRuntime.js';

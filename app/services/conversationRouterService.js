@@ -1,4 +1,4 @@
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { isSameJidUser } from '../config/index.js';
 import { responderPerguntaGlobal } from './globalModuleAiHelpService.js';
 import { appendConversationSessionMessage, getConversationSession, setConversationSessionIntent } from '../store/conversationSessionStore.js';

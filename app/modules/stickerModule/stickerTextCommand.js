@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URL } from 'node:url';
 import { promisify } from 'node:util';
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 
 import { v4 as uuidv4 } from 'uuid';
 

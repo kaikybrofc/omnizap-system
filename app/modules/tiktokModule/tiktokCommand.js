@@ -6,7 +6,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { URL } from 'node:url';
 
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { getTikTokUsageText } from './tiktokConfigRuntime.js';
 

@@ -1,4 +1,4 @@
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { createAutoPackCollector } from './autoPackCollectorService.js';
 import stickerPackService from './stickerPackServiceRuntime.js';
 import { saveStickerAssetFromBuffer } from './stickerStorageService.js';

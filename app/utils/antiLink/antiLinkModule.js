@@ -2,7 +2,7 @@ import { URL } from 'node:url';
 import { isUserAdmin, updateGroupParticipants } from '../../config/index.js';
 import { getJidUser, isLidJid, isSameJidUser, isWhatsAppJid, normalizeJid } from '../../config/index.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { extractSenderInfoFromMessage, resolveUserId } from '../../config/index.js';
 

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { executeQuery, TABLES } from '../../database/index.js';
 
 const FEATURE_FLAG_CACHE_TTL_MS = Math.max(5_000, Number(process.env.FEATURE_FLAG_CACHE_TTL_MS) || 30_000);

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { downloadMediaMessage, extractMediaDetails } from '../../config/index.js';
 import { isFeatureEnabled } from '../../services/featureFlagService.js';
 import { createStickerAsset, findLatestStickerAssetByOwner, findStickerAssetById, findStickerAssetBySha256, updateStickerAssetStoragePath } from './stickerAssetRepository.js';

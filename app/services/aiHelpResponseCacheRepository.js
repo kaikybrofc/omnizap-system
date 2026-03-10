@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { executeQuery, TABLES } from '../../database/index.js';
 
 const MAX_MODULE_KEY_LENGTH = 64;

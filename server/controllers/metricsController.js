@@ -1,4 +1,4 @@
-import logger from '@kaikybrofc/logger-module';
+import logger from '#logger';
 import { getMetricsPayload } from '../../app/observability/metrics.js';
 
 export const sendMetricsResponse = async (res) => {
