@@ -23,9 +23,7 @@
   body {
     color: hsl(var(--bc));
     background: #020617;
-    background-image: 
-      radial-gradient(at 0% 0%, hsla(142, 71%, 45%, 0.15) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsla(217, 91%, 60%, 0.15) 0px, transparent 50%);
+    background-image: radial-gradient(at 0% 0%, hsla(142, 71%, 45%, 0.15) 0px, transparent 50%), radial-gradient(at 100% 0%, hsla(217, 91%, 60%, 0.15) 0px, transparent 50%);
     min-height: 100vh;
   }
 }
@@ -38,9 +36,15 @@
     will-change: transform, opacity;
   }
 
-  [data-reveal="fade-up"] { transform: translateY(30px); }
-  [data-reveal="fade-right"] { transform: translateX(-40px); }
-  [data-reveal="fade-left"] { transform: translateX(40px); }
+  [data-reveal='fade-up'] {
+    transform: translateY(30px);
+  }
+  [data-reveal='fade-right'] {
+    transform: translateX(-40px);
+  }
+  [data-reveal='fade-left'] {
+    transform: translateX(40px);
+  }
 
   [data-reveal].is-visible {
     opacity: 1;
@@ -80,7 +84,9 @@
 
   /* Custom breakpoints */
   @container (min-width: 400px) {
-    .xs\:inline { display: inline; }
+    .xs\:inline {
+      display: inline;
+    }
   }
 
   /* Custom scrollbar */

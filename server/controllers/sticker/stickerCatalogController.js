@@ -5,13 +5,9 @@ import { spawn } from 'node:child_process';
 import { URL, URLSearchParams } from 'node:url';
 
 import { executeQuery, pool, TABLES } from '../../../database/index.js';
-import { getJidUser, normalizeJid, resolveBotJid } from '../../../app/config/index.js';
-import { getAdminPhone, getAdminRawValue, resolveAdminJid } from '../../../app/config/index.js';
-import { getActiveSocket, profilePictureUrlFromActiveSocket } from '../../../app/config/index.js';
-import { extractUserIdInfo, resolveUserId } from '../../../app/config/index.js';
+import { normalizeJid, resolveBotJid, getActiveSocket, extractUserIdInfo, resolveUserId } from '../../../app/config/index.js';
 import { resolveWhatsAppOwnerJidFromLoginPayload, toWhatsAppOwnerJid, toWhatsAppPhoneDigits } from '../../../app/services/whatsappLoginLinkService.js';
 import logger from '#logger';
-import { getSystemMetrics } from '../../../app/utils/systemMetrics/systemMetricsModule.js';
 import { listStickerPacksForCatalog, findStickerPackByPackKey, listStickerPacksByOwner, bumpStickerPackVersion, findStickerPackByOwnerAndIdentifier, softDeleteStickerPack, updateStickerPackFields } from '../../../app/modules/stickerPackModule/stickerPackRepository.js';
 import { listStickerPackItems, countStickerPackItemRefsByStickerId, createStickerPackItem, getStickerPackItemByStickerId, removeStickerPackItemByStickerId, removeStickerPackItemsByPackId } from '../../../app/modules/stickerPackModule/stickerPackItemRepository.js';
 import { listClassifiedStickerAssetsWithoutPack, listStickerAssetsWithoutPack, deleteStickerAssetById, findStickerAssetsByIds } from '../../../app/modules/stickerPackModule/stickerAssetRepository.js';
@@ -22,26 +18,21 @@ import { createStickerPackInteractionEvent, listStickerPackInteractionStatsByPac
 import { buildCreatorRanking, buildIntentCollections, buildPersonalizedRecommendations, buildViewerTagAffinity, computePackSignals } from '../../../app/modules/stickerPackModule/stickerPackMarketplaceService.js';
 import { listStickerPackScoreSnapshotsByPackIds } from '../../../app/modules/stickerPackModule/stickerPackScoreSnapshotRepository.js';
 import { createCatalogApiRouter } from '../../routes/sticker/catalogRouter.js';
-import { createStickerCatalogNonCatalogHandlers } from './nonCatalogHandlers.js';
 import { normalizeGoogleSubject } from '../../auth/googleWebAuth/googleWebAuthRuntime.js';
 import { createStickerCatalogAuthContext } from '../../auth/stickerCatalogAuthContext.js';
-import { appendSetCookie, buildCookieString, formatDuration, getCookieValuesFromRequest, normalizeBasePath, normalizeCatalogVisibility, normalizeVisitPath, parseCookies, readJsonBody, resolveRequestRemoteIp, sendJson, sendText, toIsoOrNull, withTimeout } from '../../http/httpRequestUtils.js';
-import { getSiteRoutingConfig, maybeRedirectToCanonicalHost, toRequestHost, toSiteAbsoluteUrl } from '../../http/siteRoutingUtils.js';
-import { fetchGitHubProjectSummary } from '../system/githubController.js';
-import { fetchPrometheusSummary } from '../system/systemMetricsController.js';
-import { handlePublicDataAssetRequest, listDataImageFiles, toImageMimeType, toPublicDataUrlFromStoragePath } from '../system/storageController.js';
-import { buildBotContactInfo, buildSupportInfo, resolveCatalogBotPhone } from '../system/contactController.js';
+import { appendSetCookie, buildCookieString, getCookieValuesFromRequest, normalizeBasePath, normalizeCatalogVisibility, normalizeVisitPath, parseCookies, readJsonBody, resolveRequestRemoteIp, sendJson, sendText, toIsoOrNull, withTimeout } from '../../http/httpRequestUtils.js';
+import { getSiteRoutingConfig, maybeRedirectToCanonicalHost, toSiteAbsoluteUrl } from '../../http/siteRoutingUtils.js';
+import { handlePublicDataAssetRequest, listDataImageFiles, toPublicDataUrlFromStoragePath } from '../system/storageController.js';
+import { buildSupportInfo, resolveCatalogBotPhone } from '../system/contactController.js';
 import { trackWebVisitMetric } from '../system/visitController.js';
-import { scheduleGlobalRankingPreload, systemContext, systemHandlers } from '../system/systemController.js';
+import { systemContext, systemHandlers } from '../system/systemController.js';
 
 const { handleSystemSummaryRequest, handleReadmeSummaryRequest, handleReadmeMarkdownRequest, handleGlobalRankingSummaryRequest, handleMarketplaceGlobalStatsRequest, handleGitHubProjectSummaryRequest, handleSupportInfoRequest, handleBotContactInfoRequest, handleHomeBootstrapRequest } = systemHandlers;
-const { getSystemSummaryCached, getReadmeSummaryCached, resolveBotUserCandidates, sanitizeRankingPayloadByBot, getGlobalRankingSummaryCached, getMarketplaceGlobalStatsCached } = systemContext;
-
+const { getSystemSummaryCached, getMarketplaceGlobalStatsCached } = systemContext;
 
 import { queueAutomatedEmail, queueWelcomeEmail } from '../../email/emailAutomationService.js';
 import { createStickerCatalogAdminBanContext, createStickerCatalogAdminHandlersContext } from '../admin/stickerCatalogAdminContext.js';
 import { createStickerCatalogSeoContext } from '../seo/stickerCatalogSeoContext.js';
-import { buildAdminMenu, buildAiMenu, buildAnimeMenu, buildMediaMenu, buildMenuCaption, buildQuoteMenu, buildStatsMenu, buildStickerMenu } from '../../../app/modules/menuModule/common.js';
 import { getMarketplaceDriftSnapshot } from '../../../app/modules/stickerPackModule/stickerMarketplaceDriftService.js';
 import { getStickerAssetExternalUrl, getStickerStorageConfig, readStickerAssetBuffer, saveStickerAssetFromBuffer } from '../../../app/modules/stickerPackModule/stickerStorageService.js';
 import { convertToWebp } from '../../../app/modules/stickerModule/convertToWebp.js';
@@ -170,7 +161,6 @@ const { maxStickerBytes: MAX_STICKER_UPLOAD_BYTES } = getStickerStorageConfig();
 const MAX_STICKER_SOURCE_UPLOAD_BYTES = Math.max(MAX_STICKER_UPLOAD_BYTES, Number(process.env.STICKER_WEB_UPLOAD_SOURCE_MAX_BYTES) || 20 * 1024 * 1024);
 const ALLOWED_WEB_UPLOAD_VIDEO_MIMETYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v']);
 const webPackEditTokenMap = new Map();
-const WEB_VISITOR_COOKIE_NAME = 'omnizap_vid';
 const WEB_SESSION_COOKIE_NAME = 'omnizap_sid';
 const PACK_WEB_STATUS_VALUES = new Set(['draft', 'uploading', 'processing', 'published', 'failed']);
 const PACK_WEB_UPLOAD_STATUS_VALUES = new Set(['pending', 'processing', 'done', 'failed']);
@@ -350,39 +340,6 @@ const isAdminGoogleSession = async (session) => {
   const adminPhone = await resolveSupportAdminPhone().catch(() => '');
   if (!adminPhone) return false;
   return toWhatsAppPhoneDigits(session?.ownerPhone || session?.ownerJid || '') === adminPhone || toWhatsAppPhoneDigits(session?.ownerJid || '') === adminPhone;
-};
-
-const sanitizeBootstrapSystemSummary = (summary) => {
-  if (!summary || typeof summary !== 'object') return null;
-  const normalizedStatus =
-    String(summary?.system_status || '')
-      .trim()
-      .toLowerCase() || 'unknown';
-  const normalizedConnection =
-    String(summary?.bot?.connection_status || '')
-      .trim()
-      .toLowerCase() || 'unknown';
-  const statusReasons = Array.isArray(summary?.status_reasons)
-    ? summary.status_reasons
-        .map((entry) =>
-          String(entry || '')
-            .trim()
-            .toLowerCase()
-            .slice(0, 48),
-        )
-        .filter(Boolean)
-        .slice(0, 8)
-    : [];
-
-  return {
-    system_status: normalizedStatus,
-    status_reasons: statusReasons,
-    bot: {
-      connected: Boolean(summary?.bot?.connected),
-      connection_status: normalizedConnection,
-    },
-    updated_at: toIsoOrNull(summary?.updated_at) || new Date().toISOString(),
-  };
 };
 
 const requireInternalUserApiReadAccess = async (req, res) => {
@@ -719,7 +676,6 @@ const sendAsset = (req, res, buffer, mimetype = 'image/webp', cacheControlOverri
 
 const CATALOG_STYLES_WEB_PATH = `${STICKER_WEB_PATH}/assets/styles.css`;
 const CATALOG_SCRIPT_WEB_PATH = `${STICKER_WEB_PATH}/assets/catalog.js`;
-const normalizePhoneDigits = (value) => String(value || '').replace(/\D+/g, '');
 const resolveActiveSocketBotJid = (activeSocket) => {
   if (!activeSocket) return '';
   const candidates = [activeSocket?.user?.id, activeSocket?.authState?.creds?.me?.id, activeSocket?.authState?.creds?.me?.lid];
@@ -1558,7 +1514,7 @@ const seoContext = createStickerCatalogSeoContext({
   },
 });
 
-const { buildCatalogStylesUrl, buildCatalogScriptUrl, handleCatalogStaticAssetRequest, renderCatalogHtml, renderPackSeoHtml, renderPackNotFoundHtml, renderCreatePackHtml, handleSitemapRequest } = seoContext;
+const { handleCatalogStaticAssetRequest, renderCatalogHtml, renderPackSeoHtml, renderPackNotFoundHtml, renderCreatePackHtml, handleSitemapRequest } = seoContext;
 const handleListRequest = async (req, res, url) => {
   const q = sanitizeText(url.searchParams.get('q') || '', 120, { allowEmpty: true }) || '';
   const visibility = normalizeCatalogVisibility(url.searchParams.get('visibility'));
@@ -4720,7 +4676,7 @@ export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url
   }
 
   if (pathname === `${USER_API_BASE_PATH}/bot-contact`) {
-    return handleUserApiReadRoute(() => handleBotContactInfoRequest(req, res), 'user_bot_contact_api_error', { access: 'contact' });
+    return handleUserApiReadRoute(() => handleBotContactInfoRequest(req, res), 'user_bot_contact_api_error');
   }
 
   if (hasPathPrefix(pathname, STICKER_API_BASE_PATH)) {

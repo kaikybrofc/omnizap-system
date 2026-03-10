@@ -1,38 +1,6 @@
 import { withTimeout } from '../../http/httpRequestUtils.js';
 
-export const createStickerCatalogNonCatalogHandlers = ({
-  sendJson,
-  sendText,
-  logger,
-  getSystemSummaryCached,
-  systemSummaryCache,
-  systemSummaryCacheSeconds,
-  getReadmeSummaryCached,
-  readmeSummaryCache,
-  readmeSummaryCacheSeconds,
-  getGlobalRankingSummaryCached,
-  globalRankRefreshSeconds,
-  globalRankCache,
-  sanitizeRankingPayloadByBot,
-  getActiveSocket,
-  resolveBotUserCandidates,
-  getMarketplaceGlobalStatsCached,
-  marketplaceGlobalStatsCacheSeconds,
-  marketplaceGlobalStatsCache,
-  githubRepoInfo,
-  githubProjectCacheSeconds,
-  fetchGitHubProjectSummary,
-  buildSupportInfo,
-  buildBotContactInfo,
-  getMarketplaceStatsCached,
-  resolveGoogleWebSessionFromRequest,
-  isAuthenticatedGoogleSession,
-  stickerWebGoogleClientId,
-  homeBootstrapExposeContact,
-  trackWebVisitMetric,
-  resolveVisitPathFromReferrer,
-  normalizeCatalogVisibility,
-}) => {
+export const createStickerCatalogNonCatalogHandlers = ({ sendJson, sendText, logger, getSystemSummaryCached, systemSummaryCache, systemSummaryCacheSeconds, getReadmeSummaryCached, readmeSummaryCache, readmeSummaryCacheSeconds, getGlobalRankingSummaryCached, globalRankRefreshSeconds, globalRankCache, sanitizeRankingPayloadByBot, getActiveSocket, resolveBotUserCandidates, getMarketplaceGlobalStatsCached, marketplaceGlobalStatsCacheSeconds, marketplaceGlobalStatsCache, githubRepoInfo, githubProjectCacheSeconds, fetchGitHubProjectSummary, buildSupportInfo, buildBotContactInfo, getMarketplaceStatsCached, resolveGoogleWebSessionFromRequest, isAuthenticatedGoogleSession, stickerWebGoogleClientId, homeBootstrapExposeContact, trackWebVisitMetric, resolveVisitPathFromReferrer, normalizeCatalogVisibility }) => {
   const buildHomeRealtimeSnapshot = async ({ systemSummary = null } = {}) => {
     const totalUsersRaw = Number(systemSummary?.platform?.total_users);
     const totalMessagesRaw = Number(systemSummary?.usage?.total_messages);
@@ -81,13 +49,7 @@ export const createStickerCatalogNonCatalogHandlers = ({
       });
     });
 
-    const [supportResult, botContactResult, sessionResult, statsResult, systemSummaryResult] = await Promise.allSettled([
-      withTimeout(buildSupportInfo(), fetchTimeoutMs.support),
-      withTimeout(Promise.resolve(buildBotContactInfo()), fetchTimeoutMs.bot_contact),
-      stickerWebGoogleClientId ? withTimeout(resolveGoogleWebSessionFromRequest(req), fetchTimeoutMs.session) : Promise.resolve(null),
-      withTimeout(getMarketplaceStatsCached(visibility), fetchTimeoutMs.stats),
-      withTimeout(getSystemSummaryCached(), fetchTimeoutMs.system_summary),
-    ]);
+    const [supportResult, botContactResult, sessionResult, statsResult, systemSummaryResult] = await Promise.allSettled([withTimeout(buildSupportInfo(), fetchTimeoutMs.support), withTimeout(Promise.resolve(buildBotContactInfo()), fetchTimeoutMs.bot_contact), stickerWebGoogleClientId ? withTimeout(resolveGoogleWebSessionFromRequest(req), fetchTimeoutMs.session) : Promise.resolve(null), withTimeout(getMarketplaceStatsCached(visibility), fetchTimeoutMs.stats), withTimeout(getSystemSummaryCached(), fetchTimeoutMs.system_summary)]);
 
     const session = sessionResult.status === 'fulfilled' ? sessionResult.value || null : null;
     if (sessionResult.status !== 'fulfilled') {

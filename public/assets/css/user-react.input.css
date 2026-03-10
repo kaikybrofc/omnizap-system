@@ -7,37 +7,51 @@
 @source "../../js/apps/userReactApp.js";
 
 @layer base {
-  body {
-    color: hsl(var(--bc));
-    background: radial-gradient(72rem 42rem at -18% -22%, rgb(37 99 235 / 0.2), transparent 64%), radial-gradient(55rem 30rem at 112% -8%, rgb(29 210 140 / 0.18), transparent 68%), #020617;
+  html[data-theme='night'] {
+    --b1: 222 47% 11%;
+    --b2: 222 44% 9%;
+    --b3: 222 40% 8%;
+    --bc: 210 40% 96%;
+    --p: 142 71% 45%;
+    --pc: 222 47% 11%;
+    --s: 217 91% 60%;
+    --sc: 210 40% 98%;
+    --rounded-box: 2rem;
+    --rounded-btn: 1rem;
   }
 
-  #user-react-root {
+  body {
     color: hsl(var(--bc));
+    background: #020617;
+    background-image: radial-gradient(at 0% 0%, hsla(142, 71%, 45%, 0.1) 0px, transparent 50%), radial-gradient(at 100% 0%, hsla(217, 91%, 60%, 0.1) 0px, transparent 50%);
+    min-height: 100vh;
   }
 }
 
 @layer components {
-  #user-react-root .skeleton {
-    border-radius: 0.6rem;
+  [data-reveal] {
+    opacity: 0;
+    transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+    will-change: transform, opacity;
   }
 
-  #user-react-root .input,
-  #user-react-root .input > input {
-    color: hsl(var(--bc));
-    caret-color: hsl(var(--bc));
+  [data-reveal='fade-up'] {
+    transform: translateY(20px);
+  }
+  [data-reveal='fade-right'] {
+    transform: translateX(-20px);
   }
 
-  #user-react-root .input > input::placeholder {
-    color: rgb(148 163 184 / 0.75);
+  [data-reveal].is-visible {
+    opacity: 1;
+    transform: translate(0, 0) !important;
   }
 
-  #user-react-root .input > input:-webkit-autofill,
-  #user-react-root .input > input:-webkit-autofill:hover,
-  #user-react-root .input > input:-webkit-autofill:focus {
-    -webkit-text-fill-color: hsl(var(--bc));
-    caret-color: hsl(var(--bc));
-    box-shadow: 0 0 0 1000px hsl(var(--b1)) inset;
-    transition: background-color 9999s ease-out;
+  .glass-card {
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   }
 }

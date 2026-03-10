@@ -107,30 +107,34 @@ const App = () => {
 
   useEffect(() => {
     let active = true;
+    const requestAnimation = typeof globalThis.requestAnimationFrame === 'function' ? globalThis.requestAnimationFrame.bind(globalThis) : null;
+    const cancelAnimation = typeof globalThis.cancelAnimationFrame === 'function' ? globalThis.cancelAnimationFrame.bind(globalThis) : null;
 
     const animateCounter = (key, target) => {
-      if (!active || typeof window.requestAnimationFrame !== 'function') {
-        setMetrics(m => ({ ...m, [key]: shortNum(target) }));
+      if (!active || typeof requestAnimation !== 'function') {
+        setMetrics((m) => ({ ...m, [key]: shortNum(target) }));
         return;
       }
       const startValue = counterValuesRef.current[key] || 0;
       const startTime = performance.now();
-      
+
       const step = (now) => {
         const progress = Math.min(1, (now - startTime) / COUNTUP_DURATION_MS);
         const eased = 1 - Math.pow(1 - progress, 4); // Quart ease-out
         const current = startValue + (target - startValue) * eased;
-        
-        setMetrics(m => ({ ...m, [key]: shortNum(current) }));
-        
+
+        setMetrics((m) => ({ ...m, [key]: shortNum(current) }));
+
         if (progress < 1) {
-          counterFramesRef.current[key] = requestAnimationFrame(step);
+          counterFramesRef.current[key] = requestAnimation(step);
         } else {
           counterValuesRef.current[key] = target;
         }
       };
-      cancelAnimationFrame(counterFramesRef.current[key]);
-      counterFramesRef.current[key] = requestAnimationFrame(step);
+      if (typeof cancelAnimation === 'function') {
+        cancelAnimation(counterFramesRef.current[key]);
+      }
+      counterFramesRef.current[key] = requestAnimation(step);
     };
 
     const runLoad = async ({ forceRefresh = false } = {}) => {
@@ -142,9 +146,9 @@ const App = () => {
         const stats = data?.marketplace_stats?.data || data?.stats || {};
         const summary = data?.system_summary || {};
         const botContact = data?.bot_contact || {};
-        
+
         setSession(data?.session?.authenticated ? data.session : null);
-        
+
         // Tenta resolver a URL do bot de múltiplas fontes possíveis na resposta
         const contactUrl = botContact?.urls?.menu || botContact?.url || '/login/';
         setBotMenuUrl(contactUrl);
@@ -157,12 +161,12 @@ const App = () => {
           stickers: Number(stats?.stickers_total || stats?.total_stickers || 0),
         };
 
-        COUNTABLE_METRICS.forEach(key => animateCounter(key, targetValues[key]));
-        
-        setMetrics(m => ({
+        COUNTABLE_METRICS.forEach((key) => animateCounter(key, targetValues[key]));
+
+        setMetrics((m) => ({
           ...m,
           latency: realtime?.system_latency_ms ? `${Math.round(realtime.system_latency_ms)}ms` : '...',
-          status: (summary?.system_status || summary?.bot?.connection_status || 'online').toLowerCase()
+          status: (summary?.system_status || summary?.bot?.connection_status || 'online').toLowerCase(),
         }));
       } catch (err) {
         console.warn('Home bootstrap error', err);
@@ -171,26 +175,36 @@ const App = () => {
 
     runLoad();
     const interval = setInterval(() => runLoad({ forceRefresh: true }), SOCIAL_PROOF_REFRESH_MS);
-    
+
     // Reveal Observer
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('is-visible');
-          observer.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+    const observer =
+      typeof globalThis.IntersectionObserver === 'function'
+        ? new globalThis.IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                  entry.target.classList.add('is-visible');
+                  observer.unobserve(entry.target);
+                }
+              });
+            },
+            { threshold: 0.1, rootMargin: '0px 0px -50px 0px' },
+          )
+        : null;
 
     document.querySelectorAll('[data-reveal]').forEach((el, i) => {
       el.style.setProperty('--reveal-delay', `${Math.min(i * REVEAL_STAGGER_MS, MAX_REVEAL_DELAY_MS)}ms`);
-      observer.observe(el);
+      if (observer) {
+        observer.observe(el);
+      } else {
+        el.classList.add('is-visible');
+      }
     });
 
     return () => {
       active = false;
       clearInterval(interval);
-      observer.disconnect();
+      if (observer) observer.disconnect();
     };
   }, []);
 
@@ -201,7 +215,7 @@ const App = () => {
     return {
       href: '/user/',
       label: firstName,
-      image: session.user.picture || FALLBACK_THUMB_URL
+      image: session.user.picture || FALLBACK_THUMB_URL,
     };
   }, [session]);
 
@@ -218,35 +232,21 @@ const App = () => {
                 <span className="text-base sm:text-lg font-black tracking-tight">OmniZap<span className="text-primary">.</span></span>
               </a>
             </div>
-            
+
             <!-- Desktop Nav Items (Middle) -->
-            <nav className="hidden lg:flex items-center gap-1 mx-4">
-              ${NAV_ITEMS.map(item => html`
-                <a href=${item.href} className="btn btn-ghost btn-sm rounded-lg font-medium text-base-content/70 hover:text-primary hover:bg-primary/5 transition-all">
-                  ${item.label}
-                </a>
-              `)}
-            </nav>
+            <nav className="hidden lg:flex items-center gap-1 mx-4">${NAV_ITEMS.map((item) => html` <a href=${item.href} className="btn btn-ghost btn-sm rounded-lg font-medium text-base-content/70 hover:text-primary hover:bg-primary/5 transition-all"> ${item.label} </a> `)}</nav>
 
             <div className="flex items-center gap-2 sm:gap-3">
               <a href=${authInfo.href} className="btn btn-ghost btn-sm h-9 min-h-0 gap-2 rounded-xl border border-base-300 hover:border-primary transition-all px-2 sm:px-3">
                 ${authInfo.image ? html`<img src=${authInfo.image} className="w-5 h-5 sm:w-6 sm:h-6 rounded-full object-cover" />` : null}
                 <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">${authInfo.label}</span>
               </a>
-              <a href=${botMenuUrl} className="btn btn-primary btn-sm h-9 min-h-0 rounded-xl shadow-lg shadow-primary/20 text-[10px] sm:text-xs font-bold uppercase">
-                <span className="hidden xs:inline">Adicionar</span> Bot
-              </a>
+              <a href=${botMenuUrl} className="btn btn-primary btn-sm h-9 min-h-0 rounded-xl shadow-lg shadow-primary/20 text-[10px] sm:text-xs font-bold uppercase"> <span className="hidden xs:inline">Adicionar</span> Bot </a>
             </div>
           </div>
 
           <!-- Bottom Row (Mobile Only): Horizontal Scroll Links -->
-          <nav className="flex lg:hidden items-center gap-2 overflow-x-auto no-scrollbar pb-3 -mx-1 px-1">
-            ${NAV_ITEMS.map(item => html`
-              <a href=${item.href} className="btn btn-ghost btn-xs rounded-lg font-bold text-base-content/50 whitespace-nowrap bg-base-200/50">
-                ${item.label}
-              </a>
-            `)}
-          </nav>
+          <nav className="flex lg:hidden items-center gap-2 overflow-x-auto no-scrollbar pb-3 -mx-1 px-1">${NAV_ITEMS.map((item) => html` <a href=${item.href} className="btn btn-ghost btn-xs rounded-lg font-bold text-base-content/50 whitespace-nowrap bg-base-200/50"> ${item.label} </a> `)}</nav>
         </div>
       </header>
 
@@ -263,23 +263,17 @@ const App = () => {
                   </span>
                   Sistema Operacional · ${metrics.status}
                 </div>
-                
-                <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black leading-[1.1] tracking-tight text-balance">
-                  Automação profissional para seu <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">WhatsApp</span>.
-                </h1>
-                
-                <p className="text-lg text-base-content/60 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                  O bot definitivo para gerenciar comunidades, criar figurinhas e automatizar fluxos sem precisar escrever uma linha de código.
-                </p>
+
+                <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black leading-[1.1] tracking-tight text-balance">Automação profissional para seu <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">WhatsApp</span>.</h1>
+
+                <p className="text-lg text-base-content/60 max-w-xl mx-auto lg:mx-0 leading-relaxed">O bot definitivo para gerenciar comunidades, criar figurinhas e automatizar fluxos sem precisar escrever uma linha de código.</p>
 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                   <a href=${botMenuUrl} className="btn btn-primary btn-lg rounded-2xl shadow-xl shadow-primary/20 gap-3 group">
                     Começar Agora
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
                   </a>
-                  <a href="/stickers/" className="btn btn-outline btn-lg rounded-2xl border-base-300 hover:bg-base-200">
-                    Ver Marketplace
-                  </a>
+                  <a href="/stickers/" className="btn btn-outline btn-lg rounded-2xl border-base-300 hover:bg-base-200"> Ver Marketplace </a>
                 </div>
 
                 <div className="flex flex-wrap justify-center lg:justify-start gap-8 pt-4">
@@ -311,7 +305,7 @@ const App = () => {
                     </div>
                     <div className="text-[10px] font-mono text-base-content/30 tracking-tighter">LATENCY: ${metrics.latency}</div>
                   </div>
-                  
+
                   <div className="space-y-4 font-mono text-sm sm:text-base">
                     <div className="flex gap-3">
                       <span className="text-primary font-bold">visitor:</span>
@@ -345,15 +339,15 @@ const App = () => {
             </div>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              ${FEATURES.map((f, i) => html`
-                <div data-reveal="fade-up" className="group p-8 rounded-3xl bg-base-100 border border-base-200 hover:border-primary/30 transition-all hover:shadow-2xl hover:shadow-primary/5">
-                  <div className="w-14 h-14 rounded-2xl bg-base-200 flex items-center justify-center text-3xl mb-6 group-hover:scale-110 group-hover:bg-primary/10 transition-all">
-                    ${f.icon}
+              ${FEATURES.map(
+                (f) => html`
+                  <div data-reveal="fade-up" className="group p-8 rounded-3xl bg-base-100 border border-base-200 hover:border-primary/30 transition-all hover:shadow-2xl hover:shadow-primary/5">
+                    <div className="w-14 h-14 rounded-2xl bg-base-200 flex items-center justify-center text-3xl mb-6 group-hover:scale-110 group-hover:bg-primary/10 transition-all">${f.icon}</div>
+                    <h3 className="text-xl font-bold mb-3">${f.title}</h3>
+                    <p className="text-base-content/50 leading-relaxed text-sm">${f.desc}</p>
                   </div>
-                  <h3 className="text-xl font-bold mb-3">${f.title}</h3>
-                  <p className="text-base-content/50 leading-relaxed text-sm">${f.desc}</p>
-                </div>
-              `)}
+                `,
+              )}
             </div>
           </div>
         </section>
@@ -364,11 +358,10 @@ const App = () => {
             <div className="flex flex-col lg:flex-row gap-10 lg:gap-16 items-start">
               <div className="w-full lg:w-1/3 lg:sticky lg:top-32 space-y-4 sm:space-y-6 text-center lg:text-left">
                 <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-balance">
-                  Comandos de <br className="hidden lg:block"/> Resposta Rápida
+                  Comandos de <br className="hidden lg:block" />
+                  Resposta Rápida
                 </h2>
-                <p className="text-base-content/60 leading-relaxed text-sm sm:text-base max-w-xl mx-auto lg:mx-0">
-                  Interaja com o bot através de comandos intuitivos. Dezenas de ferramentas poderosas ao seu alcance.
-                </p>
+                <p className="text-base-content/60 leading-relaxed text-sm sm:text-base max-w-xl mx-auto lg:mx-0">Interaja com o bot através de comandos intuitivos. Dezenas de ferramentas poderosas ao seu alcance.</p>
                 <div className="hidden lg:block p-6 rounded-2xl bg-primary/5 border border-primary/10">
                   <div className="text-primary font-black text-xl mb-1">${metrics.commands}+</div>
                   <div className="text-[10px] uppercase font-bold tracking-widest opacity-50">Comandos Ativos</div>
@@ -377,32 +370,34 @@ const App = () => {
               </div>
 
               <div className="w-full lg:w-2/3 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                ${COMMAND_BLOCKS.map(block => html`
-                  <div data-reveal="fade-up" className="bg-base-200/40 backdrop-blur-sm border border-base-300 rounded-3xl overflow-hidden">
-                    <div className="p-5 sm:p-8">
-                      <h3 className="text-xs sm:text-sm font-black uppercase tracking-[0.2em] text-primary/60 mb-5 sm:mb-6 flex items-center gap-2">
-                        <span className="w-1 h-1 rounded-full bg-primary"></span>
-                        ${block.title}
-                      </h3>
-                      <div className="grid gap-4 sm:gap-5">
-                        ${block.items.map(([cmd, label]) => html`
-                          <div className="flex items-start gap-3 group">
-                            <div className="flex-1">
-                              <div className="font-mono text-sm font-bold text-base-content/90 group-hover:text-primary transition-colors">${cmd}</div>
-                              <div className="text-[11px] sm:text-xs text-base-content/40 font-medium leading-tight">${label}</div>
-                            </div>
-                          </div>
-                        `)}
+                ${COMMAND_BLOCKS.map(
+                  (block) => html`
+                    <div data-reveal="fade-up" className="bg-base-200/40 backdrop-blur-sm border border-base-300 rounded-3xl overflow-hidden">
+                      <div className="p-5 sm:p-8">
+                        <h3 className="text-xs sm:text-sm font-black uppercase tracking-[0.2em] text-primary/60 mb-5 sm:mb-6 flex items-center gap-2">
+                          <span className="w-1 h-1 rounded-full bg-primary"></span>
+                          ${block.title}
+                        </h3>
+                        <div className="grid gap-4 sm:gap-5">
+                          ${block.items.map(
+                            ([cmd, label]) => html`
+                              <div className="flex items-start gap-3 group">
+                                <div className="flex-1">
+                                  <div className="font-mono text-sm font-bold text-base-content/90 group-hover:text-primary transition-colors">${cmd}</div>
+                                  <div className="text-[11px] sm:text-xs text-base-content/40 font-medium leading-tight">${label}</div>
+                                </div>
+                              </div>
+                            `,
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                `)}
-                
+                  `,
+                )}
+
                 <!-- Mobile Only CTA -->
                 <div className="lg:hidden mt-2">
-                  <a href="/comandos/" className="btn btn-block btn-outline border-base-300 rounded-2xl h-14 font-bold">
-                    Ver Todos os ${metrics.commands} Comandos
-                  </a>
+                  <a href="/comandos/" className="btn btn-block btn-outline border-base-300 rounded-2xl h-14 font-bold"> Ver Todos os ${metrics.commands} Comandos </a>
                 </div>
               </div>
             </div>
@@ -414,18 +409,12 @@ const App = () => {
           <div data-reveal="fade-up" className="relative p-12 sm:p-20 rounded-[3rem] overflow-hidden text-center text-primary-content">
             <div className="absolute inset-0 bg-gradient-to-br from-primary to-secondary"></div>
             <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
-            
+
             <div className="relative z-10 space-y-8">
-              <h2 className="text-3xl sm:text-5xl lg:text-6xl font-black leading-tight text-balance">
-                Pronto para transformar seu grupo?
-              </h2>
-              <p className="text-lg opacity-80 max-w-2xl mx-auto font-medium">
-                Junte-se a milhares de administradores que já automatizaram suas comunidades com o OmniZap Bot.
-              </p>
+              <h2 className="text-3xl sm:text-5xl lg:text-6xl font-black leading-tight text-balance">Pronto para transformar seu grupo?</h2>
+              <p className="text-lg opacity-80 max-w-2xl mx-auto font-medium">Junte-se a milhares de administradores que já automatizaram suas comunidades com o OmniZap Bot.</p>
               <div className="pt-4">
-                <a href=${botMenuUrl} className="btn btn-lg bg-base-100 border-none text-primary rounded-2xl hover:scale-105 transition-transform shadow-2xl px-12 h-16 text-lg font-black">
-                  Adicionar Agora
-                </a>
+                <a href=${botMenuUrl} className="btn btn-lg bg-base-100 border-none text-primary rounded-2xl hover:scale-105 transition-transform shadow-2xl px-12 h-16 text-lg font-black"> Adicionar Agora </a>
               </div>
             </div>
           </div>
@@ -442,10 +431,11 @@ const App = () => {
                 <span className="text-xl font-black tracking-tighter">OmniZap<span className="text-primary">.</span></span>
               </div>
               <p className="text-xs text-base-content/40 leading-relaxed">
-                Plataforma Open Source de automação WhatsApp. <br/> Feito para a comunidade brasileira.
+                Plataforma Open Source de automação WhatsApp. <br />
+                Feito para a comunidade brasileira.
               </p>
             </div>
-            
+
             <div>
               <h4 className="font-bold text-xs uppercase tracking-widest text-base-content/30 mb-6">Plataforma</h4>
               <ul className="space-y-3 text-sm font-medium text-base-content/60">
@@ -472,7 +462,7 @@ const App = () => {
               </ul>
             </div>
           </div>
-          
+
           <div className="border-t border-base-content/5 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-[10px] font-bold uppercase tracking-[0.2em] text-base-content/30">
             <span>© 2026 OMNIZAP SYSTEM</span>
             <div className="flex items-center gap-4">

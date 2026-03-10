@@ -4,7 +4,7 @@ import { getActiveSocket, getJidUser, normalizeJid, profilePictureUrlFromActiveS
 import { getSystemMetrics } from '../../../app/utils/systemMetrics/systemMetricsModule.js';
 import { createStickerCatalogSystemContext } from './stickerCatalogSystemContext.js';
 import { createStickerCatalogNonCatalogHandlers } from '../sticker/nonCatalogHandlers.js';
-import { sendJson, sendText, normalizeCatalogVisibility, normalizeVisitPath, withTimeout } from '../../http/httpRequestUtils.js';
+import { sendJson, sendText, normalizeCatalogVisibility, normalizeVisitPath } from '../../http/httpRequestUtils.js';
 import { fetchGitHubProjectSummary } from './githubController.js';
 import { fetchPrometheusSummary } from './systemMetricsController.js';
 import { buildBotContactInfo, buildSupportInfo, resolveCatalogBotPhone } from './contactController.js';
@@ -27,7 +27,9 @@ const MARKETPLACE_GLOBAL_STATS_CACHE = { expiresAt: 0, value: null, pending: nul
 const resolveSocketReadyState = (activeSocket) => {
   const raw = activeSocket?.ws?.readyState;
   if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
-  const normalized = String(raw || '').trim().toLowerCase();
+  const normalized = String(raw || '')
+    .trim()
+    .toLowerCase();
   if (normalized === 'open') return 1;
   if (normalized === 'connecting') return 0;
   if (normalized === 'closing') return 2;

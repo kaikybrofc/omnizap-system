@@ -1,5 +1,5 @@
 import logger from '#logger';
-import { getActiveSocket, getAdminPhone, getAdminRawValue, getJidUser, normalizeJid, resolveAdminJid, resolveBotJid, extractUserIdInfo, resolveUserId } from '../../../app/config/index.js';
+import { getActiveSocket, getAdminPhone, getAdminRawValue, getJidUser, resolveAdminJid, resolveBotJid, extractUserIdInfo, resolveUserId } from '../../../app/config/index.js';
 
 const PACK_COMMAND_PREFIX = String(process.env.COMMAND_PREFIX || '/').trim() || '/';
 
@@ -30,13 +30,7 @@ export const resolveCatalogBotPhone = () => {
     return fromSocket;
   }
 
-  const envCandidates = [
-    process.env.WHATSAPP_BOT_NUMBER,
-    process.env.BOT_NUMBER,
-    process.env.PHONE_NUMBER,
-    process.env.BOT_PHONE_NUMBER,
-    process.env.USER_ADMIN
-  ];
+  const envCandidates = [process.env.WHATSAPP_BOT_NUMBER, process.env.BOT_NUMBER, process.env.PHONE_NUMBER, process.env.BOT_PHONE_NUMBER, process.env.USER_ADMIN];
 
   for (const candidate of envCandidates) {
     const digits = normalizePhoneDigits(candidate || '');
