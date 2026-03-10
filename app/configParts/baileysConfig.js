@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-useless-escape */
-import { fetchLatestBaileysVersion, downloadContentFromMessage, jidNormalizedUser, jidEncode, jidDecode, areJidsSameUser, normalizeMessageContent, isJidMetaAI, isPnUser, isLidUser, isJidBroadcast, isJidGroup, isJidStatusBroadcast, isJidNewsletter, isHostedPnUser, isHostedLidUser, isJidBot, SERVER_JID, PSA_WID, STORIES_JID, META_AI_JID } from '@whiskeysockets/baileys';
+import { fetchLatestBaileysVersion, downloadContentFromMessage, jidNormalizedUser, jidEncode, jidDecode, areJidsSameUser, normalizeMessageContent, isJidMetaAI, isPnUser, isLidUser, isJidBroadcast, isJidGroup, isJidStatusBroadcast, isJidNewsletter, isHostedPnUser, isHostedLidUser, isJidBot, SERVER_JID, PSA_WID, STORIES_JID, META_AI_JID, delay } from '@whiskeysockets/baileys';
 
 import { baileysConfigLogger as logger } from './loggerConfig.js';
 import { executeQuery, TABLES } from '../../database/index.js';
@@ -1725,13 +1725,6 @@ export const isLidUserId = (value) => isLidJid(value);
 export const isWhatsAppUserId = (value) => isWhatsAppJid(value);
 
 /**
- * Sleep utilitario.
- * @param {number} ms
- * @returns {Promise<void>}
- */
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
  * Retorna o range de IDs da tabela messages.
  * @returns {Promise<{minId: number, maxId: number}>}
  */
@@ -1800,7 +1793,7 @@ export const backfillLidMapFromMessages = async ({ batchSize = BACKFILL_DEFAULT_
     await runBackfillBatch(start, end);
     batches += 1;
     if (maxBatches && batches >= maxBatches) break;
-    if (sleepMs > 0) await sleep(sleepMs);
+    if (sleepMs > 0) await delay(sleepMs);
   }
 
   logger.info('Backfill lid_map finalizado.', { batches, minId, maxId });

@@ -103,10 +103,20 @@ const buildCaptchaLine = (participantName) =>
     captcha_timeout_min: CAPTCHA_TIMEOUT_MINUTES,
   });
 
-const ACTIONS_TO_SKIP_AUTO_APPROVE = new Set(Array.isArray(ADMIN_EVENT_CONFIG.auto_approve_skip_actions) ? ADMIN_EVENT_CONFIG.auto_approve_skip_actions : []);
+const ACTIONS_TO_SKIP_AUTO_APPROVE = new Set(
+  (Array.isArray(ADMIN_EVENT_CONFIG.auto_approve_skip_actions) ? ADMIN_EVENT_CONFIG.auto_approve_skip_actions : [])
+    .map((action) =>
+      String(action || '')
+        .trim()
+        .toLowerCase(),
+    )
+    .filter(Boolean),
+);
+const AUTO_APPROVE_ALLOWED_ACTIONS = new Set(['created']);
 
 const shouldAutoApproveAction = (action) => {
-  if (!action) return true;
+  if (!action) return false;
+  if (!AUTO_APPROVE_ALLOWED_ACTIONS.has(action)) return false;
   return !ACTIONS_TO_SKIP_AUTO_APPROVE.has(action);
 };
 

@@ -4,7 +4,23 @@ import { extractUserIdInfo, resolveUserIdCached, isLidUserId, isWhatsAppUserId }
 
 const GROUP_METADATA_FIELDS = ['id', 'subject', 'description', 'owner_jid', 'creation', 'participants'];
 
-const PARTICIPANT_ACTIONS = new Set(['add', 'remove', 'promote', 'demote']);
+const PARTICIPANT_ACTIONS = new Set(['add', 'remove', 'promote', 'demote', 'modify']);
+
+const PARTICIPANT_ADMIN_FIELDS = ['admin', 'isAdmin', 'isSuperAdmin'];
+
+const hasParticipantAdminPayload = (participant) => {
+  if (!participant || typeof participant !== 'object') return false;
+  return PARTICIPANT_ADMIN_FIELDS.some((field) => Object.prototype.hasOwnProperty.call(participant, field));
+};
+
+const normalizeParticipantAdmin = (participant) => {
+  if (!hasParticipantAdminPayload(participant)) return undefined;
+
+  const admin = typeof participant?.admin === 'string' ? participant.admin.toLowerCase() : participant?.admin;
+  if (admin === 'superadmin' || participant?.isSuperAdmin === true) return 'superadmin';
+  if (admin === 'admin' || participant?.isAdmin === true) return 'admin';
+  return null;
+};
 
 /**
  * Normaliza o campo `participants` para o formato persistido no banco.
@@ -73,7 +89,7 @@ export const normalizeParticipant = (participant) => {
     id,
     jid,
     lid,
-    admin: raw.admin || null,
+    admin: normalizeParticipantAdmin(raw),
   };
 };
 
@@ -161,7 +177,7 @@ export const upsertGroupMetadata = async (groupId, updates, options = {}) => {
 };
 
 /**
- * Aplica ação de participantes (add/remove/promote/demote) sobre a lista atual.
+ * Aplica ação de participantes (add/remove/promote/demote/modify) sobre a lista atual.
  * @param {Array<Object>} currentParticipants - Participantes atuais.
  * @param {Array<Object | string>} participants - Participantes do evento.
  * @param {string} action - Ação do evento.
@@ -187,6 +203,7 @@ export const applyParticipantAction = (currentParticipants, participants, action
     const normalized = normalizeParticipant(participant);
     const key = getParticipantKey(normalized);
     if (!normalized || !key) continue;
+    const hasAdminPayload = hasParticipantAdminPayload(participant);
 
     if (action === 'add') {
       if (!currentMap.has(key)) currentMap.set(key, normalized);
@@ -204,6 +221,18 @@ export const applyParticipantAction = (currentParticipants, participants, action
         entry.admin = null;
         currentMap.set(key, entry);
       }
+    } else if (action === 'modify') {
+      const existing = currentMap.get(key);
+      if (!existing) {
+        currentMap.set(key, normalized);
+        continue;
+      }
+
+      const merged = { ...existing, ...normalized };
+      if (!hasAdminPayload && Object.prototype.hasOwnProperty.call(existing, 'admin')) {
+        merged.admin = existing.admin;
+      }
+      currentMap.set(key, merged);
     }
   }
 
@@ -220,10 +249,13 @@ export const applyParticipantAction = (currentParticipants, participants, action
  */
 export const updateGroupParticipantsFromAction = async (groupId, participants, action) => {
   if (!groupId || !Array.isArray(participants) || participants.length === 0) return null;
+  const normalizedAction = String(action || '')
+    .trim()
+    .toLowerCase();
 
   const currentGroup = await findById('groups_metadata', groupId);
   const currentParticipants = parseParticipantsFromDb(currentGroup?.participants);
-  const updatedParticipants = applyParticipantAction(currentParticipants, participants, action);
+  const updatedParticipants = applyParticipantAction(currentParticipants, participants, normalizedAction);
 
   await upsertGroupMetadata(
     groupId,
@@ -235,7 +267,7 @@ export const updateGroupParticipantsFromAction = async (groupId, participants, a
 
   logger.debug('Participantes do grupo atualizados no banco.', {
     groupId,
-    action,
+    action: normalizedAction,
     participantsUpdated: participants.length,
     totalParticipants: updatedParticipants.length,
   });

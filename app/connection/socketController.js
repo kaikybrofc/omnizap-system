@@ -1,4 +1,4 @@
-import makeWASocket, { DisconnectReason, Browsers, getAggregateVotesInPollMessage, areJidsSameUser, WAMessageStatus, WAMessageStubType } from '@whiskeysockets/baileys';
+import makeWASocket, { DisconnectReason, Browsers, getAggregateVotesInPollMessage, areJidsSameUser, WAMessageStatus, WAMessageStubType, delayCancellable, getStatusFromReceiptType, promiseTimeout } from '@whiskeysockets/baileys';
 
 import NodeCache from 'node-cache';
 import { parseEnvBool, parseEnvCsv, parseEnvInt, resolveBaileysVersion, resolveAddressingModeFromMessageKey, normalizeAddressingMode, normalizePnToJid, normalizeWAPresence, baileysConnectionLogger as logger, baileysSocketLogger } from '../config/index.js';
@@ -195,10 +195,10 @@ const BAILEYS_EVENT_JOURNAL_ALL_EVENTS = BAILEYS_EVENT_JOURNAL_EVENT_LIST.includ
  */
 const BAILEYS_EVENT_JOURNAL_EVENTS = new Set(BAILEYS_EVENT_JOURNAL_EVENT_LIST.filter((eventName) => eventName !== '*'));
 /**
- * Conjunto de tipos de recibo de mensagem conhecidos.
+ * Conjunto de tipos de recibo que não mapeiam diretamente para status no Baileys.
  * @type {Set<string>}
  */
-const MESSAGE_RECEIPT_TYPES = new Set(['read', 'read-self', 'hist_sync', 'peer_msg', 'sender', 'inactive', 'played']);
+const MESSAGE_RECEIPT_TYPES_WITHOUT_STATUS = new Set(['hist_sync', 'peer_msg', 'inactive']);
 /**
  * Mapeia códigos de status de mensagem do Baileys para seus nomes.
  * @type {Map<number, string>}
@@ -256,7 +256,8 @@ const normalizeMessageReceiptType = (receiptType) => {
   if (typeof receiptType !== 'string') return undefined;
   const normalizedType = receiptType.trim();
   if (!normalizedType) return undefined;
-  return MESSAGE_RECEIPT_TYPES.has(normalizedType) ? normalizedType : undefined;
+  if (getStatusFromReceiptType(normalizedType) !== undefined) return normalizedType;
+  return MESSAGE_RECEIPT_TYPES_WITHOUT_STATUS.has(normalizedType) ? normalizedType : undefined;
 };
 
 /**
@@ -322,7 +323,7 @@ const MAX_CONNECTION_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 3000;
 /**
  * Timeout para reconexão.
- * @type {NodeJS.Timeout | null}
+ * @type {ReturnType<typeof delayCancellable> | null}
  */
 let reconnectTimeout = null;
 /**
@@ -823,6 +824,61 @@ const extractBaileysEventReferences = (payload) => {
 };
 
 /**
+ * Resolve IDs de contato (LID/JID) a partir de payloads de contacts.upsert/contacts.update.
+ * @param {any} contact
+ * @returns {{lid: string | null, jid: string | null}}
+ */
+const resolveContactIdsForLidMap = (contact) => {
+  const lidCandidates = [contact?.lid, contact?.id, contact?.jid];
+  let lid = null;
+  for (const candidate of lidCandidates) {
+    if (isLidUserId(candidate)) {
+      lid = candidate;
+      break;
+    }
+  }
+
+  const jidCandidates = [contact?.jid, contact?.phoneNumber, contact?.id];
+  let jid = null;
+  for (const candidate of jidCandidates) {
+    if (isWhatsAppUserId(candidate)) {
+      jid = candidate;
+      break;
+    }
+    const normalizedPn = normalizePnToJid(candidate);
+    if (normalizedPn && isWhatsAppUserId(normalizedPn)) {
+      jid = normalizedPn;
+      break;
+    }
+  }
+
+  return { lid, jid };
+};
+
+/**
+ * Enfileira atualizações do lid_map a partir de eventos de contato.
+ * @param {Array<any>} contacts
+ * @param {string} source
+ * @returns {void}
+ */
+const queueContactsLidUpdates = (contacts, source) => {
+  if (!Array.isArray(contacts) || contacts.length === 0) return;
+
+  for (const contact of contacts) {
+    try {
+      const { lid, jid } = resolveContactIdsForLidMap(contact);
+      if (!lid) continue;
+      queueLidUpdate(lid, jid, source);
+    } catch (error) {
+      logger.warn('Falha ao processar evento de contatos para lid_map.', {
+        source,
+        error: error.message,
+      });
+    }
+  }
+};
+
+/**
  * Registra o mecanismo de diário (journal) para os eventos do Baileys.
  * Eventos selecionados são enfileirados para persistência.
  * @param {import('@whiskeysockets/baileys').WASocket} sock - A instância do socket do Baileys.
@@ -1004,7 +1060,7 @@ async function getStoredMessage(key) {
  */
 const clearReconnectTimeout = () => {
   if (!reconnectTimeout) return;
-  clearTimeout(reconnectTimeout);
+  reconnectTimeout.cancel();
   reconnectTimeout = null;
 };
 
@@ -1040,8 +1096,11 @@ const getNextReconnectAttempt = () => {
  */
 const scheduleReconnect = (delay) => {
   if (reconnectTimeout) return;
-  reconnectTimeout = setTimeout(
-    () => {
+  const pendingReconnect = delayCancellable(Math.max(0, Number(delay) || 0));
+  reconnectTimeout = pendingReconnect;
+  pendingReconnect.delay
+    .then(() => {
+      if (reconnectTimeout !== pendingReconnect) return;
       reconnectTimeout = null;
       connectToWhatsApp().catch((error) => {
         logger.error('Falha ao executar reconexão agendada.', {
@@ -1051,9 +1110,23 @@ const scheduleReconnect = (delay) => {
           timestamp: new Date().toISOString(),
         });
       });
-    },
-    Math.max(0, Number(delay) || 0),
-  );
+    })
+    .catch((error) => {
+      if (reconnectTimeout === pendingReconnect) {
+        reconnectTimeout = null;
+      }
+      if (
+        String(error?.message || '')
+          .trim()
+          .toLowerCase() === 'cancelled'
+      ) {
+        return;
+      }
+      logger.warn('Falha ao aguardar atraso da reconexão agendada.', {
+        action: 'reconnect_schedule_delay_error',
+        errorMessage: error?.message,
+      });
+    });
 };
 
 /**
@@ -1167,12 +1240,18 @@ process.once('SIGTERM', () => {
  * @returns {Promise<T>} A promessa envolvida com timeout.
  */
 const withTimeout = (promise, timeoutMs, timeoutLabel = 'operation_timeout') =>
-  Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(timeoutLabel)), timeoutMs);
-    }),
-  ]);
+  promiseTimeout(timeoutMs, (resolve, reject) => {
+    promise.then(resolve).catch(reject);
+  }).catch((error) => {
+    if (
+      String(error?.message || '')
+        .trim()
+        .toLowerCase() === 'timed out'
+    ) {
+      throw new Error(timeoutLabel);
+    }
+    throw error;
+  });
 
 /**
  * Sincroniza metadados de grupos ao abrir a conexão com o WhatsApp.
@@ -1420,22 +1499,14 @@ export async function connectToWhatsApp() {
       }
     });
 
+    sock.ev.on('contacts.upsert', (contacts) => {
+      if (!isCurrentSocket()) return;
+      queueContactsLidUpdates(contacts, 'contacts.upsert');
+    });
+
     sock.ev.on('contacts.update', (updates) => {
       if (!isCurrentSocket()) return;
-      if (!Array.isArray(updates)) return;
-      for (const update of updates) {
-        try {
-          const jidCandidate = update?.id || update?.jid || null;
-          const lidCandidate = update?.lid || null;
-          const jid = isWhatsAppUserId(jidCandidate) ? jidCandidate : null;
-          const lid = isLidUserId(lidCandidate) ? lidCandidate : isLidUserId(jidCandidate) ? jidCandidate : null;
-          if (lid) {
-            queueLidUpdate(lid, jid, 'contacts');
-          }
-        } catch (error) {
-          logger.warn('Falha ao processar contacts.update para lid_map.', { error: error.message });
-        }
-      }
+      queueContactsLidUpdates(updates, 'contacts.update');
     });
 
     sock.ev.on('lid-mapping.update', (update) => {
