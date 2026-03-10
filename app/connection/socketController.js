@@ -28,46 +28,163 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * Indica se o ambiente de execução é de produção.
+ * @type {boolean}
+ */
 const IS_PRODUCTION =
   String(process.env.NODE_ENV || '')
     .trim()
     .toLowerCase() === 'production';
+/**
+ * Tempo de vida (TTL) em segundos para o cache de retentativa de mensagem do Baileys.
+ * @type {number}
+ */
 const MSG_RETRY_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_MSG_RETRY_CACHE_TTL_SECONDS, 600, 60, 24 * 60 * 60);
+/**
+ * Período de verificação em segundos para o cache de retentativa de mensagem do Baileys.
+ * @type {number}
+ */
 const MSG_RETRY_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_MSG_RETRY_CACHE_CHECKPERIOD_SECONDS, 120, 30, 3600);
+/**
+ * Habilita ou desabilita o log de eventos do Baileys.
+ * @type {boolean}
+ */
 const BAILEYS_EVENT_LOG_ENABLED = parseEnvBool(process.env.BAILEYS_EVENT_LOG_ENABLED, !IS_PRODUCTION);
+/**
+ * Tempo em milissegundos para resetar a contagem de tentativas de reconexão do Baileys.
+ * @type {number}
+ */
 const BAILEYS_RECONNECT_ATTEMPT_RESET_MS = parseEnvInt(process.env.BAILEYS_RECONNECT_ATTEMPT_RESET_MS, 10 * 60 * 1000, 60 * 1000, 24 * 60 * 60 * 1000);
+/**
+ * Habilita ou desabilita a sincronização de grupos na conexão.
+ * @type {boolean}
+ */
 const GROUP_SYNC_ON_CONNECT = parseEnvBool(process.env.GROUP_SYNC_ON_CONNECT, true);
+/**
+ * Tempo limite em milissegundos para a sincronização de grupos.
+ * @type {number}
+ */
 const GROUP_SYNC_TIMEOUT_MS = parseEnvInt(process.env.GROUP_SYNC_TIMEOUT_MS, 30 * 1000, 5 * 1000, 120 * 1000);
+/**
+ * Número máximo de grupos a serem sincronizados.
+ * @type {number}
+ */
 const GROUP_SYNC_MAX_GROUPS = parseEnvInt(process.env.GROUP_SYNC_MAX_GROUPS, 0, 0, 10_000);
+/**
+ * Tamanho do lote para a sincronização de grupos.
+ * @type {number}
+ */
 const GROUP_SYNC_BATCH_SIZE = parseEnvInt(process.env.GROUP_SYNC_BATCH_SIZE, 50, 1, 1000);
+/**
+ * Habilita ou desabilita a rejeição automática de chamadas do Baileys.
+ * @type {boolean}
+ */
 const BAILEYS_AUTO_REJECT_CALLS = parseEnvBool(process.env.BAILEYS_AUTO_REJECT_CALLS, true);
+/**
+ * Habilita ou desabilita a recriação automática de sessão do Baileys.
+ * @type {boolean}
+ */
 const BAILEYS_ENABLE_AUTO_SESSION_RECREATION = parseEnvBool(process.env.BAILEYS_ENABLE_AUTO_SESSION_RECREATION, true);
+/**
+ * Habilita ou desabilita o cache de mensagens recentes do Baileys.
+ * @type {boolean}
+ */
 const BAILEYS_ENABLE_RECENT_MESSAGE_CACHE = parseEnvBool(process.env.BAILEYS_ENABLE_RECENT_MESSAGE_CACHE, true);
+/**
+ * Habilita ou desabilita a geração de pré-visualizações de link de alta qualidade do Baileys.
+ * @type {boolean}
+ */
 const BAILEYS_GENERATE_HIGH_QUALITY_LINK_PREVIEW = parseEnvBool(process.env.BAILEYS_GENERATE_HIGH_QUALITY_LINK_PREVIEW, false);
+/**
+ * Habilita ou desabilita o patch de mensagens antes do envio.
+ * @type {boolean}
+ */
 const BAILEYS_PATCH_MESSAGE_BEFORE_SENDING = parseEnvBool(process.env.BAILEYS_PATCH_MESSAGE_BEFORE_SENDING, true);
+/**
+ * Tempo de vida (TTL) em segundos para o cache de dispositivos de usuário do Baileys.
+ * @type {number}
+ */
 const BAILEYS_USER_DEVICES_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_USER_DEVICES_CACHE_TTL_SECONDS, 300, 30, 24 * 60 * 60);
+/**
+ * Período de verificação em segundos para o cache de dispositivos de usuário do Baileys.
+ * @type {number}
+ */
 const BAILEYS_USER_DEVICES_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_USER_DEVICES_CACHE_CHECKPERIOD_SECONDS, 60, 15, 3600);
+/**
+ * Tempo de vida (TTL) em segundos para o cache de mídia do Baileys.
+ * @type {number}
+ */
 const BAILEYS_MEDIA_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_MEDIA_CACHE_TTL_SECONDS, 3600, 60, 7 * 24 * 60 * 60);
+/**
+ * Período de verificação em segundos para o cache de mídia do Baileys.
+ * @type {number}
+ */
 const BAILEYS_MEDIA_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_MEDIA_CACHE_CHECKPERIOD_SECONDS, 300, 30, 3600);
+/**
+ * Tempo de vida (TTL) em segundos para o cache de metadados de grupo do Baileys.
+ * @type {number}
+ */
 const BAILEYS_GROUP_METADATA_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_GROUP_METADATA_CACHE_TTL_SECONDS, 120, 10, 3600);
+/**
+ * Período de verificação em segundos para o cache de metadados de grupo do Baileys.
+ * @type {number}
+ */
 const BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS, 60, 10, 1800);
+/**
+ * Habilita ou desabilita o diário de eventos do Baileys.
+ * @type {boolean}
+ */
 const BAILEYS_EVENT_JOURNAL_ENABLED = parseEnvBool(process.env.BAILEYS_EVENT_JOURNAL_ENABLED, false);
+/**
+ * Lista de eventos padrão para o diário de eventos do Baileys.
+ * @type {string[]}
+ */
 const DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS = ['connection.update', 'messages.upsert', 'messages.update', 'messages.delete', 'messages.reaction', 'message-receipt.update', 'chats.upsert', 'chats.update', 'chats.delete', 'groups.upsert', 'groups.update', 'group-participants.update', 'group.join-request', 'lid-mapping.update'];
+/**
+ * Lista de eventos configurados para o diário de eventos do Baileys, obtidos do ambiente.
+ * @type {string[]}
+ */
 const BAILEYS_EVENT_JOURNAL_EVENT_LIST = parseEnvCsv(process.env.BAILEYS_EVENT_JOURNAL_EVENTS, DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS);
+/**
+ * Indica se todos os eventos do Baileys devem ser registrados no diário.
+ * @type {boolean}
+ */
 const BAILEYS_EVENT_JOURNAL_ALL_EVENTS = BAILEYS_EVENT_JOURNAL_EVENT_LIST.includes('*');
+/**
+ * Conjunto de eventos do Baileys a serem registrados no diário.
+ * @type {Set<string>}
+ */
 const BAILEYS_EVENT_JOURNAL_EVENTS = new Set(BAILEYS_EVENT_JOURNAL_EVENT_LIST.filter((eventName) => eventName !== '*'));
+/**
+ * Conjunto de tipos de recibo de mensagem conhecidos.
+ * @type {Set<string>}
+ */
 const MESSAGE_RECEIPT_TYPES = new Set(['read', 'read-self', 'hist_sync', 'peer_msg', 'sender', 'inactive', 'played']);
+/**
+ * Mapeia códigos de status de mensagem do Baileys para seus nomes.
+ * @type {Map<number, string>}
+ */
 const MESSAGE_STATUS_CODE_TO_NAME = new Map(
   Object.entries(WAMessageStatus)
     .filter(([, value]) => typeof value === 'number')
     .map(([name, value]) => [value, name]),
 );
+/**
+ * Mapeia códigos de tipo de stub de mensagem do Baileys para seus nomes.
+ * @type {Map<number, string>}
+ */
 const MESSAGE_STUB_CODE_TO_NAME = new Map(
   Object.entries(WAMessageStubType)
     .filter(([, value]) => typeof value === 'number')
     .map(([name, value]) => [value, name]),
 );
 
+/**
+ * Normaliza o status de uma mensagem do Baileys.
+ * @param {string | number} status - O código de status da mensagem.
+ * @returns {{code: number, name: string | null} | null} Objeto contendo o código e o nome do status, ou null se inválido.
+ */
 const normalizeMessageStatus = (status) => {
   const statusCode = Number(status);
   if (!Number.isFinite(statusCode)) return null;
@@ -77,6 +194,11 @@ const normalizeMessageStatus = (status) => {
   };
 };
 
+/**
+ * Normaliza o tipo de stub de uma mensagem do Baileys.
+ * @param {string | number} stubType - O código do tipo de stub da mensagem.
+ * @returns {{code: number, name: string | null} | null} Objeto contendo o código e o nome do tipo de stub, ou null se inválido.
+ */
 const normalizeMessageStubType = (stubType) => {
   const stubTypeCode = Number(stubType);
   if (!Number.isFinite(stubTypeCode)) return null;
@@ -86,6 +208,11 @@ const normalizeMessageStubType = (stubType) => {
   };
 };
 
+/**
+ * Normaliza o tipo de recibo de mensagem.
+ * @param {string | undefined} receiptType - O tipo de recibo da mensagem.
+ * @returns {string | undefined} O tipo de recibo normalizado, ou undefined se inválido.
+ */
 const normalizeMessageReceiptType = (receiptType) => {
   if (receiptType === undefined) return undefined;
   if (typeof receiptType !== 'string') return undefined;
@@ -94,38 +221,103 @@ const normalizeMessageReceiptType = (receiptType) => {
   return MESSAGE_RECEIPT_TYPES.has(normalizedType) ? normalizedType : undefined;
 };
 
+/**
+ * Instância ativa do socket do WhatsApp.
+ * @type {import('@whiskeysockets/baileys').WASocket | null}
+ */
 let activeSocket = null;
+/**
+ * Contador de tentativas de conexão.
+ * @type {number}
+ */
 let connectionAttempts = 0;
+/**
+ * Timestamp do início da janela de reconexão.
+ * @type {number}
+ */
 let reconnectWindowStartedAt = 0;
+/**
+ * Cache para contadores de retentativa de mensagens.
+ * @type {NodeCache}
+ */
 const msgRetryCounterCache = new NodeCache({
   stdTTL: MSG_RETRY_CACHE_TTL_SECONDS,
   checkperiod: MSG_RETRY_CACHE_CHECKPERIOD_SECONDS,
   useClones: false,
 });
+/**
+ * Backend de cache para informações de dispositivos de usuário.
+ * @type {NodeCache}
+ */
 const userDevicesCacheBackend = new NodeCache({
   stdTTL: BAILEYS_USER_DEVICES_CACHE_TTL_SECONDS,
   checkperiod: BAILEYS_USER_DEVICES_CACHE_CHECKPERIOD_SECONDS,
   useClones: false,
 });
+/**
+ * Backend de cache para mídia.
+ * @type {NodeCache}
+ */
 const mediaCacheBackend = new NodeCache({
   stdTTL: BAILEYS_MEDIA_CACHE_TTL_SECONDS,
   checkperiod: BAILEYS_MEDIA_CACHE_CHECKPERIOD_SECONDS,
   useClones: false,
 });
+/**
+ * Cache para metadados de grupos.
+ * @type {NodeCache}
+ */
 const groupMetadataCache = new NodeCache({
   stdTTL: BAILEYS_GROUP_METADATA_CACHE_TTL_SECONDS,
   checkperiod: BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS,
   useClones: false,
 });
+/**
+ * Número máximo de tentativas de conexão antes de entrar em um período de espera.
+ * @type {number}
+ */
 const MAX_CONNECTION_ATTEMPTS = 5;
+/**
+ * Atraso inicial em milissegundos para a primeira tentativa de reconexão.
+ * @type {number}
+ */
 const INITIAL_RECONNECT_DELAY = 3000;
+/**
+ * Timeout para reconexão.
+ * @type {NodeJS.Timeout | null}
+ */
 let reconnectTimeout = null;
+/**
+ * Promessa de conexão ativa.
+ * @type {Promise<void> | null}
+ */
 let connectPromise = null;
+/**
+ * Geração atual do socket (incrementado a cada nova conexão).
+ * @type {number}
+ */
 let socketGeneration = 0;
+/**
+ * Nomes de todos os eventos do Baileys que são monitorados.
+ * @type {string[]}
+ */
 const BAILEYS_EVENT_NAMES = ['connection.update', 'creds.update', 'messaging-history.set', 'chats.upsert', 'chats.update', 'lid-mapping.update', 'chats.delete', 'presence.update', 'contacts.upsert', 'contacts.update', 'messages.delete', 'messages.update', 'messages.media-update', 'messages.upsert', 'messages.reaction', 'message-receipt.update', 'groups.upsert', 'groups.update', 'group-participants.update', 'group.join-request', 'group.member-tag.update', 'blocklist.set', 'blocklist.update', 'call', 'labels.edit', 'labels.association', 'newsletter.reaction', 'newsletter.view', 'newsletter-participants.update', 'newsletter-settings.update', 'chats.lock', 'settings.update'];
+/**
+ * Conjunto de eventos do Baileys que possuem lógica de log interna.
+ * @type {Set<string>}
+ */
 const BAILEYS_EVENTS_WITH_INTERNAL_LOG = new Set(['creds.update', 'connection.update', 'messages.upsert', 'messages.update', 'messages.media-update', 'message-receipt.update', 'groups.update', 'group-participants.update']);
+/**
+ * Conjunto de eventos do Baileys que são considerados "barulhentos" em produção e podem ser desabilitados.
+ * @type {Set<string>}
+ */
 const BAILEYS_NOISY_EVENTS_IN_PRODUCTION = new Set(['presence.update']);
 
+/**
+ * Cria um adaptador de armazenamento de cache simples para um NodeCache.
+ * @param {NodeCache} cache - Instância do NodeCache.
+ * @returns {{get: Function, set: Function, del: Function, flushAll: Function}} Adaptador de cache.
+ */
 const createCacheStoreAdapter = (cache) => ({
   get: (key) => cache.get(key),
   set: (key, value) => cache.set(key, value),
@@ -133,6 +325,11 @@ const createCacheStoreAdapter = (cache) => ({
   flushAll: () => cache.flushAll(),
 });
 
+/**
+ * Cria um adaptador de armazenamento de cache estendido com métodos multi para um NodeCache.
+ * @param {NodeCache} cache - Instância do NodeCache.
+ * @returns {{get: Function, set: Function, del: Function, flushAll: Function, mget: Function, mset: Function, mdel: Function}} Adaptador de cache estendido.
+ */
 const createExtendedCacheStoreAdapter = (cache) => ({
   ...createCacheStoreAdapter(cache),
   mget: (keys) => cache.mget(keys),
@@ -150,11 +347,30 @@ const createExtendedCacheStoreAdapter = (cache) => ({
   mdel: (keys) => cache.del(keys),
 });
 
+/**
+ * Cache para informações de dispositivos de usuário.
+ * @type {ReturnType<typeof createExtendedCacheStoreAdapter>}
+ */
 const userDevicesCache = createExtendedCacheStoreAdapter(userDevicesCacheBackend);
+/**
+ * Cache para mídia.
+ * @type {ReturnType<typeof createCacheStoreAdapter>}
+ */
 const mediaCache = createCacheStoreAdapter(mediaCacheBackend);
 
+/**
+ * Verifica se um valor é um objeto "simples" (plain object).
+ * @param {unknown} value - O valor a ser verificado.
+ * @returns {boolean} True se for um objeto simples, false caso contrário.
+ */
 const isPlainObject = (value) => Object.prototype.toString.call(value) === '[object Object]';
 
+/**
+ * Sanitiza o payload de uma mensagem removendo funções, valores undefined e referências circulares.
+ * @param {any} value - O payload da mensagem a ser sanitizado.
+ * @param {WeakSet<object>} [seen=new WeakSet()] - Conjunto de objetos já vistos para evitar referências circulares.
+ * @returns {any} O payload sanitizado.
+ */
 const sanitizeMessagePayload = (value, seen = new WeakSet()) => {
   if (value === undefined || typeof value === 'function') return undefined;
   if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'bigint') return value;
@@ -186,6 +402,12 @@ const sanitizeMessagePayload = (value, seen = new WeakSet()) => {
   return sanitizedObject;
 };
 
+/**
+ * Aplica saneamento a uma mensagem antes de enviá-la, se a funcionalidade estiver habilitada.
+ * @async
+ * @param {any} message - A mensagem a ser potencialmente sanitizada.
+ * @returns {Promise<any>} A mensagem sanitizada ou original.
+ */
 const patchMessageBeforeSending = async (message) => {
   if (!BAILEYS_PATCH_MESSAGE_BEFORE_SENDING) return message;
   try {
@@ -201,6 +423,11 @@ const patchMessageBeforeSending = async (message) => {
   }
 };
 
+/**
+ * Constrói uma lista de participantes de grupo a partir de dados brutos do DB.
+ * @param {any} participantsRaw - Dados brutos dos participantes.
+ * @returns {Array<{id: string, admin?: 'admin' | 'superadmin'} | null>} Lista de participantes formatada.
+ */
 const buildCachedParticipants = (participantsRaw) => {
   const participants = parseParticipantsFromDb(participantsRaw);
   if (!Array.isArray(participants) || participants.length === 0) return [];
@@ -214,6 +441,12 @@ const buildCachedParticipants = (participantsRaw) => {
     .filter(Boolean);
 };
 
+/**
+ * Resolve metadados de grupo do cache local ou do banco de dados.
+ * @async
+ * @param {string} jid - O JID do grupo.
+ * @returns {Promise<object | undefined>} Metadados do grupo ou undefined.
+ */
 const resolveCachedGroupMetadata = async (jid) => {
   if (!jid || typeof jid !== 'string' || !jid.endsWith('@g.us')) return undefined;
 
@@ -251,11 +484,22 @@ const resolveCachedGroupMetadata = async (jid) => {
   }
 };
 
+/**
+ * Invalida o cache de metadados para um grupo específico.
+ * @param {string} groupId - O ID do grupo a ser invalidado no cache.
+ * @returns {void}
+ */
 const invalidateCachedGroupMetadata = (groupId) => {
   if (!groupId || typeof groupId !== 'string') return;
   groupMetadataCache.del(groupId);
 };
 
+/**
+ * Gera um resumo conciso do payload de um evento do Baileys para fins de log e persistência.
+ * @param {string} eventName - O nome do evento do Baileys.
+ * @param {any} payload - O payload do evento.
+ * @returns {object} Um objeto resumindo o payload.
+ */
 const summarizeBaileysEventPayload = (eventName, payload) => {
   if (payload === null) return { payloadType: 'null' };
   if (payload === undefined) return { payloadType: 'undefined' };
@@ -401,12 +645,22 @@ const summarizeBaileysEventPayload = (eventName, payload) => {
   return summary;
 };
 
+/**
+ * Determina se um evento específico do Baileys deve ser logado.
+ * @param {string} eventName - O nome do evento do Baileys.
+ * @returns {boolean} True se o evento deve ser logado, false caso contrário.
+ */
 const shouldLogBaileysEvent = (eventName) => {
   if (!BAILEYS_EVENT_LOG_ENABLED) return false;
   if (IS_PRODUCTION && BAILEYS_NOISY_EVENTS_IN_PRODUCTION.has(eventName)) return false;
   return true;
 };
 
+/**
+ * Registra os loggers para os eventos do Baileys.
+ * @param {import('@whiskeysockets/baileys').WASocket} sock - A instância do socket do Baileys.
+ * @returns {void}
+ */
 const registerBaileysEventLoggers = (sock) => {
   const eventsToLog = BAILEYS_EVENT_NAMES.filter((eventName) => !BAILEYS_EVENTS_WITH_INTERNAL_LOG.has(eventName) && shouldLogBaileysEvent(eventName));
 
@@ -430,12 +684,22 @@ const registerBaileysEventLoggers = (sock) => {
   });
 };
 
+/**
+ * Determina se um evento do Baileys deve ser persistido no diário de eventos.
+ * @param {string} eventName - O nome do evento do Baileys.
+ * @returns {boolean} True se o evento deve ser persistido, false caso contrário.
+ */
 const shouldPersistBaileysEvent = (eventName) => {
   if (!BAILEYS_EVENT_JOURNAL_ENABLED) return false;
   if (BAILEYS_EVENT_JOURNAL_ALL_EVENTS) return BAILEYS_EVENT_NAMES.includes(eventName);
   return BAILEYS_EVENT_JOURNAL_EVENTS.has(eventName);
 };
 
+/**
+ * Retorna a primeira string não vazia de uma lista de valores.
+ * @param {...(string | null | undefined)} values - Os valores a serem verificados.
+ * @returns {string | null} A primeira string não vazia encontrada ou null.
+ */
 const takeFirstString = (...values) => {
   for (const value of values) {
     if (typeof value !== 'string') continue;
@@ -445,6 +709,11 @@ const takeFirstString = (...values) => {
   return null;
 };
 
+/**
+ * Extrai referências (chatId, messageId, participantId) de um payload de evento do Baileys.
+ * @param {any} payload - O payload do evento do Baileys.
+ * @returns {{chatId: string | null, messageId: string | null, participantId: string | null}} Objeto contendo as referências extraídas.
+ */
 const extractBaileysEventReferences = (payload) => {
   const refs = {
     chatId: null,
@@ -510,6 +779,13 @@ const extractBaileysEventReferences = (payload) => {
   return refs;
 };
 
+/**
+ * Registra o mecanismo de diário (journal) para os eventos do Baileys.
+ * Eventos selecionados são enfileirados para persistência.
+ * @param {import('@whiskeysockets/baileys').WASocket} sock - A instância do socket do Baileys.
+ * @param {number} generation - A geração atual do socket.
+ * @returns {void}
+ */
 const registerBaileysEventJournal = (sock, generation) => {
   if (!BAILEYS_EVENT_JOURNAL_ENABLED) {
     logger.debug('Journal de eventos Baileys desativado por configuração.', {
@@ -679,17 +955,30 @@ async function getStoredMessage(key) {
   }
 }
 
+/**
+ * Limpa o timeout de reconexão agendado, se houver.
+ * @returns {void}
+ */
 const clearReconnectTimeout = () => {
   if (!reconnectTimeout) return;
   clearTimeout(reconnectTimeout);
   reconnectTimeout = null;
 };
 
+/**
+ * Reseta o estado das tentativas de reconexão.
+ * @returns {void}
+ */
 const resetReconnectState = () => {
   connectionAttempts = 0;
   reconnectWindowStartedAt = 0;
 };
 
+/**
+ * Calcula o número da próxima tentativa de reconexão.
+ * Reseta a contagem de tentativas se a janela de reconexão expirou.
+ * @returns {number} O número da próxima tentativa.
+ */
 const getNextReconnectAttempt = () => {
   const now = Date.now();
   if (!reconnectWindowStartedAt || now - reconnectWindowStartedAt >= BAILEYS_RECONNECT_ATTEMPT_RESET_MS) {
@@ -700,6 +989,12 @@ const getNextReconnectAttempt = () => {
   return connectionAttempts;
 };
 
+/**
+ * Agenda uma reconexão com o WhatsApp após um determinado atraso.
+ * Evita agendar múltiplas reconexões.
+ * @param {number} delay - O atraso em milissegundos antes de tentar a reconexão.
+ * @returns {void}
+ */
 const scheduleReconnect = (delay) => {
   if (reconnectTimeout) return;
   reconnectTimeout = setTimeout(
@@ -718,6 +1013,14 @@ const scheduleReconnect = (delay) => {
   );
 };
 
+/**
+ * Envolve uma promessa com um timeout. Se a promessa não resolver dentro do tempo limite, ela é rejeitada.
+ * @template T
+ * @param {Promise<T>} promise - A promessa a ser envolvida.
+ * @param {number} timeoutMs - O tempo limite em milissegundos.
+ * @param {string} [timeoutLabel='operation_timeout'] - Rótulo para o erro de timeout.
+ * @returns {Promise<T>} A promessa envolvida com timeout.
+ */
 const withTimeout = (promise, timeoutMs, timeoutLabel = 'operation_timeout') =>
   Promise.race([
     promise,
@@ -726,6 +1029,13 @@ const withTimeout = (promise, timeoutMs, timeoutLabel = 'operation_timeout') =>
     }),
   ]);
 
+/**
+ * Sincroniza metadados de grupos ao abrir a conexão com o WhatsApp.
+ * Busca todos os grupos participantes e os atualiza no banco de dados.
+ * @async
+ * @param {import('@whiskeysockets/baileys').WASocket} sock - A instância do socket do Baileys.
+ * @returns {Promise<void>}
+ */
 const syncGroupsOnConnectionOpen = async (sock) => {
   if (!GROUP_SYNC_ON_CONNECT) {
     logger.info('Sincronização de grupos no connect desativada por configuração.', {
@@ -776,6 +1086,7 @@ const syncGroupsOnConnectionOpen = async (sock) => {
 /**
  * Inicia e gerencia a conexão com o WhatsApp usando o Baileys.
  * Configura autenticação, cria o socket e registra handlers de eventos.
+ * Gerencia a lógica de reconexão e a distribuição de eventos.
  * @async
  * @returns {Promise<void>} Conclusão da inicialização e do registro de handlers.
  * @throws {Error} Lança erro se a conexão inicial falhar.
@@ -1198,11 +1509,11 @@ export async function connectToWhatsApp() {
 
 /**
  * Gerencia atualizações de estado da conexão com o WhatsApp.
- * Lida com QR code, reconexão automática e ações pós-conexão (sync de grupos).
+ * Lida com a exibição de QR code, reconexão automática e ações pós-conexão (como a sincronização de grupos).
  * @async
- * @param {import('@whiskeysockets/baileys').ConnectionState} update - Estado da conexão.
- * @param {import('@whiskeysockets/baileys').WASocket} sock - Instância do socket do WhatsApp.
- * @returns {Promise<void>} Conclusão do processamento do estado.
+ * @param {import('@whiskeysockets/baileys').ConnectionState} update - Objeto contendo o estado atual da conexão.
+ * @param {import('@whiskeysockets/baileys').WASocket} sock - Instância do socket do WhatsApp que disparou a atualização.
+ * @returns {Promise<void>} Uma promessa que resolve quando o processamento do estado da conexão é concluído.
  */
 async function handleConnectionUpdate(update, sock) {
   if (sock !== activeSocket) return;
@@ -1298,9 +1609,9 @@ async function handleConnectionUpdate(update, sock) {
 /**
  * Processa atualizações em mensagens existentes, como votos em enquetes.
  * @async
- * @param {Array<import('@whiskeysockets/baileys').WAMessageUpdate>} updates - Atualizações de mensagens.
+ * @param {Array<import('@whiskeysockets/baileys').WAMessageUpdate>} updates - Array de objetos de atualização de mensagens.
  * @param {import('@whiskeysockets/baileys').WASocket} sock - Instância do socket do WhatsApp.
- * @returns {Promise<void>} Conclusão do processamento das atualizações.
+ * @returns {Promise<void>} Uma promessa que resolve quando o processamento das atualizações é concluído.
  */
 async function handleMessageUpdate(updates, sock) {
   for (const { key, update } of updates) {
@@ -1365,12 +1676,11 @@ async function handleMessageUpdate(updates, sock) {
 
 /**
  * Atualiza metadados de grupos no banco MySQL a partir dos eventos do Baileys.
+ * Processa alterações de grupo (título, descrição, proprietário e participantes)
+ * persistindo a versão consolidada no MySQL.
  * @async
  * @param {Array<import('@whiskeysockets/baileys').GroupUpdate>} updates - Eventos de atualização de grupos.
  * @returns {Promise<void>} Conclusão das atualizações em lote.
- * @description
- * Processa alterações de grupo (título, descrição, proprietário e participantes)
- * persistindo a versão consolidada no MySQL.
  */
 async function handleGroupUpdate(updates) {
   await Promise.all(
@@ -1406,7 +1716,7 @@ async function handleGroupUpdate(updates) {
 
 /**
  * Retorna a instância atual do socket ativo do WhatsApp.
- * @returns {import('@whiskeysockets/baileys').WASocket | null} Socket ativo ou null.
+ * @returns {import('@whiskeysockets/baileys').WASocket | null} O objeto socket do Baileys ativo ou `null` se não houver conexão ativa.
  */
 export function getActiveSocket() {
   logger.debug('🔍 Recuperando instância do socket ativo.', {
@@ -1418,10 +1728,12 @@ export function getActiveSocket() {
 }
 
 /**
- * Executa método centralizado do socket ativo com mapeamento para erros HTTP.
- * @param {string} methodName Nome do método no socket.
- * @param {...any} args Argumentos repassados ao método.
- * @returns {Promise<any>}
+ * Executa um método centralizado no socket ativo, tratando erros e mapeando-os para respostas HTTP.
+ * @async
+ * @param {string} methodName - O nome do método a ser invocado no socket.
+ * @param {...any} args - Argumentos a serem repassados para o método do socket.
+ * @returns {Promise<any>} Uma promessa que resolve com o resultado do método do socket ou rejeita com um erro `Boom` em caso de falha.
+ * @throws {Boom} Retorna um erro HTTP 503 se o socket não estiver disponível, ou 501 se o método não existir.
  */
 async function runControllerSocketMethod(methodName, ...args) {
   try {
@@ -1445,191 +1757,211 @@ async function runControllerSocketMethod(methodName, ...args) {
 }
 
 /**
- * Retorna as configurações de privacidade da conta.
- * @param {boolean} [force=false] Força refresh no servidor.
- * @returns {Promise<Record<string, string>>}
+ * Retorna as configurações de privacidade da conta do WhatsApp.
+ * @async
+ * @param {boolean} [force=false] - Se `true`, força um refresh das configurações no servidor.
+ * @returns {Promise<Record<string, string>>} Um objeto contendo as configurações de privacidade.
  */
 export async function fetchPrivacySettings(force = false) {
   return runControllerSocketMethod('fetchPrivacySettings', force);
 }
 
 /**
- * Atualiza privacidade de mensagens.
- * @param {import('@whiskeysockets/baileys').WAPrivacyMessagesValue} value
- * @returns {Promise<void>}
+ * Atualiza a configuração de privacidade para mensagens.
+ * @async
+ * @param {import('@whiskeysockets/baileys').WAPrivacyMessagesValue} value - O novo valor da configuração de privacidade de mensagens.
+ * @returns {Promise<void>} Uma promessa que resolve quando a atualização é concluída.
  */
 export async function updateMessagesPrivacy(value) {
   return runControllerSocketMethod('updateMessagesPrivacy', value);
 }
 
 /**
- * Atualiza privacidade de chamadas.
- * @param {import('@whiskeysockets/baileys').WAPrivacyCallValue} value
- * @returns {Promise<void>}
+ * Atualiza a configuração de privacidade para chamadas.
+ * @async
+ * @param {import('@whiskeysockets/baileys').WAPrivacyCallValue} value - O novo valor da configuração de privacidade de chamadas.
+ * @returns {Promise<void>} Uma promessa que resolve quando a atualização é concluída.
  */
 export async function updateCallPrivacy(value) {
   return runControllerSocketMethod('updateCallPrivacy', value);
 }
 
 /**
- * Atualiza privacidade de visto por último.
- * @param {import('@whiskeysockets/baileys').WAPrivacyValue} value
- * @returns {Promise<void>}
+ * Atualiza a configuração de privacidade para "visto por último".
+ * @async
+ * @param {import('@whiskeysockets/baileys').WAPrivacyValue} value - O novo valor da configuração de privacidade de "visto por último".
+ * @returns {Promise<void>} Uma promessa que resolve quando a atualização é concluída.
  */
 export async function updateLastSeenPrivacy(value) {
   return runControllerSocketMethod('updateLastSeenPrivacy', value);
 }
 
 /**
- * Atualiza privacidade de online.
- * @param {import('@whiskeysockets/baileys').WAPrivacyOnlineValue} value
- * @returns {Promise<void>}
+ * Atualiza a configuração de privacidade para status "online".
+ * @async
+ * @param {import('@whiskeysockets/baileys').WAPrivacyOnlineValue} value - O novo valor da configuração de privacidade de status "online".
+ * @returns {Promise<void>} Uma promessa que resolve quando a atualização é concluída.
  */
 export async function updateOnlinePrivacy(value) {
   return runControllerSocketMethod('updateOnlinePrivacy', value);
 }
 
 /**
- * Atualiza privacidade da foto de perfil.
- * @param {import('@whiskeysockets/baileys').WAPrivacyValue} value
- * @returns {Promise<void>}
+ * Atualiza a configuração de privacidade da foto de perfil.
+ * @async
+ * @param {import('@whiskeysockets/baileys').WAPrivacyValue} value - O novo valor da configuração de privacidade da foto de perfil.
+ * @returns {Promise<void>} Uma promessa que resolve quando a atualização é concluída.
  */
 export async function updateProfilePicturePrivacy(value) {
   return runControllerSocketMethod('updateProfilePicturePrivacy', value);
 }
 
 /**
- * Atualiza privacidade de status.
- * @param {import('@whiskeysockets/baileys').WAPrivacyValue} value
- * @returns {Promise<void>}
+ * Atualiza a configuração de privacidade para status.
+ * @async
+ * @param {import('@whiskeysockets/baileys').WAPrivacyValue} value - O novo valor da configuração de privacidade de status.
+ * @returns {Promise<void>} Uma promessa que resolve quando a atualização é concluída.
  */
 export async function updateStatusPrivacy(value) {
   return runControllerSocketMethod('updateStatusPrivacy', value);
 }
 
 /**
- * Atualiza configuração de confirmação de leitura.
- * @param {import('@whiskeysockets/baileys').WAReadReceiptsValue} value
- * @returns {Promise<void>}
+ * Atualiza a configuração de privacidade para confirmações de leitura.
+ * @async
+ * @param {import('@whiskeysockets/baileys').WAReadReceiptsValue} value - O novo valor da configuração de privacidade de confirmações de leitura.
+ * @returns {Promise<void>} Uma promessa que resolve quando a atualização é concluída.
  */
 export async function updateReadReceiptsPrivacy(value) {
   return runControllerSocketMethod('updateReadReceiptsPrivacy', value);
 }
 
 /**
- * Atualiza privacidade para adição em grupos.
- * @param {import('@whiskeysockets/baileys').WAPrivacyGroupAddValue} value
- * @returns {Promise<void>}
+ * Atualiza a configuração de privacidade para adição em grupos.
+ * @async
+ * @param {import('@whiskeysockets/baileys').WAPrivacyGroupAddValue} value - O novo valor da configuração de privacidade de adição em grupos.
+ * @returns {Promise<void>} Uma promessa que resolve quando a atualização é concluída.
  */
 export async function updateGroupsAddPrivacy(value) {
   return runControllerSocketMethod('updateGroupsAddPrivacy', value);
 }
 
 /**
- * Atualiza privacidade de pré-visualização de links.
- * @param {boolean} isPreviewsDisabled
- * @returns {Promise<void>}
+ * Atualiza a configuração de privacidade para pré-visualização de links.
+ * @async
+ * @param {boolean} isPreviewsDisabled - Se `true`, desabilita a pré-visualização de links.
+ * @returns {Promise<void>} Uma promessa que resolve quando a atualização é concluída.
  */
 export async function updateDisableLinkPreviewsPrivacy(isPreviewsDisabled) {
   return runControllerSocketMethod('updateDisableLinkPreviewsPrivacy', isPreviewsDisabled);
 }
 
 /**
- * Atualiza modo padrão de mensagens temporárias.
- * @param {number} duration Duração em segundos.
- * @returns {Promise<void>}
+ * Atualiza o modo padrão de mensagens temporárias para novos chats.
+ * @async
+ * @param {number} duration - A duração em segundos para as mensagens temporárias (ex: 0 para desativar, 7 * 24 * 60 * 60 para 7 dias).
+ * @returns {Promise<void>} Uma promessa que resolve quando a atualização é concluída.
  */
 export async function updateDefaultDisappearingMode(duration) {
   return runControllerSocketMethod('updateDefaultDisappearingMode', duration);
 }
 
 /**
- * Envia atualização de presença.
- * @param {import('@whiskeysockets/baileys').WAPresence} type
- * @param {string} [toJid]
- * @returns {Promise<void>}
+ * Envia uma atualização de presença para um chat ou para o status geral.
+ * @async
+ * @param {import('@whiskeysockets/baileys').WAPresence} type - O tipo de presença a ser enviado (e.g., 'available', 'composing', 'paused').
+ * @param {string} [toJid] - O JID do destinatário para quem a presença será enviada (opcional).
+ * @returns {Promise<void>} Uma promessa que resolve quando a atualização de presença é enviada.
  */
 export async function sendPresenceUpdate(type, toJid) {
   return runControllerSocketMethod('sendPresenceUpdate', type, toJid);
 }
 
 /**
- * Inscreve presença de um JID.
- * @param {string} toJid
- * @returns {Promise<void>}
+ * Inscreve-se na presença de um JID específico para receber atualizações de status.
+ * @async
+ * @param {string} toJid - O JID do contato ou grupo cuja presença será observada.
+ * @returns {Promise<void>} Uma promessa que resolve quando a inscrição é concluída.
  */
 export async function presenceSubscribe(toJid) {
   return runControllerSocketMethod('presenceSubscribe', toJid);
 }
 
 /**
- * Executa alteração de chat via app patch.
- * @param {import('@whiskeysockets/baileys').ChatModification} mod
- * @param {string} jid
- * @returns {Promise<void>}
+ * Executa uma modificação em um chat (e.g., arquivar, marcar como lido, mutar).
+ * @async
+ * @param {import('@whiskeysockets/baileys').ChatModification} mod - O objeto de modificação do chat.
+ * @param {string} jid - O JID do chat a ser modificado.
+ * @returns {Promise<void>} Uma promessa que resolve quando a modificação é aplicada.
  */
 export async function chatModify(mod, jid) {
   return runControllerSocketMethod('chatModify', mod, jid);
 }
 
 /**
- * Atalho para arquivar/desarquivar chat.
- * @param {string} jid
- * @param {Array<import('@whiskeysockets/baileys').proto.IWebMessageInfo>} [lastMessages=[]]
- * @param {boolean} [archive=true]
- * @returns {Promise<void>}
+ * Atalho para arquivar ou desarquivar um chat.
+ * @async
+ * @param {string} jid - O JID do chat.
+ * @param {Array<import('@whiskeysockets/baileys').proto.IWebMessageInfo>} [lastMessages=[]] - Últimas mensagens do chat (opcional, para contexto).
+ * @param {boolean} [archive=true] - Se `true`, arquiva o chat; se `false`, desarquiva.
+ * @returns {Promise<void>} Uma promessa que resolve quando o chat é arquivado/desarquivado.
  */
 export async function setChatArchived(jid, lastMessages = [], archive = true) {
   return chatModify({ archive, lastMessages }, jid);
 }
 
 /**
- * Atalho para marcar chat como lido/não lido.
- * @param {string} jid
- * @param {Array<import('@whiskeysockets/baileys').proto.IWebMessageInfo>} [lastMessages=[]]
- * @param {boolean} [markRead=true]
- * @returns {Promise<void>}
+ * Atalho para marcar um chat como lido ou não lido.
+ * @async
+ * @param {string} jid - O JID do chat.
+ * @param {Array<import('@whiskeysockets/baileys').proto.IWebMessageInfo>} [lastMessages=[]] - Últimas mensagens do chat (opcional, para contexto).
+ * @param {boolean} [markRead=true] - Se `true`, marca o chat como lido; se `false`, marca como não lido.
+ * @returns {Promise<void>} Uma promessa que resolve quando o chat é marcado como lido/não lido.
  */
 export async function setChatRead(jid, lastMessages = [], markRead = true) {
   return chatModify({ markRead, lastMessages }, jid);
 }
 
 /**
- * Atalho para mutar/desmutar chat.
- * @param {string} jid
- * @param {number|null} muteMs Use `null` para desmutar.
- * @returns {Promise<void>}
+ * Atalho para mutar ou desmutar um chat.
+ * @async
+ * @param {string} jid - O JID do chat.
+ * @param {number|null} muteMs - A duração do mute em milissegundos. Use `null` ou `0` para desmutar.
+ * @returns {Promise<void>} Uma promessa que resolve quando o chat é mutado/desmutado.
  */
 export async function setChatMute(jid, muteMs) {
   return chatModify({ mute: muteMs }, jid);
 }
 
 /**
- * Busca histórico de mensagens sob demanda (até 50 por consulta).
- * @param {number} count Quantidade solicitada.
- * @param {import('@whiskeysockets/baileys').WAMessageKey} oldestMsgKey Chave da mensagem mais antiga.
- * @param {number|import('long').default} oldestMsgTimestamp Timestamp da mensagem mais antiga.
- * @returns {Promise<string>} Request id da operação.
+ * Busca um histórico de mensagens sob demanda para um chat específico.
+ * @async
+ * @param {number} count - A quantidade de mensagens a serem solicitadas.
+ * @param {import('@whiskeysockets/baileys').WAMessageKey} oldestMsgKey - A chave da mensagem mais antiga conhecida para iniciar a busca.
+ * @param {number|import('long').default} oldestMsgTimestamp - O timestamp da mensagem mais antiga conhecida.
+ * @returns {Promise<string>} Uma promessa que resolve com o ID da requisição da operação.
  */
 export async function fetchMessageHistory(count, oldestMsgKey, oldestMsgTimestamp) {
   return runControllerSocketMethod('fetchMessageHistory', count, oldestMsgKey, oldestMsgTimestamp);
 }
 
 /**
- * Solicita resend de placeholder para mensagem indisponível.
- * @param {import('@whiskeysockets/baileys').WAMessageKey} messageKey Chave da mensagem.
- * @param {Partial<import('@whiskeysockets/baileys').WAMessage>} [msgData] Dados auxiliares.
- * @returns {Promise<string|undefined>}
+ * Solicita o reenvio de um placeholder para uma mensagem indisponível.
+ * @async
+ * @param {import('@whiskeysockets/baileys').WAMessageKey} messageKey - A chave da mensagem para a qual o placeholder deve ser reenviado.
+ * @param {Partial<import('@whiskeysockets/baileys').WAMessage>} [msgData] - Dados auxiliares da mensagem (opcional).
+ * @returns {Promise<string|undefined>} Uma promessa que resolve com um ID de string ou `undefined`.
  */
 export async function requestPlaceholderResend(messageKey, msgData) {
   return runControllerSocketMethod('requestPlaceholderResend', messageKey, msgData);
 }
 
 /**
- * Rejeita chamada recebida.
- * @param {string} callId ID da chamada.
- * @param {string} callFrom JID de origem da chamada.
- * @returns {Promise<void>}
+ * Rejeita uma chamada recebida no WhatsApp.
+ * @async
+ * @param {string} callId - O ID da chamada a ser rejeitada.
+ * @param {string} callFrom - O JID do originador da chamada.
+ * @returns {Promise<void>} Uma promessa que resolve quando a chamada é rejeitada.
  */
 export async function rejectCall(callId, callFrom) {
   return runControllerSocketMethod('rejectCall', callId, callFrom);
@@ -1637,9 +1969,10 @@ export async function rejectCall(callId, callFrom) {
 
 /**
  * Força uma nova tentativa de conexão ao WhatsApp.
- * Encerra o socket atual (se existir) para disparar a lógica de reconexão.
+ * Encerra o socket ativo atual, se existir, para disparar a lógica de reconexão.
+ * Se nenhum socket estiver ativo, inicia uma nova conexão.
  * @async
- * @returns {Promise<void>} Conclusão do fluxo de reconexão.
+ * @returns {Promise<void>} Uma promessa que resolve quando o fluxo de reconexão é iniciado ou uma nova conexão é tentada.
  */
 export async function reconnectToWhatsApp() {
   // eslint-disable-next-line no-undef
