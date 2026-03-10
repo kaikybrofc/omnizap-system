@@ -211,6 +211,17 @@ CREATE TABLE IF NOT EXISTS `baileys_event_journal` (
   KEY `idx_baileys_event_participant_created` (`participant_id`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `baileys_auth_state` (
+  `session_id` varchar(64) NOT NULL,
+  `category` varchar(64) NOT NULL,
+  `item_id` varchar(191) NOT NULL,
+  `payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`payload`)),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`session_id`,`category`,`item_id`),
+  KEY `idx_baileys_auth_state_category_updated` (`category`,`updated_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `messages` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `message_id` varchar(255) NOT NULL,

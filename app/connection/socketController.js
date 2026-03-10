@@ -1,4 +1,4 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage, areJidsSameUser, WAMessageStatus, WAMessageStubType } from '@whiskeysockets/baileys';
+import makeWASocket, { DisconnectReason, Browsers, getAggregateVotesInPollMessage, areJidsSameUser, WAMessageStatus, WAMessageStubType } from '@whiskeysockets/baileys';
 
 import NodeCache from 'node-cache';
 import { parseEnvBool, parseEnvCsv, parseEnvInt, resolveBaileysVersion, resolveAddressingModeFromMessageKey, normalizeAddressingMode, normalizePnToJid } from '../config/index.js';
@@ -17,11 +17,12 @@ import { resolveCaptchaByReaction } from '../services/captchaService.js';
 
 import { handleGroupUpdate as handleGroupParticipantsEvent, handleGroupJoinRequest } from '../modules/adminModule/groupEventHandlers.js';
 
-import { findBy, findById, remove } from '../../database/index.js';
+import { dbConfig, executeQuery, findBy, findById, pool, remove } from '../../database/index.js';
 import { extractSenderInfoFromMessage, primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../config/index.js';
 import { queueBaileysEventInsert, queueChatUpdate, queueLidUpdate, queueMessageInsert } from '../services/dbWriteQueue.js';
 import { buildGroupMetadataFromGroup, buildGroupMetadataFromUpdate, upsertGroupMetadata, parseParticipantsFromDb } from '../services/groupMetadataService.js';
 import { buildMessageData } from '../services/messagePersistenceService.js';
+import { useDbAuthState } from './baileysDbAuthState.js';
 
 import { fileURLToPath } from 'node:url';
 
@@ -131,6 +132,45 @@ const BAILEYS_GROUP_METADATA_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS
  * @type {number}
  */
 const BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS, 60, 10, 1800);
+/**
+ * Identificador lógico da sessão de autenticação do Baileys no MySQL.
+ * Permite isolar múltiplas sessões no mesmo banco.
+ * @type {string}
+ */
+const BAILEYS_AUTH_SESSION_ID = (() => {
+  const raw = String(process.env.BAILEYS_AUTH_SESSION_ID || '').trim();
+  return raw || 'default';
+})();
+/**
+ * Habilita bootstrap inicial do auth state no MySQL usando os arquivos locais legados.
+ * @type {boolean}
+ */
+const BAILEYS_AUTH_BOOTSTRAP_FROM_FILES = parseEnvBool(process.env.BAILEYS_AUTH_BOOTSTRAP_FROM_FILES, true);
+/**
+ * Habilita lock de escritor único para evitar múltiplos processos escrevendo a mesma sessão.
+ * @type {boolean}
+ */
+const BAILEYS_SINGLE_WRITER_LOCK_ENABLED = parseEnvBool(process.env.BAILEYS_SINGLE_WRITER_LOCK_ENABLED, true);
+/**
+ * Timeout (segundos) para tentar adquirir lock de escritor único no MySQL.
+ * @type {number}
+ */
+const BAILEYS_SINGLE_WRITER_LOCK_TIMEOUT_SECONDS = parseEnvInt(process.env.BAILEYS_SINGLE_WRITER_LOCK_TIMEOUT_SECONDS, 2, 0, 60);
+/**
+ * Atraso para nova tentativa quando lock de escritor único estiver ocupado.
+ * @type {number}
+ */
+const BAILEYS_SINGLE_WRITER_LOCK_RETRY_DELAY_MS = parseEnvInt(process.env.BAILEYS_SINGLE_WRITER_LOCK_RETRY_DELAY_MS, 15_000, 1_000, 300_000);
+/**
+ * Nome do lock de escritor único usado no MySQL.
+ * @type {string}
+ */
+const BAILEYS_SINGLE_WRITER_LOCK_NAME = (() => {
+  const raw = String(process.env.BAILEYS_SINGLE_WRITER_LOCK_NAME || '').trim();
+  if (raw) return raw;
+  const dbLabel = String(dbConfig?.database || 'db').replace(/[^a-zA-Z0-9:_-]+/g, '_');
+  return `omnizap:baileys:writer:${dbLabel}`;
+})();
 /**
  * Habilita ou desabilita o diário de eventos do Baileys.
  * @type {boolean}
@@ -297,6 +337,11 @@ let connectPromise = null;
  * @type {number}
  */
 let socketGeneration = 0;
+/**
+ * Conexão MySQL dedicada para manter lock de escritor único do Baileys.
+ * @type {import('mysql2/promise').PoolConnection | null}
+ */
+let baileysWriterLockConnection = null;
 /**
  * Nomes de todos os eventos do Baileys que são monitorados.
  * @type {string[]}
@@ -1014,6 +1059,108 @@ const scheduleReconnect = (delay) => {
 };
 
 /**
+ * Libera lock de escritor único do Baileys, se estiver ativo.
+ * @param {string} reason
+ * @returns {Promise<void>}
+ */
+const releaseBaileysWriterLock = async (reason = 'unknown') => {
+  const connection = baileysWriterLockConnection;
+  if (!connection) return;
+
+  baileysWriterLockConnection = null;
+
+  try {
+    const rows = await executeQuery('SELECT RELEASE_LOCK(?) AS released', [BAILEYS_SINGLE_WRITER_LOCK_NAME], connection);
+    const released = Number(rows?.[0]?.released) === 1;
+    logger.info('Lock de escritor do Baileys liberado.', {
+      action: 'baileys_writer_lock_released',
+      reason,
+      released,
+      lockName: BAILEYS_SINGLE_WRITER_LOCK_NAME,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.warn('Falha ao liberar lock de escritor do Baileys.', {
+      action: 'baileys_writer_lock_release_error',
+      reason,
+      lockName: BAILEYS_SINGLE_WRITER_LOCK_NAME,
+      errorMessage: error?.message,
+      timestamp: new Date().toISOString(),
+    });
+  } finally {
+    try {
+      connection.release();
+    } catch (error) {
+      logger.debug('Conexao dedicada do lock ja estava encerrada.', {
+        action: 'baileys_writer_lock_connection_already_closed',
+        errorMessage: error?.message,
+      });
+    }
+  }
+};
+
+/**
+ * Garante lock de escritor único para a sessão do Baileys.
+ * @returns {Promise<boolean>}
+ */
+const ensureBaileysWriterLock = async () => {
+  if (!BAILEYS_SINGLE_WRITER_LOCK_ENABLED) {
+    return true;
+  }
+
+  if (baileysWriterLockConnection) {
+    return true;
+  }
+
+  const connection = await pool.getConnection();
+
+  try {
+    const rows = await executeQuery('SELECT GET_LOCK(?, ?) AS lock_status', [BAILEYS_SINGLE_WRITER_LOCK_NAME, BAILEYS_SINGLE_WRITER_LOCK_TIMEOUT_SECONDS], connection);
+    const lockStatus = Number(rows?.[0]?.lock_status);
+    if (lockStatus !== 1) {
+      connection.release();
+      logger.warn('Nao foi possivel adquirir lock de escritor do Baileys nesta tentativa.', {
+        action: 'baileys_writer_lock_busy',
+        lockName: BAILEYS_SINGLE_WRITER_LOCK_NAME,
+        timeoutSeconds: BAILEYS_SINGLE_WRITER_LOCK_TIMEOUT_SECONDS,
+        status: Number.isFinite(lockStatus) ? lockStatus : null,
+        retryAfterMs: BAILEYS_SINGLE_WRITER_LOCK_RETRY_DELAY_MS,
+        timestamp: new Date().toISOString(),
+      });
+      return false;
+    }
+
+    baileysWriterLockConnection = connection;
+    logger.info('Lock de escritor do Baileys adquirido com sucesso.', {
+      action: 'baileys_writer_lock_acquired',
+      lockName: BAILEYS_SINGLE_WRITER_LOCK_NAME,
+      timeoutSeconds: BAILEYS_SINGLE_WRITER_LOCK_TIMEOUT_SECONDS,
+      timestamp: new Date().toISOString(),
+    });
+    return true;
+  } catch (error) {
+    try {
+      connection.release();
+    } catch {
+      // Ignora falhas ao liberar conexão após erro de aquisição.
+    }
+    throw error;
+  }
+};
+
+process.once('beforeExit', () => {
+  releaseBaileysWriterLock('before_exit').catch(() => {});
+});
+
+process.once('SIGINT', () => {
+  releaseBaileysWriterLock('sigint').catch(() => {});
+});
+
+process.once('SIGTERM', () => {
+  releaseBaileysWriterLock('sigterm').catch(() => {});
+});
+
+/**
  * Envolve uma promessa com um timeout. Se a promessa não resolver dentro do tempo limite, ela é rejeitada.
  * @template T
  * @param {Promise<T>} promise - A promessa a ser envolvida.
@@ -1106,19 +1253,31 @@ export async function connectToWhatsApp() {
   });
   connectPromise = (async () => {
     clearReconnectTimeout();
+    const isWriterReady = await ensureBaileysWriterLock();
+    if (!isWriterReady) {
+      scheduleReconnect(BAILEYS_SINGLE_WRITER_LOCK_RETRY_DELAY_MS);
+      return;
+    }
+
     const generation = ++socketGeneration;
-    const authPath = path.join(__dirname, 'auth');
-    const { state, saveCreds } = await useMultiFileAuthState(authPath);
+    const legacyAuthPath = path.join(__dirname, 'auth');
+    const { state, saveCreds } = await useDbAuthState({
+      sessionId: BAILEYS_AUTH_SESSION_ID,
+      bootstrapFromDir: legacyAuthPath,
+      bootstrapFromFiles: BAILEYS_AUTH_BOOTSTRAP_FROM_FILES,
+    });
 
     const version = await resolveBaileysVersion();
 
     logger.debug('Dados de autenticação carregados com sucesso.', {
-      authPath,
+      authSessionId: BAILEYS_AUTH_SESSION_ID,
+      bootstrappedFromFiles: BAILEYS_AUTH_BOOTSTRAP_FROM_FILES,
       version,
       generation,
     });
 
-    const sock = makeWASocket({
+    /** @type {import('@whiskeysockets/baileys').UserFacingSocketConfig} */
+    const socketConfig = {
       version,
       auth: state,
       logger: pino({ level: 'silent' }),
@@ -1137,7 +1296,9 @@ export async function connectToWhatsApp() {
       enableAutoSessionRecreation: BAILEYS_ENABLE_AUTO_SESSION_RECREATION,
       enableRecentMessageCache: BAILEYS_ENABLE_RECENT_MESSAGE_CACHE,
       generateHighQualityLinkPreview: BAILEYS_GENERATE_HIGH_QUALITY_LINK_PREVIEW,
-    });
+    };
+
+    const sock = makeWASocket(socketConfig);
 
     activeSocket = sock;
     storeActiveSocket(sock);
@@ -1572,6 +1733,9 @@ async function handleConnectionUpdate(update, sock) {
         errorMessage,
         timestamp: new Date().toISOString(),
       });
+      activeSocket = null;
+      storeActiveSocket(null);
+      await releaseBaileysWriterLock('connection_closed_no_reconnect');
     }
   }
 

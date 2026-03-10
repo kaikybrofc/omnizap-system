@@ -101,6 +101,7 @@ export const TABLES = {
   AI_COMMAND_CONFIG_ENRICHMENT_STATE: 'ai_command_config_enrichment_state',
   MESSAGE_ANALYSIS_EVENT: 'message_analysis_event',
   BAILEYS_EVENT_JOURNAL: 'baileys_event_journal',
+  BAILEYS_AUTH_STATE: 'baileys_auth_state',
   CHATS: 'chats',
   GROUPS_METADATA: 'groups_metadata',
   GROUP_CONFIGS: 'group_configs',

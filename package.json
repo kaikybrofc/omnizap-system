@@ -58,6 +58,7 @@
     "readme:sync-snapshot": "node ./scripts/sync-readme-snapshot.mjs",
     "wiki:sync": "bash ./scripts/wiki-sync.sh",
     "loadtest:stickers": "node ./scripts/sticker-catalog-loadtest.mjs",
+    "baileys:smoke": "node ./scripts/baileys-compat-smoke.mjs",
     "worker:sticker:classification": "node ./scripts/sticker-worker-task.mjs --task-type classification_cycle",
     "worker:sticker:curation": "node ./scripts/sticker-worker-task.mjs --task-type curation_cycle",
     "worker:sticker:rebuild": "node ./scripts/sticker-worker-task.mjs --task-type rebuild_cycle",
@@ -83,7 +84,7 @@
   "dependencies": {
     "@hapi/boom": "^10.0.1",
     "@kaikybrofc/logger-module": "^1.0.4",
-    "@whiskeysockets/baileys": "github:jlucaso1/Baileys#feat-add-stickerpack-support",
+    "@whiskeysockets/baileys": "github:jlucaso1/Baileys#be89465e07afa871cf3f0e19cabfec9780db6be7",
     "argon2": "^0.44.0",
     "axios": "^1.13.5",
     "canvas": "^3.2.1",

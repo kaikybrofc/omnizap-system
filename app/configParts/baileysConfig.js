@@ -659,9 +659,14 @@ export async function resolveBaileysVersion() {
   }
 
   if (process.env.BAILEYS_VERSION) {
-    logger.warn('Valor invalido em BAILEYS_VERSION; usando versao recomendada.', {
+    logger.warn('Valor invalido em BAILEYS_VERSION; usando fallback local.', {
       provided: process.env.BAILEYS_VERSION,
     });
+  }
+
+  const shouldFetchLatest = parseEnvBool(process.env.BAILEYS_FETCH_LATEST_VERSION, false);
+  if (!shouldFetchLatest) {
+    return DEFAULT_BAILEYS_VERSION;
   }
 
   try {
@@ -979,6 +984,10 @@ const BACKFILL_SOURCE = 'backfill';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const BAILEYS_AUTH_DIR = path.resolve(__dirname, '../connection/auth');
+const BAILEYS_AUTH_SESSION_ID = (() => {
+  const raw = String(process.env.BAILEYS_AUTH_SESSION_ID || '').trim();
+  return raw || 'default';
+})();
 
 const lidCache = new Map();
 const lidWriteBuffer = new Map();
@@ -1035,6 +1044,25 @@ const resolveAuthStoreJidByLid = async (lid) => {
 
   if (authReverseLidCache.has(rootUser)) {
     return authReverseLidCache.get(rootUser);
+  }
+
+  try {
+    const authStateTable = TABLES.BAILEYS_AUTH_STATE;
+    if (authStateTable) {
+      const rows = await executeQuery(`SELECT payload FROM \`${authStateTable}\` WHERE session_id = ? AND category = ? AND item_id = ? LIMIT 1`, [BAILEYS_AUTH_SESSION_ID, 'lid-mapping', `${rootUser}_reverse`]);
+      const payload = rows?.[0]?.payload;
+      if (payload !== undefined && payload !== null) {
+        const phoneDigits = parseReverseMappingPhoneDigits(payload);
+        const resolvedJid = phoneDigits ? normalizeWhatsAppJid(`${phoneDigits}@s.whatsapp.net`) : null;
+        authReverseLidCache.set(rootUser, resolvedJid);
+        return resolvedJid;
+      }
+    }
+  } catch (error) {
+    logger.warn('Falha ao resolver LID via auth state MySQL.', {
+      lid: normalizedLid,
+      error: error?.message,
+    });
   }
 
   const reverseFilePath = path.join(BAILEYS_AUTH_DIR, `lid-mapping-${rootUser}_reverse.json`);
