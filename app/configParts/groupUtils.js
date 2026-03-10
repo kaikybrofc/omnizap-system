@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { findById, findAll, TABLES } from '../../database/index.js';
 import { isGroupJid, isLidJid, isSameJidUser, isWhatsAppJid, normalizeJid } from './baileysConfig.js';
 import { parseParticipantsFromDb } from '../services/groupMetadataService.js';

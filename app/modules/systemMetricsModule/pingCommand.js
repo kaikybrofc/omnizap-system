@@ -1,4 +1,4 @@
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 

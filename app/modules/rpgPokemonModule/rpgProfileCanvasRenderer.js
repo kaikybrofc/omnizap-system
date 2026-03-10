@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { createCanvas, loadImage } from 'canvas';
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 
 const WIDTH = 1600;
 const HEIGHT = 1200;

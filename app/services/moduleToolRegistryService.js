@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { buildFunctionToolFromCommandConfig } from './commandToolBuilderService.js';
 
 const MODULES_DIR = path.resolve(process.cwd(), 'app/modules');

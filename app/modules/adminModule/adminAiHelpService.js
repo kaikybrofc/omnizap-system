@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { createModuleAiHelpService } from '../../services/moduleAiHelpCoreService.js';
 import { getAdminCommandEntry, getAdminModuleConfig, resolveAdminCommandName } from './adminConfigRuntime.js';
 

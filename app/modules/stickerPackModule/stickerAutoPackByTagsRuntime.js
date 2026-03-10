@@ -1,4 +1,4 @@
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { getActiveSocket } from '../../config/index.js';
 import { normalizeJid, resolveBotJid } from '../../config/index.js';
 import { recordStickerAutoPackCycle } from '../../observability/metrics.js';

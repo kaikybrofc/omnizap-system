@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { getToolRecord } from '../services/moduleToolRegistryService.js';
 import { applyCommandConfigEnrichmentSuggestion, getCommandConfigEnrichmentCursor, listLearningEventsForCommandConfigEnrichment, saveCommandConfigEnrichmentSuggestion, updateCommandConfigEnrichmentCursor } from '../services/commandConfigEnrichmentRepository.js';
 import { generateCommandConfigEnrichmentSuggestion } from '../services/commandConfigEnrichmentService.js';

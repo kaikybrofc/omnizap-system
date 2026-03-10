@@ -6,7 +6,7 @@ import { extractSupportedStickerMediaDetails, processSticker } from '../modules/
 import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, isGroupJid, isSameJidUser, normalizeJid, resolveBotJid, extractSenderInfoFromMessage, resolveUserId, resolveAddressingModeFromMessageKey, resolveCanonicalWhatsAppJid, parseEnvBool, parseEnvInt } from '../config/index.js';
 import { isUserAdmin } from '../config/index.js';
 import { isAdminSenderAsync } from '../config/index.js';
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { maybeCaptureIncomingSticker } from '../modules/stickerPackModule/stickerPackCommandHandlers.js';
 import groupConfigStore from '../store/groupConfigStore.js';

@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { normalizeOwnerJid } from './stickerPackUtils.js';
 
 const parseEnvBool = (value, fallback) => {

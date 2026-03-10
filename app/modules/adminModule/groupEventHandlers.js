@@ -1,5 +1,5 @@
 import groupConfigStore from '../../store/groupConfigStore.js';
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { getGroupMetadata, getGroupInviteCode, getGroupRequestParticipantsList, updateGroupRequestParticipants } from '../../config/index.js';
 import { getJidUser, isSameJidUser, resolveBotJid } from '../../config/index.js';
 import { updateGroupParticipantsFromAction } from '../../services/groupMetadataService.js';

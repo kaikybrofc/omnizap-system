@@ -1,4 +1,4 @@
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { resolveBotJid } from '../../config/index.js';
 import { isWhatsAppUserId } from '../../config/index.js';
 import { buildRankingMessage, getRankingReport, renderRankingImage } from './rankingCommon.js';

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { adminAiHelpWrapper } from '../modules/adminModule/adminAiHelpService.js';
 import { aiAiHelpWrapper } from '../modules/aiModule/aiAiHelpService.js';
 import { gameAiHelpWrapper } from '../modules/gameModule/gameAiHelpService.js';

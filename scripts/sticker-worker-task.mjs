@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import 'dotenv/config';
 
-import logger from '../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import initializeDatabase from '../database/init.js';
 import { closePool } from '../database/index.js';
 import { isSupportedStickerWorkerTaskType, startDedicatedStickerWorker } from '../app/modules/stickerPackModule/stickerDedicatedTaskWorkerRuntime.js';

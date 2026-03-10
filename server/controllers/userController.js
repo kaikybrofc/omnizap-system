@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { DEFAULT_LEGACY_STICKER_API_BASE_PATH, DEFAULT_USER_API_BASE_PATH, isUserApiPath, normalizeBasePath, resolveLegacyUserApiPath } from '../routes/user/userApiPaths.js';
 
 const LEGACY_STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PATH, DEFAULT_LEGACY_STICKER_API_BASE_PATH);

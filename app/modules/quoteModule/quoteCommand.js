@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { getJidUser } from '../../config/index.js';
 import { resolveUserId } from '../../config/index.js';
 import { runSocketMethod } from '../../config/index.js';

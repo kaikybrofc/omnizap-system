@@ -3,7 +3,7 @@ import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { downloadMediaMessage, extractMediaDetails, getJidUser } from '../../config/index.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { getStickerUsageText } from './stickerConfigRuntime.js';

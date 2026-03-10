@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { getJidUser } from '../config/index.js';
 import { isUserAdmin, updateGroupParticipants } from '../config/index.js';
 import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../config/index.js';

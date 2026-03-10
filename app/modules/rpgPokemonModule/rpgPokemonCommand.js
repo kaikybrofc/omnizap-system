@@ -1,6 +1,6 @@
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { resolveUserIdCached } from '../../config/index.js';
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { buildRpgHelpText, buildUsageText } from './rpgPokemonMessages.js';
 import { executeRpgPokemonAction } from './rpgPokemonService.js';
 import { getRpgPokemonUsageText } from './rpgPokemonConfigRuntime.js';

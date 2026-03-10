@@ -1,5 +1,5 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 
 import { createUserPasswordAuthService } from './userPasswordAuthService.js';
 

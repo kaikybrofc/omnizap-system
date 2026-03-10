@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { insertLearnedKeywords, insertLearnedPatterns, listPendingLearningEvents, markLearningEventsProcessed } from '../services/aiLearningRepository.js';
 import { getAllToolRecords, getToolRegistryStats } from '../services/moduleToolRegistryService.js';
 import { markToolCandidateLearningCacheDirty } from '../services/toolCandidateSelectorService.js';

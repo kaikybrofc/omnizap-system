@@ -1,4 +1,4 @@
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { readStickerAssetBuffer } from './stickerStorageService.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';

@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { queueMessageInsert } from './dbWriteQueue.js';
 
 const parseEnvInt = (value, fallback, min, max) => {

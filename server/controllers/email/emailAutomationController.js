@@ -1,4 +1,4 @@
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { getEmailAutomationStatusSnapshot, queueAutomatedEmail } from '../../email/emailAutomationService.js';
 import { isEmailAutomationRuntimeEnabled, isEmailAutomationRuntimeRunning } from '../../email/emailAutomationRuntime.js';
 import { getEmailTransportMetadata } from '../../email/emailTransportService.js';

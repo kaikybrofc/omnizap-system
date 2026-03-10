@@ -29,7 +29,7 @@ import { handleTikTokCommand } from '../modules/tiktokModule/tiktokCommand.js';
 import { resolveTikTokCommandName } from '../modules/tiktokModule/tiktokConfigRuntime.js';
 import { handleRpgPokemonCommand } from '../modules/rpgPokemonModule/rpgPokemonCommand.js';
 import { resolveRpgPokemonCommandName } from '../modules/rpgPokemonModule/rpgPokemonConfigRuntime.js';
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 
 const normalizeCommand = (value) =>
   String(value || '')

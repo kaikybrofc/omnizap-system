@@ -3,7 +3,7 @@ import { downloadMediaMessage, getJidServer, isLidJid, isSameJidUser, isWhatsApp
 import { isUserAdmin, createGroup, acceptGroupInvite, getGroupInfo, getGroupRequestParticipantsList, updateGroupAddMode, updateGroupSettings, updateGroupParticipants, leaveGroup, getGroupInviteCode, revokeGroupInviteCode, getGroupInfoFromInvite, updateGroupRequestParticipants, updateGroupSubject, updateGroupDescription, toggleEphemeral } from '../../config/index.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { KNOWN_NETWORKS } from '../../utils/antiLink/antiLinkModule.js';
 import { getNewsStatusForGroup, startNewsBroadcastForGroup, stopNewsBroadcastForGroup } from '../../services/newsBroadcastService.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';

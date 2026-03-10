@@ -3,7 +3,7 @@ import NodeCache from 'node-cache';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import aiPromptStore from '../../store/aiPromptStore.js';
 import { downloadMediaMessage, extractAllMediaDetails, getJidUser, isSameJidUser, normalizeJid } from '../../config/index.js';

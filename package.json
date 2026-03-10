@@ -78,6 +78,7 @@
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
+    "@kaikybrofc/logger-module": "^1.0.4",
     "@whiskeysockets/baileys": "github:jlucaso1/Baileys#feat-add-stickerpack-support",
     "argon2": "^0.44.0",
     "axios": "^1.13.5",

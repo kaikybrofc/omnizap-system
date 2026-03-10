@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const MB = 1024 * 1024;

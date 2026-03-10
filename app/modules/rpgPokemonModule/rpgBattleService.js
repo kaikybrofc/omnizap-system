@@ -1,5 +1,5 @@
 import { getEffectText, getAbility, getEvolutionChain, getFlavorText, getLocalizedGenus, getLocalizedName, getMove, getNature, getPokemon, getPokemonImage, getSpecies, getType } from '../../services/pokeApiService.js';
-import logger from '../../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 
 const MIN_LEVEL = 1;
 const MAX_LEVEL = 100;

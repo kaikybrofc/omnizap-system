@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '@kaikybrofc/logger-module';
 import { executeQuery, TABLES } from '../../database/index.js';
 
 const MAX_QUESTION_LENGTH = 512;
