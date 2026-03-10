@@ -1,14 +1,12 @@
 import makeWASocket, { DisconnectReason, Browsers, getAggregateVotesInPollMessage, areJidsSameUser, WAMessageStatus, WAMessageStubType } from '@whiskeysockets/baileys';
 
 import NodeCache from 'node-cache';
-import { parseEnvBool, parseEnvCsv, parseEnvInt, resolveBaileysVersion, resolveAddressingModeFromMessageKey, normalizeAddressingMode, normalizePnToJid } from '../config/index.js';
+import { parseEnvBool, parseEnvCsv, parseEnvInt, resolveBaileysVersion, resolveAddressingModeFromMessageKey, normalizeAddressingMode, normalizePnToJid, baileysConnectionLogger as logger, baileysSocketLogger } from '../config/index.js';
 
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
 import path from 'node:path';
 
-import pino from 'pino';
-import logger from '#logger';
 import { handleMessages } from '../controllers/messageController.js';
 import { syncNewsBroadcastService } from '../services/newsBroadcastService.js';
 import { setActiveSocket as storeActiveSocket, runActiveSocketMethod, isSocketOpen } from '../config/index.js';
@@ -1280,7 +1278,7 @@ export async function connectToWhatsApp() {
     const socketConfig = {
       version,
       auth: state,
-      logger: pino({ level: 'silent' }),
+      logger: baileysSocketLogger,
       browser: Browsers.macOS('Desktop'),
       qrTimeout: 30000,
       syncFullHistory: false,

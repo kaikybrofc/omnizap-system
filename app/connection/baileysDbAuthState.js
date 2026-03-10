@@ -2,7 +2,7 @@ import { initAuthCreds, proto } from '@whiskeysockets/baileys';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import logger from '#logger';
+import { baileysAuthLogger as logger } from '../config/index.js';
 import { TABLES, executeQuery, pool } from '../../database/index.js';
 
 const AUTH_TABLE = TABLES.BAILEYS_AUTH_STATE;

@@ -2,7 +2,7 @@
 /* eslint-disable no-useless-escape */
 import { fetchLatestBaileysVersion, downloadContentFromMessage, jidNormalizedUser, jidEncode, jidDecode, areJidsSameUser, normalizeMessageContent, isJidMetaAI, isPnUser, isLidUser, isJidBroadcast, isJidGroup, isJidStatusBroadcast, isJidNewsletter, isHostedPnUser, isHostedLidUser, isJidBot, SERVER_JID, PSA_WID, STORIES_JID, META_AI_JID } from '@whiskeysockets/baileys';
 
-import logger from '#logger';
+import { baileysConfigLogger as logger } from './loggerConfig.js';
 import { executeQuery, TABLES } from '../../database/index.js';
 import { buildRowPlaceholders, createFlushRunner } from '../services/queueUtils.js';
 import { recordError, setQueueDepth } from '../observability/metrics.js';
