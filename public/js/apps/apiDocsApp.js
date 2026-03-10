@@ -32,12 +32,12 @@ function StatusPanel() {
     const load = async () => {
       const start = Date.now();
       try {
-        const response = await fetch('/api/sticker-packs/system-summary');
+        const response = await fetch('/api/home-bootstrap');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const payload = await response.json();
-        const data = payload?.data || {};
-        const host = data.host || {};
-        const process = data.process || {};
+        const summary = payload?.data?.system_summary || {};
+        const host = summary.host || {};
+        const process = summary.process || {};
 
         if (!active) return;
         setState({
@@ -133,7 +133,7 @@ function ApiDocsApp() {
     }),
     h(Card, {
       title: 'Contato de suporte',
-      code: 'GET /api/sticker-packs/support',
+      code: 'GET /api/support',
       iconClass: 'fa-brands fa-whatsapp',
     }),
     h(Card, {
@@ -143,17 +143,17 @@ function ApiDocsApp() {
     }),
     h(Card, {
       title: 'Resumo de métricas do sistema',
-      code: 'GET /api/sticker-packs/system-summary',
+      code: 'GET /api/system-summary',
       iconClass: 'fa-solid fa-gauge-high',
     }),
     h(Card, {
       title: 'Resumo do projeto no GitHub',
-      code: 'GET /api/sticker-packs/project-summary',
+      code: 'GET /api/project-summary',
       iconClass: 'fa-brands fa-github',
     }),
     h(Card, {
       title: 'Ranking global (cacheado)',
-      code: 'GET /api/sticker-packs/global-ranking-summary',
+      code: 'GET /api/global-ranking-summary',
       iconClass: 'fa-solid fa-ranking-star',
     }),
     h(SectionTitle, { iconClass: 'fa-solid fa-brackets-curly' }, 'Como a API responde'),
@@ -191,7 +191,7 @@ function ApiDocsApp() {
     }),
     h(Card, {
       title: 'Exemplo cURL',
-      code: 'curl -sS "https://omnizap.shop/api/sticker-packs?visibility=public&limit=5"\n' + 'curl -sS "https://omnizap.shop/api/sticker-packs?categories=anime,meme&limit=12"\n' + 'curl -sS "https://omnizap.shop/api/sticker-packs/orphan-stickers?limit=20&offset=0"\n' + 'curl -sS -X POST "https://omnizap.shop/api/sticker-packs/<packKey>/open"\n' + 'curl -sS -X POST "https://omnizap.shop/api/sticker-packs/<packKey>/like"\n' + 'curl -sS "https://omnizap.shop/api/sticker-packs/support"\n' + 'curl -sS "https://omnizap.shop/api/sticker-packs/system-summary"\n' + 'curl -sS "https://omnizap.shop/api/sticker-packs/project-summary"',
+      code: 'curl -sS "https://omnizap.shop/api/sticker-packs?visibility=public&limit=5"\n' + 'curl -sS "https://omnizap.shop/api/sticker-packs?categories=anime,meme&limit=12"\n' + 'curl -sS "https://omnizap.shop/api/sticker-packs/orphan-stickers?limit=20&offset=0"\n' + 'curl -sS -X POST "https://omnizap.shop/api/sticker-packs/<packKey>/open"\n' + 'curl -sS -X POST "https://omnizap.shop/api/sticker-packs/<packKey>/like"\n' + 'curl -sS "https://omnizap.shop/api/support"\n' + 'curl -sS "https://omnizap.shop/api/system-summary"\n' + 'curl -sS "https://omnizap.shop/api/project-summary"',
       iconClass: 'fa-solid fa-terminal',
     }),
     h(Card, {

@@ -1,4 +1,158 @@
-export const createStickerCatalogNonCatalogHandlers = ({ sendJson, sendText, logger, getSystemSummaryCached, systemSummaryCache, systemSummaryCacheSeconds, getReadmeSummaryCached, readmeSummaryCache, readmeSummaryCacheSeconds, getGlobalRankingSummaryCached, globalRankRefreshSeconds, globalRankCache, sanitizeRankingPayloadByBot, getActiveSocket, resolveBotUserCandidates, getMarketplaceGlobalStatsCached, marketplaceGlobalStatsCacheSeconds, marketplaceGlobalStatsCache, githubRepoInfo, githubProjectCacheSeconds, fetchGitHubProjectSummary, buildSupportInfo, buildBotContactInfo }) => {
+import { withTimeout } from '../../http/httpRequestUtils.js';
+
+export const createStickerCatalogNonCatalogHandlers = ({
+  sendJson,
+  sendText,
+  logger,
+  getSystemSummaryCached,
+  systemSummaryCache,
+  systemSummaryCacheSeconds,
+  getReadmeSummaryCached,
+  readmeSummaryCache,
+  readmeSummaryCacheSeconds,
+  getGlobalRankingSummaryCached,
+  globalRankRefreshSeconds,
+  globalRankCache,
+  sanitizeRankingPayloadByBot,
+  getActiveSocket,
+  resolveBotUserCandidates,
+  getMarketplaceGlobalStatsCached,
+  marketplaceGlobalStatsCacheSeconds,
+  marketplaceGlobalStatsCache,
+  githubRepoInfo,
+  githubProjectCacheSeconds,
+  fetchGitHubProjectSummary,
+  buildSupportInfo,
+  buildBotContactInfo,
+  getMarketplaceStatsCached,
+  resolveGoogleWebSessionFromRequest,
+  isAuthenticatedGoogleSession,
+  stickerWebGoogleClientId,
+  homeBootstrapExposeContact,
+  trackWebVisitMetric,
+  resolveVisitPathFromReferrer,
+  normalizeCatalogVisibility,
+}) => {
+  const buildHomeRealtimeSnapshot = async ({ systemSummary = null } = {}) => {
+    const totalUsersRaw = Number(systemSummary?.platform?.total_users);
+    const totalMessagesRaw = Number(systemSummary?.usage?.total_messages);
+    const totalCommandsRaw = Number(systemSummary?.usage?.total_commands);
+    const httpLatencyP95Ms = Number(systemSummary?.observability?.http_latency_p95_ms);
+    const lagP99Ms = Number(systemSummary?.observability?.lag_p99_ms);
+    const resolvedLatencyMs = Number.isFinite(httpLatencyP95Ms) && httpLatencyP95Ms > 0 ? httpLatencyP95Ms : Number.isFinite(lagP99Ms) && lagP99Ms > 0 ? lagP99Ms : null;
+
+    const totalUsers = Number.isFinite(totalUsersRaw) ? Math.max(0, Math.round(totalUsersRaw)) : null;
+    const totalMessages = Number.isFinite(totalMessagesRaw) ? Math.max(0, Math.round(totalMessagesRaw)) : null;
+    const totalCommands = Number.isFinite(totalCommandsRaw) ? Math.max(0, Math.round(totalCommandsRaw)) : null;
+    const systemLatencyMs = Number.isFinite(resolvedLatencyMs) && resolvedLatencyMs > 0 ? Number(resolvedLatencyMs.toFixed(2)) : null;
+
+    const payload = {
+      total_users: totalUsers,
+      total_messages: totalMessages,
+      total_commands: totalCommands,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (systemLatencyMs !== null) {
+      payload.system_latency_ms = systemLatencyMs;
+    }
+
+    return payload;
+  };
+
+  const handleHomeBootstrapRequest = async (req, res, url) => {
+    const visibility = normalizeCatalogVisibility(url?.searchParams?.get('visibility'));
+    const fetchTimeoutMs = {
+      support: 450,
+      bot_contact: 320,
+      session: 450,
+      stats: 700,
+      system_summary: 700,
+      home_realtime: 700,
+    };
+    const errors = [];
+
+    const visitPath = resolveVisitPathFromReferrer(req);
+    void trackWebVisitMetric(req, res, { pagePath: visitPath, source: 'home_bootstrap' }).catch((error) => {
+      logger.warn('Falha ao registrar visita da home bootstrap.', {
+        action: 'web_visit_track_home_bootstrap_failed',
+        error: error?.message,
+        page_path: visitPath,
+      });
+    });
+
+    const [supportResult, botContactResult, sessionResult, statsResult, systemSummaryResult] = await Promise.allSettled([
+      withTimeout(buildSupportInfo(), fetchTimeoutMs.support),
+      withTimeout(Promise.resolve(buildBotContactInfo()), fetchTimeoutMs.bot_contact),
+      stickerWebGoogleClientId ? withTimeout(resolveGoogleWebSessionFromRequest(req), fetchTimeoutMs.session) : Promise.resolve(null),
+      withTimeout(getMarketplaceStatsCached(visibility), fetchTimeoutMs.stats),
+      withTimeout(getSystemSummaryCached(), fetchTimeoutMs.system_summary),
+    ]);
+
+    const session = sessionResult.status === 'fulfilled' ? sessionResult.value || null : null;
+    if (sessionResult.status !== 'fulfilled') {
+      errors.push({
+        source: 'session',
+        message: sessionResult.reason?.message || 'session_unavailable',
+      });
+    }
+    const canExposeContactData = homeBootstrapExposeContact || isAuthenticatedGoogleSession(session);
+
+    const support = canExposeContactData && supportResult.status === 'fulfilled' ? supportResult.value || null : null;
+    if (canExposeContactData && supportResult.status !== 'fulfilled') {
+      errors.push({
+        source: 'support',
+        message: supportResult.reason?.message || 'support_unavailable',
+      });
+    }
+
+    const botContact = canExposeContactData && botContactResult.status === 'fulfilled' ? botContactResult.value || null : null;
+    if (canExposeContactData && botContactResult.status !== 'fulfilled') {
+      errors.push({
+        source: 'bot_contact',
+        message: botContactResult.reason?.message || 'bot_contact_unavailable',
+      });
+    }
+
+    const statsPayload = statsResult.status === 'fulfilled' ? statsResult.value || null : null;
+    if (statsResult.status !== 'fulfilled') {
+      errors.push({
+        source: 'stats',
+        message: statsResult.reason?.message || 'stats_unavailable',
+      });
+    }
+
+    const systemSummaryPayload = systemSummaryResult.status === 'fulfilled' ? systemSummaryResult.value || null : null;
+    if (systemSummaryResult.status !== 'fulfilled') {
+      errors.push({
+        source: 'system_summary',
+        message: systemSummaryResult.reason?.message || 'system_summary_unavailable',
+      });
+    }
+
+    let homeRealtimePayload = null;
+    try {
+      homeRealtimePayload = await withTimeout(buildHomeRealtimeSnapshot({ systemSummary: systemSummaryPayload?.data || null }), fetchTimeoutMs.home_realtime);
+    } catch (error) {
+      errors.push({
+        source: 'home_realtime',
+        message: error?.message || 'home_realtime_unavailable',
+      });
+    }
+
+    sendJson(req, res, 200, {
+      data: {
+        session,
+        support,
+        bot_contact: botContact,
+        marketplace_stats: statsPayload,
+        system_summary: systemSummaryPayload?.data || null,
+        home_realtime: homeRealtimePayload,
+        errors: errors.length ? errors : undefined,
+      },
+    });
+  };
+
   const handleSystemSummaryRequest = async (req, res) => {
     try {
       const payload = await getSystemSummaryCached();
@@ -174,6 +328,7 @@ export const createStickerCatalogNonCatalogHandlers = ({ sendJson, sendText, log
   };
 
   return {
+    handleHomeBootstrapRequest,
     handleSystemSummaryRequest,
     handleReadmeSummaryRequest,
     handleReadmeMarkdownRequest,

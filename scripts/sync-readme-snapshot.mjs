@@ -18,7 +18,7 @@ const readmePath = path.resolve(projectRoot, process.env.README_SNAPSHOT_TARGET_
 const siteOrigin = String(process.env.SITE_ORIGIN || 'https://omnizap.shop')
   .trim()
   .replace(/\/+$/, '');
-const sourceUrl = String(process.env.README_SNAPSHOT_SOURCE_URL || `${siteOrigin}/api/sticker-packs/readme-markdown`).trim();
+const sourceUrl = String(process.env.README_SNAPSHOT_SOURCE_URL || `${siteOrigin}/api/readme-markdown`).trim();
 const timeoutMs = Math.max(1000, Number(process.env.README_SNAPSHOT_TIMEOUT_MS) || 15000);
 
 const escapeRegExp = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -2767,10 +2767,6 @@ function StickersApp() {
   };
 
   const openProfile = (push = true) => {
-    if (!hasGoogleLogin) {
-      redirectToLogin(`${config.webPath}/perfil`);
-      return;
-    }
     googlePromptAttemptedRef.current = false;
     if (push) window.history.pushState({}, '', `${config.webPath}/perfil`);
     setCurrentView('profile');

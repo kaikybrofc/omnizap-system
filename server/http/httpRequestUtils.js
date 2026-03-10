@@ -47,6 +47,27 @@ export const sendText = (req, res, statusCode, body, contentType) => {
   res.end(body);
 };
 
+/**
+ * Envia buffer binário (asset estático) com headers básicos de cache.
+ * @param {import('node:http').IncomingMessage} req
+ * @param {import('node:http').ServerResponse} res
+ * @param {Buffer} buffer
+ * @param {string} [mimetype]
+ * @param {string} [cacheControl]
+ * @returns {void}
+ */
+export const sendAsset = (req, res, buffer, mimetype = 'application/octet-stream', cacheControl = 'public, max-age=86400') => {
+  res.statusCode = 200;
+  res.setHeader('Content-Type', mimetype);
+  res.setHeader('Content-Length', String(Buffer.byteLength(buffer)));
+  res.setHeader('Cache-Control', cacheControl);
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+  res.end(buffer);
+};
+
 export const parseCookies = (req) => {
   const raw = String(req?.headers?.cookie || '');
   if (!raw) return {};
@@ -140,6 +161,43 @@ export const normalizeBasePath = (value, fallback) => {
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
   const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
   return withoutTrailingSlash || fallback;
+};
+
+/**
+ * Envolve uma promessa com um tempo limite.
+ * @param {Promise<any>} promise
+ * @param {number} timeoutMs
+ * @returns {Promise<any>}
+ */
+export const withTimeout = (promise, timeoutMs) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`timeout_${timeoutMs}ms`)), timeoutMs);
+    }),
+  ]);
+
+export const normalizeCatalogVisibility = (value) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'all') return 'all';
+  if (normalized === 'unlisted') return 'unlisted';
+  return 'public';
+};
+
+/**
+ * Normaliza o caminho de uma visita web.
+ * @param {string} raw
+ * @returns {string}
+ */
+export const normalizeVisitPath = (raw) => {
+  const normalized = String(raw || '')
+    .trim()
+    .replace(/\s+/g, '')
+    .slice(0, 255);
+  if (!normalized) return '/';
+  return normalized.startsWith('/') ? normalized : `/${normalized}`;
 };
 
 export const appendSetCookie = (res, cookieValue) => {

@@ -24,7 +24,8 @@ import { listStickerPackScoreSnapshotsByPackIds } from '../../../app/modules/sti
 import { createCatalogApiRouter } from '../../routes/sticker/catalogRouter.js';
 import { createStickerCatalogNonCatalogHandlers } from './nonCatalogHandlers.js';
 import { normalizeGoogleSubject } from '../../auth/googleWebAuth/googleWebAuthRuntime.js';
-import { appendSetCookie, buildCookieString, formatDuration, getCookieValuesFromRequest, normalizeBasePath, parseCookies, readJsonBody, resolveRequestRemoteIp, sendJson, sendText, toIsoOrNull } from '../../http/httpRequestUtils.js';
+import { createStickerCatalogAuthContext } from '../../auth/stickerCatalogAuthContext.js';
+import { appendSetCookie, buildCookieString, formatDuration, getCookieValuesFromRequest, normalizeBasePath, normalizeCatalogVisibility, normalizeVisitPath, parseCookies, readJsonBody, resolveRequestRemoteIp, sendJson, sendText, toIsoOrNull, withTimeout } from '../../http/httpRequestUtils.js';
 import { getSiteRoutingConfig, maybeRedirectToCanonicalHost, toRequestHost, toSiteAbsoluteUrl } from '../../http/siteRoutingUtils.js';
 import { fetchGitHubProjectSummary } from '../system/githubController.js';
 import { fetchPrometheusSummary } from '../system/systemMetricsController.js';
@@ -33,10 +34,10 @@ import { buildBotContactInfo, buildSupportInfo, resolveCatalogBotPhone } from '.
 import { trackWebVisitMetric } from '../system/visitController.js';
 import { scheduleGlobalRankingPreload, systemContext, systemHandlers } from '../system/systemController.js';
 
-const { handleSystemSummaryRequest, handleReadmeSummaryRequest, handleReadmeMarkdownRequest, handleGlobalRankingSummaryRequest, handleMarketplaceGlobalStatsRequest, handleGitHubProjectSummaryRequest, handleSupportInfoRequest, handleBotContactInfoRequest } = systemHandlers;
-const { withTimeout, getSystemSummaryCached, getReadmeSummaryCached, resolveBotUserCandidates, sanitizeRankingPayloadByBot, getGlobalRankingSummaryCached, getMarketplaceGlobalStatsCached } = systemContext;
+const { handleSystemSummaryRequest, handleReadmeSummaryRequest, handleReadmeMarkdownRequest, handleGlobalRankingSummaryRequest, handleMarketplaceGlobalStatsRequest, handleGitHubProjectSummaryRequest, handleSupportInfoRequest, handleBotContactInfoRequest, handleHomeBootstrapRequest } = systemHandlers;
+const { getSystemSummaryCached, getReadmeSummaryCached, resolveBotUserCandidates, sanitizeRankingPayloadByBot, getGlobalRankingSummaryCached, getMarketplaceGlobalStatsCached } = systemContext;
 
-import { createStickerCatalogAuthContext } from '../../auth/stickerCatalogAuthContext.js';
+
 import { queueAutomatedEmail, queueWelcomeEmail } from '../../email/emailAutomationService.js';
 import { createStickerCatalogAdminBanContext, createStickerCatalogAdminHandlersContext } from '../admin/stickerCatalogAdminContext.js';
 import { createStickerCatalogSeoContext } from '../seo/stickerCatalogSeoContext.js';
@@ -55,15 +56,6 @@ const parseEnvBool = (value, fallback = false) => {
   if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
   if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
   return fallback;
-};
-
-const normalizeCatalogVisibility = (value) => {
-  const normalized = String(value || '')
-    .trim()
-    .toLowerCase();
-  if (normalized === 'all') return 'all';
-  if (normalized === 'unlisted') return 'unlisted';
-  return 'public';
 };
 
 const normalizeCatalogSortParam = (value) => {
@@ -131,6 +123,7 @@ const DEFAULT_ORPHAN_LIST_LIMIT = clampInt(process.env.STICKER_ORPHAN_LIST_LIMIT
 const MAX_ORPHAN_LIST_LIMIT = clampInt(process.env.STICKER_ORPHAN_LIST_MAX_LIMIT, 300, 1, 500);
 const DEFAULT_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_LIMIT, 50, 1, 200);
 const MAX_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_MAX_LIMIT, 200, 1, 500);
+const MAX_DATA_SCAN_FILES = clampInt(process.env.STICKER_DATA_SCAN_MAX_FILES, 10000, 100, 50000);
 const ASSET_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_ASSET_CACHE_SECONDS, 60 * 60 * 24 * 30, 60 * 60, 60 * 60 * 24 * 365);
 const STATIC_TEXT_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_STATIC_TEXT_CACHE_SECONDS, 60 * 60, 60, 60 * 60 * 24 * 30);
 const IMMUTABLE_ASSET_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_IMMUTABLE_ASSET_CACHE_SECONDS, 60 * 60 * 24 * 365, 60 * 60, 60 * 60 * 24 * 365);
@@ -150,7 +143,7 @@ const STICKER_CATALOG_ONLY_CLASSIFIED = Boolean(process.env.STICKER_CATALOG_ONLY
 const USER_INTERNAL_API_TOKEN = String(process.env.USER_INTERNAL_API_TOKEN || process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '').trim();
 const USER_INTERNAL_READ_REQUIRE_AUTH = Boolean(process.env.USER_INTERNAL_READ_REQUIRE_AUTH !== 'false');
 const USER_CONTACT_ENDPOINT_REQUIRE_AUTH = Boolean(process.env.USER_CONTACT_ENDPOINT_REQUIRE_AUTH !== 'false');
-const HOME_BOOTSTRAP_EXPOSE_CONTACT = Boolean(process.env.HOME_BOOTSTRAP_EXPOSE_CONTACT === 'true');
+const HOME_BOOTSTRAP_EXPOSE_CONTACT = Boolean(process.env.HOME_BOOTSTRAP_EXPOSE_CONTACT !== 'false');
 const ADMIN_PANEL_EMAIL =
   String(process.env.ADM_EMAIL || '')
     .trim()
@@ -1825,152 +1818,6 @@ const handleMarketplaceStatsRequest = async (req, res, url) => {
   }
 };
 
-const buildHomeRealtimeSnapshot = async ({ systemSummary = null } = {}) => {
-  const totalUsersRaw = Number(systemSummary?.platform?.total_users);
-  const totalMessagesRaw = Number(systemSummary?.usage?.total_messages);
-  const totalCommandsRaw = Number(systemSummary?.usage?.total_commands);
-  const httpLatencyP95Ms = Number(systemSummary?.observability?.http_latency_p95_ms);
-  const lagP99Ms = Number(systemSummary?.observability?.lag_p99_ms);
-  const resolvedLatencyMs = Number.isFinite(httpLatencyP95Ms) && httpLatencyP95Ms > 0 ? httpLatencyP95Ms : Number.isFinite(lagP99Ms) && lagP99Ms > 0 ? lagP99Ms : null;
-
-  const totalUsers = Number.isFinite(totalUsersRaw) ? Math.max(0, Math.round(totalUsersRaw)) : null;
-  const totalMessages = Number.isFinite(totalMessagesRaw) ? Math.max(0, Math.round(totalMessagesRaw)) : null;
-  const totalCommands = Number.isFinite(totalCommandsRaw) ? Math.max(0, Math.round(totalCommandsRaw)) : null;
-  const systemLatencyMs = Number.isFinite(resolvedLatencyMs) && resolvedLatencyMs > 0 ? Number(resolvedLatencyMs.toFixed(2)) : null;
-
-  const payload = {
-    total_users: totalUsers,
-    total_messages: totalMessages,
-    total_commands: totalCommands,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (systemLatencyMs !== null) {
-    payload.system_latency_ms = systemLatencyMs;
-  }
-
-  return payload;
-};
-
-const normalizeVisitPath = (raw) => {
-  const normalized = String(raw || '')
-    .trim()
-    .replace(/\s+/g, '')
-    .slice(0, 255);
-  if (!normalized) return '/';
-  return normalized.startsWith('/') ? normalized : `/${normalized}`;
-};
-
-const resolveVisitPathFromReferrer = (req) => {
-  const rawReferrer = String(req?.headers?.referer || req?.headers?.referrer || '').trim();
-  if (!rawReferrer) return '/';
-  try {
-    const parsed = new URL(rawReferrer);
-    const requestHost = toRequestHost(req);
-    if (requestHost && parsed.host && parsed.host.toLowerCase() !== requestHost.toLowerCase()) return '/';
-    return normalizeVisitPath(parsed.pathname || '/');
-  } catch {
-    return '/';
-  }
-};
-
-const handleHomeBootstrapRequest = async (req, res, url) => {
-  const visibility = normalizeCatalogVisibility(url?.searchParams?.get('visibility'));
-  const fetchTimeoutMs = {
-    support: 450,
-    bot_contact: 320,
-    session: 450,
-    stats: 700,
-    system_summary: 700,
-    home_realtime: 700,
-  };
-  const errors = [];
-
-  const visitPath = resolveVisitPathFromReferrer(req);
-  void trackWebVisitMetric(req, res, { pagePath: visitPath, source: 'home_bootstrap' }).catch((error) => {
-    logger.warn('Falha ao registrar visita da home bootstrap.', {
-      action: 'web_visit_track_home_bootstrap_failed',
-      error: error?.message,
-      page_path: visitPath,
-    });
-  });
-
-  const [supportResult, botContactResult, sessionResult, statsResult, systemSummaryResult] = await Promise.allSettled([withTimeout(buildSupportInfo(), fetchTimeoutMs.support), withTimeout(Promise.resolve(buildBotContactInfo()), fetchTimeoutMs.bot_contact), STICKER_WEB_GOOGLE_CLIENT_ID ? withTimeout(resolveGoogleWebSessionFromRequest(req), fetchTimeoutMs.session) : Promise.resolve(null), withTimeout(getMarketplaceStatsCached(visibility), fetchTimeoutMs.stats), withTimeout(getSystemSummaryCached(), fetchTimeoutMs.system_summary)]);
-
-  const session = sessionResult.status === 'fulfilled' ? sessionResult.value || null : null;
-  if (sessionResult.status !== 'fulfilled') {
-    errors.push({
-      source: 'session',
-      message: sessionResult.reason?.message || 'session_unavailable',
-    });
-  }
-  const canExposeContactData = HOME_BOOTSTRAP_EXPOSE_CONTACT || isAuthenticatedGoogleSession(session);
-
-  const support = canExposeContactData && supportResult.status === 'fulfilled' ? supportResult.value || null : null;
-  if (canExposeContactData && supportResult.status !== 'fulfilled') {
-    errors.push({
-      source: 'support',
-      message: supportResult.reason?.message || 'support_unavailable',
-    });
-  }
-
-  const botContact = canExposeContactData && botContactResult.status === 'fulfilled' ? botContactResult.value || null : null;
-  if (canExposeContactData && botContactResult.status !== 'fulfilled') {
-    errors.push({
-      source: 'bot_contact',
-      message: botContactResult.reason?.message || 'bot_contact_unavailable',
-    });
-  }
-
-  const statsPayload = statsResult.status === 'fulfilled' ? statsResult.value || null : null;
-  if (statsResult.status !== 'fulfilled') {
-    errors.push({
-      source: 'stats',
-      message: statsResult.reason?.message || 'stats_unavailable',
-    });
-  }
-
-  const systemSummaryPayload = systemSummaryResult.status === 'fulfilled' ? systemSummaryResult.value || null : null;
-  if (systemSummaryResult.status !== 'fulfilled') {
-    errors.push({
-      source: 'system_summary',
-      message: systemSummaryResult.reason?.message || 'system_summary_unavailable',
-    });
-  }
-
-  let homeRealtimePayload = null;
-  try {
-    homeRealtimePayload = await withTimeout(buildHomeRealtimeSnapshot({ systemSummary: systemSummaryPayload?.data || null }), fetchTimeoutMs.home_realtime);
-  } catch (error) {
-    errors.push({
-      source: 'home_realtime',
-      message: error?.message || 'home_realtime_unavailable',
-    });
-  }
-
-  sendJson(req, res, 200, {
-    data: {
-      support,
-      bot_contact: botContact,
-      session: mapGoogleSessionResponseData(session),
-      stats: statsPayload?.data || null,
-      stats_filters: statsPayload?.filters || null,
-      system_summary: sanitizeBootstrapSystemSummary(systemSummaryPayload?.data || null),
-      home_realtime: homeRealtimePayload,
-    },
-    meta: {
-      visibility,
-      cache_seconds: {
-        stats: HOME_MARKETPLACE_STATS_CACHE_SECONDS,
-        system_summary: SYSTEM_SUMMARY_CACHE_SECONDS,
-      },
-      timeouts_ms: fetchTimeoutMs,
-      partial: errors.length > 0,
-      errors,
-    },
-  });
-};
-
 const handleCreatePackConfigRequest = async (req, res) => {
   triggerStaleDraftCleanup();
   sendJson(req, res, 200, {
@@ -2318,6 +2165,11 @@ const authContext = createStickerCatalogAuthContext({
 });
 
 const { upsertGoogleWebUserRecord, resolveGoogleWebSessionFromRequest, mapGoogleSessionResponseData, handleGoogleAuthSessionRequest, revokeGoogleWebSessionsByIdentity, buildGoogleOwnerJid, handleTermsAcceptanceRequest, handlePasswordAuthRequest, handlePasswordRecoveryRequest, handlePasswordRecoveryVerifyRequest, handlePasswordRecoverySessionCreateRequest, handlePasswordRecoverySessionStatusRequest, handlePasswordRecoverySessionRequest, handlePasswordRecoverySessionVerifyRequest, handlePasswordLoginRequest, handleMyProfileRequest } = authContext;
+
+// Configuração de pontes para o systemController resolver dependências circulares
+globalThis.getMarketplaceStatsCachedBridge = (visibility) => getMarketplaceStatsCached(visibility);
+globalThis.resolveGoogleWebSessionFromRequestBridge = (req) => resolveGoogleWebSessionFromRequest(req);
+
 revokeGoogleWebSessionsByIdentityBridge = revokeGoogleWebSessionsByIdentity;
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
@@ -4672,21 +4524,90 @@ const handleCatalogPageRequest = async (req, res, pathname) => {
       action: 'sticker_catalog_page_render_failed',
       path: pathname,
       error: error?.message,
+      stack: error?.stack,
     });
-    sendJson(req, res, 500, { error: 'Falha interna ao renderizar catalogo.' });
+    sendJson(req, res, 500, { error: `Falha interna ao renderizar catalogo: ${error?.message}` });
   }
 };
 
 export const isStickerCatalogEnabled = () => STICKER_CATALOG_ENABLED;
 export const getStickerCatalogConfig = () => ({
-  enabled: STICKER_CATALOG_ENABLED,
-  webPath: STICKER_WEB_PATH,
-  apiBasePath: STICKER_API_BASE_PATH,
-  orphanApiPath: STICKER_ORPHAN_API_PATH,
-  dataPublicPath: STICKER_DATA_PUBLIC_PATH,
-  dataPublicDir: STICKER_DATA_PUBLIC_DIR,
-  stylesPath: buildCatalogStylesUrl(),
-  scriptPath: buildCatalogScriptUrl(),
+  stickerCatalogEnabled: STICKER_CATALOG_ENABLED,
+  stickerWebPath: STICKER_WEB_PATH,
+  stickerApiBasePath: STICKER_API_BASE_PATH,
+  stickerOrphanApiPath: STICKER_ORPHAN_API_PATH,
+  stickerCreateWebPath: STICKER_CREATE_WEB_PATH,
+  stickerLoginWebPath: STICKER_LOGIN_WEB_PATH,
+  userProfileWebPath: USER_PROFILE_WEB_PATH,
+  userPasswordResetWebPath: USER_PASSWORD_RESET_WEB_PATH,
+  stickerDataPublicPath: STICKER_DATA_PUBLIC_PATH,
+  stickerDataPublicDir: STICKER_DATA_PUBLIC_DIR,
+  stickerWebAssetVersion: STICKER_WEB_ASSET_VERSION,
+  catalogTemplatePath: CATALOG_TEMPLATE_PATH,
+  createPackTemplatePath: CREATE_PACK_TEMPLATE_PATH,
+  catalogStylesFilePath: CATALOG_STYLES_FILE_PATH,
+  catalogScriptFilePath: CATALOG_SCRIPT_FILE_PATH,
+  defaultListLimit: DEFAULT_LIST_LIMIT,
+  maxListLimit: MAX_LIST_LIMIT,
+  defaultOrphanListLimit: DEFAULT_ORPHAN_LIST_LIMIT,
+  maxOrphanListLimit: MAX_ORPHAN_LIST_LIMIT,
+  defaultDataListLimit: DEFAULT_DATA_LIST_LIMIT,
+  maxDataListLimit: MAX_DATA_LIST_LIMIT,
+  maxDataScanFiles: MAX_DATA_SCAN_FILES,
+  assetCacheSeconds: ASSET_CACHE_SECONDS,
+  staticTextCacheSeconds: STATIC_TEXT_CACHE_SECONDS,
+  immutableAssetCacheSeconds: IMMUTABLE_ASSET_CACHE_SECONDS,
+  stickerWebWhatsappMessageTemplate: STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE,
+  packCommandPrefix: PACK_COMMAND_PREFIX,
+  packCreateNameRegex: PACK_CREATE_NAME_REGEX,
+  packCreateMaxNameLength: PACK_CREATE_MAX_NAME_LENGTH,
+  packCreateMaxPublisherLength: PACK_CREATE_MAX_PUBLISHER_LENGTH,
+  packCreateMaxDescriptionLength: PACK_CREATE_MAX_DESCRIPTION_LENGTH,
+  packCreateMaxItems: PACK_CREATE_MAX_ITEMS,
+  packCreateMaxPacksPerOwner: PACK_CREATE_MAX_PACKS_PER_OWNER,
+  packWebEditTokenTtlMs: PACK_WEB_EDIT_TOKEN_TTL_MS,
+  stickerWebGoogleClientId: STICKER_WEB_GOOGLE_CLIENT_ID,
+  stickerWebGoogleAuthRequired: STICKER_WEB_GOOGLE_AUTH_REQUIRED,
+  stickerWebGoogleSessionTtlMs: STICKER_WEB_GOOGLE_SESSION_TTL_MS,
+  stickerCatalogOnlyClassified: STICKER_CATALOG_ONLY_CLASSIFIED,
+  metricsEndpoint: process.env.METRICS_ENDPOINT,
+  metricsToken: process.env.METRICS_TOKEN,
+  metricsSummaryTimeoutMs: process.env.STICKER_SYSTEM_METRICS_TIMEOUT_MS,
+  githubRepository: process.env.GITHUB_REPOSITORY,
+  githubToken: process.env.GITHUB_TOKEN,
+  githubProjectCacheSeconds: Number(process.env.GITHUB_PROJECT_CACHE_SECONDS || 300),
+  userInternalApiToken: USER_INTERNAL_API_TOKEN,
+  userInternalReadRequireAuth: USER_INTERNAL_READ_REQUIRE_AUTH,
+  userContactEndpointRequireAuth: USER_CONTACT_ENDPOINT_REQUIRE_AUTH,
+  homeBootstrapExposeContact: HOME_BOOTSTRAP_EXPOSE_CONTACT,
+  adminPanelEmail: ADMIN_PANEL_EMAIL,
+  globalRankRefreshSeconds: GLOBAL_RANK_REFRESH_SECONDS,
+  catalogListCacheSeconds: CATALOG_LIST_CACHE_SECONDS,
+  catalogCreatorRankingCacheSeconds: CATALOG_CREATOR_RANKING_CACHE_SECONDS,
+  catalogPackPayloadCacheSeconds: CATALOG_PACK_PAYLOAD_CACHE_SECONDS,
+  marketplaceGlobalStatsCacheSeconds: MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS,
+  homeMarketplaceStatsCacheSeconds: HOME_MARKETPLACE_STATS_CACHE_SECONDS,
+  systemSummaryCacheSeconds: SYSTEM_SUMMARY_CACHE_SECONDS,
+  readmeSummaryCacheSeconds: README_SUMMARY_CACHE_SECONDS,
+  readmeMessageTypeSampleLimit: README_MESSAGE_TYPE_SAMPLE_LIMIT,
+  readmeCommandPrefix: README_COMMAND_PREFIX,
+  siteOrigin: SITE_ORIGIN,
+  sitemapMaxPacks: SITEMAP_MAX_PACKS,
+  sitemapCacheSeconds: SITEMAP_CACHE_SECONDS,
+  seoDiscoveryLinkLimit: SEO_DISCOVERY_LINK_LIMIT,
+  seoDiscoveryCacheSeconds: SEO_DISCOVERY_CACHE_SECONDS,
+  nsfwStickerPlaceholderUrl: NSFW_STICKER_PLACEHOLDER_URL,
+  maxStickerUploadBytes: MAX_STICKER_UPLOAD_BYTES,
+  maxStickerSourceUploadBytes: MAX_STICKER_SOURCE_UPLOAD_BYTES,
+  webVisitorCookieTtlSeconds: WEB_VISITOR_COOKIE_TTL_SECONDS,
+  webSessionCookieTtlSeconds: WEB_SESSION_COOKIE_TTL_SECONDS,
+  stickerPreviewSidePx: STICKER_PREVIEW_SIDE_PX,
+  stickerPreviewQuality: STICKER_PREVIEW_QUALITY,
+  stickerPreviewTimeoutMs: STICKER_PREVIEW_TIMEOUT_MS,
+  stickerPreviewCacheTtlMs: STICKER_PREVIEW_CACHE_TTL_MS,
+  stickerPreviewCacheMaxItems: STICKER_PREVIEW_CACHE_MAX_ITEMS,
+  catalogStylesWebPath: CATALOG_STYLES_WEB_PATH,
+  catalogScriptWebPath: CATALOG_SCRIPT_WEB_PATH,
 });
 
 /**

@@ -8,379 +8,93 @@
 
 @layer base {
   html[data-theme='night'] {
-    /* DaisyUI semantic tokens with broad browser compatibility (HSL numbers). */
     --b1: 222 47% 11%;
     --b2: 222 44% 9%;
     --b3: 222 40% 8%;
     --bc: 210 40% 96%;
-    --p: 217 91% 60%;
+    --p: 142 71% 45%; /* Green primary */
     --pc: 222 47% 11%;
-    --s: 262 83% 58%;
+    --s: 217 91% 60%; /* Blue secondary */
     --sc: 210 40% 98%;
-    --a: 174 72% 44%;
-    --ac: 222 47% 11%;
-    --n: 222 44% 14%;
-    --nc: 210 40% 96%;
-    --in: 199 89% 58%;
-    --inc: 222 47% 11%;
-    --su: 142 71% 45%;
-    --suc: 222 47% 11%;
-    --wa: 38 92% 50%;
-    --wac: 222 47% 11%;
-    --er: 0 84% 60%;
-    --erc: 210 40% 98%;
-    --rounded-box: 1rem;
-    --rounded-btn: 0.75rem;
-    --rounded-badge: 9999px;
+    --rounded-box: 2rem;
+    --rounded-btn: 1rem;
   }
 
   body {
     color: hsl(var(--bc));
-    background: radial-gradient(70rem 40rem at -10% -10%, rgb(37 99 235 / 0.2), transparent 62%), radial-gradient(60rem 30rem at 110% -10%, rgb(124 58 237 / 0.18), transparent 60%), #020617;
-  }
-
-  #home-react-root {
-    color: hsl(var(--bc));
+    background: #020617;
+    background-image: 
+      radial-gradient(at 0% 0%, hsla(142, 71%, 45%, 0.15) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(217, 91%, 60%, 0.15) 0px, transparent 50%);
+    min-height: 100vh;
   }
 }
 
 @layer components {
-  #main-nav {
-    overscroll-behavior: contain;
-  }
-
-  .reveal {
+  [data-reveal] {
     opacity: 0;
-    filter: blur(6px);
-    transform: translate3d(0, 20px, 0) scale(0.985);
-    transition:
-      opacity 560ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 560ms cubic-bezier(0.22, 1, 0.36, 1),
-      filter 420ms ease;
+    transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
     transition-delay: var(--reveal-delay, 0ms);
     will-change: transform, opacity;
   }
 
-  .reveal.is-visible {
+  [data-reveal="fade-up"] { transform: translateY(30px); }
+  [data-reveal="fade-right"] { transform: translateX(-40px); }
+  [data-reveal="fade-left"] { transform: translateX(40px); }
+
+  [data-reveal].is-visible {
     opacity: 1;
-    filter: blur(0);
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate(0, 0) !important;
   }
 
-  .home-hero {
-    isolation: isolate;
-    overflow: hidden;
+  .glass-card {
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   }
 
-  .home-hero::before {
-    content: '';
+  .hero-glow {
     position: absolute;
-    inset: auto -5rem -8rem auto;
-    width: 16rem;
-    height: 16rem;
-    border-radius: 999px;
-    background: radial-gradient(circle, rgb(56 189 248 / 0.3) 0%, rgb(56 189 248 / 0) 68%);
-    opacity: 0.88;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 150%;
+    height: 150%;
+    background: radial-gradient(circle, hsla(142, 71%, 45%, 0.1) 0%, transparent 70%);
     pointer-events: none;
-    animation: hero-orb-float 8s ease-in-out infinite;
+    z-index: -1;
   }
 
-  .home-hero .hero-pill,
-  .home-hero .hero-title,
-  .home-hero .hero-copy,
-  .home-hero .home-cta-btn {
-    opacity: 0;
-    transform: translate3d(0, 16px, 0);
-    animation: hero-rise-in 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  .text-balance {
+    text-wrap: balance;
   }
 
-  .home-hero .hero-pill {
-    animation-delay: 140ms;
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 
-  .home-hero .hero-title {
-    animation-delay: 220ms;
+  /* Custom breakpoints */
+  @container (min-width: 400px) {
+    .xs\:inline { display: inline; }
   }
 
-  .home-hero .hero-copy {
-    animation-delay: 300ms;
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
   }
-
-  .home-hero .home-cta-btn {
-    animation-delay: 380ms;
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
-
-  .home-hero .home-cta-btn:nth-child(2) {
-    animation-delay: 440ms;
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
   }
-
-  .home-cta-btn {
-    transition:
-      transform 220ms ease,
-      box-shadow 220ms ease;
-  }
-
-  .home-cta-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 22px rgb(15 23 42 / 0.28);
-  }
-
-  .home-cta-btn:active {
-    transform: translateY(0);
-  }
-
-  .home-section .motion-card,
-  .home-hero .motion-card {
-    opacity: 0;
-    transform: translate3d(0, 16px, 0) scale(0.992);
-    transition:
-      opacity 500ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 500ms cubic-bezier(0.22, 1, 0.36, 1),
-      border-color 260ms ease,
-      box-shadow 260ms ease;
-  }
-
-  .home-section.is-visible .motion-card,
-  .home-hero.is-visible .motion-card {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-
-  .motion-card {
-    border-color: rgb(148 163 184 / 0.28);
-  }
-
-  .motion-card:hover {
-    border-color: rgb(56 189 248 / 0.5);
-    box-shadow: 0 14px 28px rgb(2 6 23 / 0.28);
-    transform: translate3d(0, -5px, 0);
-  }
-
-  .home-section.is-visible .motion-card:nth-child(1),
-  .home-hero.is-visible .motion-card:nth-child(1) {
-    transition-delay: 110ms;
-  }
-
-  .home-section.is-visible .motion-card:nth-child(2),
-  .home-hero.is-visible .motion-card:nth-child(2) {
-    transition-delay: 180ms;
-  }
-
-  .home-section.is-visible .motion-card:nth-child(3),
-  .home-hero.is-visible .motion-card:nth-child(3) {
-    transition-delay: 250ms;
-  }
-
-  .home-section.is-visible .motion-card:nth-child(4),
-  .home-hero.is-visible .motion-card:nth-child(4) {
-    transition-delay: 320ms;
-  }
-
-  .home-section.is-visible .motion-card:nth-child(5),
-  .home-hero.is-visible .motion-card:nth-child(5) {
-    transition-delay: 390ms;
-  }
-
-  .home-section.is-visible .motion-card:nth-child(6),
-  .home-hero.is-visible .motion-card:nth-child(6) {
-    transition-delay: 460ms;
-  }
-
-  .metric-card {
-    transition:
-      border-color 260ms ease,
-      box-shadow 260ms ease;
-  }
-
-  .home-hero.is-visible .metric-card {
-    animation: metric-breath 4.8s ease-in-out infinite;
-  }
-
-  .home-hero.is-visible .metric-card:nth-child(2n) {
-    animation-delay: 0.36s;
-  }
-
-  .home-chat-panel {
-    position: relative;
-    overflow: hidden;
-  }
-
-  .home-chat-panel::after {
-    content: '';
-    position: absolute;
-    inset: auto -25% -85% -25%;
-    height: 10rem;
-    background: linear-gradient(180deg, rgb(56 189 248 / 0), rgb(56 189 248 / 0.18));
-    filter: blur(20px);
-    pointer-events: none;
-    animation: panel-glow 8.4s ease-in-out infinite;
-  }
-
-  .chat-thread .chat-entry {
-    opacity: 0;
-    transform: translate3d(0, 12px, 0);
-  }
-
-  .home-hero.is-visible .chat-thread .chat-entry {
-    animation: chat-entry-in 560ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  }
-
-  .home-hero.is-visible .chat-thread .chat-entry:nth-child(1) {
-    animation-delay: 420ms;
-  }
-
-  .home-hero.is-visible .chat-thread .chat-entry:nth-child(2) {
-    animation-delay: 500ms;
-  }
-
-  .home-hero.is-visible .chat-thread .chat-entry:nth-child(3) {
-    animation-delay: 580ms;
-  }
-
-  .home-hero.is-visible .chat-thread .chat-entry:nth-child(4) {
-    animation-delay: 660ms;
-  }
-
-  .home-hero.is-visible .chat-thread .chat-entry:nth-child(5) {
-    animation-delay: 740ms;
-  }
-
-  .home-hero.is-visible .chat-thread .chat-entry:nth-child(6) {
-    animation-delay: 820ms;
-  }
-
-  .home-section h2 {
-    display: inline-block;
-    position: relative;
-  }
-
-  .home-section h2::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    bottom: -0.45rem;
-    width: 100%;
-    height: 0.14rem;
-    border-radius: 999px;
-    background: linear-gradient(90deg, rgb(56 189 248 / 0.95), rgb(99 102 241 / 0.75));
-    transform: scaleX(0);
-    transform-origin: left center;
-    transition: transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
-    transition-delay: 160ms;
-  }
-
-  .home-section.is-visible h2::after {
-    transform: scaleX(1);
-  }
-
-  #wpp-float {
-    bottom: max(0.75rem, env(safe-area-inset-bottom));
-    transition: transform 220ms ease;
-    animation: wpp-pulse 2.8s ease-in-out infinite;
-  }
-
-  #wpp-float:hover {
-    transform: translateY(-3px) scale(1.04);
-    animation-play-state: paused;
-  }
-}
-
-@keyframes hero-rise-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 18px, 0);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes hero-orb-float {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-
-  50% {
-    transform: translate3d(-18px, -22px, 0) scale(1.08);
-  }
-}
-
-@keyframes metric-breath {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgb(56 189 248 / 0.04);
-  }
-
-  50% {
-    box-shadow: 0 14px 30px 0 rgb(56 189 248 / 0.18);
-  }
-}
-
-@keyframes panel-glow {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-    opacity: 0.54;
-  }
-
-  50% {
-    transform: translate3d(-10px, -12px, 0);
-    opacity: 0.9;
-  }
-}
-
-@keyframes chat-entry-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 12px, 0);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes wpp-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    box-shadow: 0 12px 24px rgb(16 185 129 / 0.34);
-  }
-
-  50% {
-    transform: scale(1.06);
-    box-shadow: 0 16px 30px rgb(16 185 129 / 0.5);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .reveal,
-  .home-hero .hero-pill,
-  .home-hero .hero-title,
-  .home-hero .hero-copy,
-  .home-hero .home-cta-btn,
-  .home-section .motion-card,
-  .home-hero .motion-card,
-  .chat-thread .chat-entry,
-  #wpp-float {
-    animation: none !important;
-    transition: none !important;
-    transform: none !important;
-    opacity: 1 !important;
-    filter: none !important;
-  }
-
-  .home-hero::before,
-  .home-chat-panel::after {
-    display: none !important;
-  }
-
-  .home-section h2::after {
-    transition: none !important;
-    transform: scaleX(1) !important;
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
   }
 }

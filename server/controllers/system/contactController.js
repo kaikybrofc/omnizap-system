@@ -1,4 +1,5 @@
-import { getActiveSocket, getAdminPhone, getAdminRawValue, getJidUser, resolveAdminJid, resolveBotJid, extractUserIdInfo, resolveUserId } from '../../../app/config/index.js';
+import logger from '#logger';
+import { getActiveSocket, getAdminPhone, getAdminRawValue, getJidUser, normalizeJid, resolveAdminJid, resolveBotJid, extractUserIdInfo, resolveUserId } from '../../../app/config/index.js';
 
 const PACK_COMMAND_PREFIX = String(process.env.COMMAND_PREFIX || '/').trim() || '/';
 
@@ -22,16 +23,33 @@ const resolveActiveSocketBotJid = (activeSocket) => {
 export const resolveCatalogBotPhone = () => {
   const activeSocket = getActiveSocket();
   const botJid = resolveActiveSocketBotJid(activeSocket);
-  const jidUser = getJidUser(botJid || '');
-  const fromSocket = normalizePhoneDigits(jidUser);
-  if (fromSocket) return fromSocket;
+  const jidUser = botJid ? getJidUser(botJid) : null;
+  const fromSocket = normalizePhoneDigits(jidUser || '');
 
-  const envCandidates = [process.env.WHATSAPP_BOT_NUMBER, process.env.BOT_NUMBER, process.env.PHONE_NUMBER, process.env.BOT_PHONE_NUMBER];
+  if (fromSocket && fromSocket.length >= 10) {
+    return fromSocket;
+  }
+
+  const envCandidates = [
+    process.env.WHATSAPP_BOT_NUMBER,
+    process.env.BOT_NUMBER,
+    process.env.PHONE_NUMBER,
+    process.env.BOT_PHONE_NUMBER,
+    process.env.USER_ADMIN
+  ];
 
   for (const candidate of envCandidates) {
-    const normalized = normalizePhoneDigits(candidate);
-    if (normalized) return normalized;
+    const digits = normalizePhoneDigits(candidate || '');
+    if (digits && digits.length >= 10 && digits.length <= 15) {
+      return digits;
+    }
   }
+
+  logger.warn('Nao foi possivel resolver o numero do bot para contato.', {
+    action: 'resolve_bot_phone_failed',
+    socketActive: !!activeSocket,
+    botJid: botJid || null,
+  });
 
   return '';
 };

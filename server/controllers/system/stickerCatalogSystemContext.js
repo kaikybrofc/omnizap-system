@@ -1,13 +1,7 @@
+import { withTimeout } from '../../http/httpRequestUtils.js';
+
 export const createStickerCatalogSystemContext = ({ executeQuery, tables, logger, getSystemMetrics, getActiveSocket, resolveSocketReadyState, resolveActiveSocketBotJid, resolveCatalogBotPhone, fetchPrometheusSummary, metricsEndpoint, systemSummaryCache, systemSummaryCacheSeconds, readmeSummaryCache, readmeSummaryCacheSeconds, readmeMessageTypeSampleLimit, readmeCommandPrefix, buildMenuCaption, buildStickerMenu, buildMediaMenu, buildQuoteMenu, buildAnimeMenu, buildAiMenu, buildStatsMenu, buildAdminMenu, profilePictureUrlFromActiveSocket, normalizeJid, getJidUser, globalRankCache, globalRankRefreshSeconds, marketplaceGlobalStatsCache, marketplaceGlobalStatsCacheSeconds }) => {
   let globalRankRefreshTimer = null;
-
-  const withTimeout = (promise, timeoutMs) =>
-    Promise.race([
-      promise,
-      new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`timeout_${timeoutMs}ms`)), timeoutMs);
-      }),
-    ]);
 
   const buildSystemSummarySnapshot = async () => {
     const system = getSystemMetrics();

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { executeQuery, TABLES } from '../../../database/index.js';
-import { appendSetCookie, buildCookieString, parseCookies } from '../../http/httpRequestUtils.js';
+import { appendSetCookie, buildCookieString, normalizeVisitPath, parseCookies } from '../../http/httpRequestUtils.js';
 import { toRequestHost } from '../../http/siteRoutingUtils.js';
 
 const WEB_VISITOR_COOKIE_NAME = 'omnizap_vid';
@@ -13,15 +13,6 @@ const normalizeVisitToken = (raw) =>
     .trim()
     .replace(/[^a-zA-Z0-9_-]+/g, '')
     .slice(0, 80);
-
-const normalizeVisitPath = (raw) => {
-  const normalized = String(raw || '')
-    .trim()
-    .replace(/\s+/g, '')
-    .slice(0, 255);
-  if (!normalized) return '/';
-  return normalized.startsWith('/') ? normalized : `/${normalized}`;
-};
 
 const normalizeVisitSource = (raw) =>
   String(raw || '')
