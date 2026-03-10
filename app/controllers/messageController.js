@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { isAdminCommand } from '../modules/adminModule/groupCommandHandlers.js';
 import { explicarComandoGlobal, registerGlobalHelpCommandExecution } from '../services/globalModuleAiHelpService.js';
 import { extractSupportedStickerMediaDetails, processSticker } from '../modules/stickerModule/stickerCommand.js';
-import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, isGroupJid, isStatusJid, isSameJidUser, normalizeJid, resolveBotJid, extractSenderInfoFromMessage, resolveUserId, resolveAddressingModeFromMessageKey, resolveCanonicalWhatsAppJid, parseEnvBool, parseEnvInt } from '../config/index.js';
+import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, isGroupJid, isStatusJid, isSameJidUser, normalizeJid, normalizeWAPresence, resolveBotJid, extractSenderInfoFromMessage, resolveUserId, resolveAddressingModeFromMessageKey, resolveCanonicalWhatsAppJid, parseEnvBool, parseEnvInt } from '../config/index.js';
 import { isUserAdmin } from '../config/index.js';
 import { isAdminSenderAsync } from '../config/index.js';
 import { executeQuery, TABLES } from '../../database/index.js';
@@ -11,7 +11,7 @@ import logger from '#logger';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { maybeCaptureIncomingSticker } from '../modules/stickerPackModule/stickerPackCommandHandlers.js';
 import groupConfigStore from '../store/groupConfigStore.js';
-import { sendAndStore } from '../services/messagePersistenceService.js';
+import { sendAndStore } from '../configParts/messagePersistenceService.js';
 import { resolveCaptchaByMessage } from '../services/captchaService.js';
 import { buildWhatsAppGoogleLoginUrl } from '../services/whatsappLoginLinkService.js';
 import { isWhatsAppUserLinkedToGoogleWebAccount } from '../services/googleWebLinkService.js';
@@ -32,6 +32,10 @@ const MESSAGE_ANALYTICS_SOURCE =
     .trim()
     .slice(0, 32) || 'whatsapp';
 const MESSAGE_COMMAND_DEDUPE_TTL_MS = parseEnvInt(process.env.MESSAGE_COMMAND_DEDUPE_TTL_MS, 120_000, 15_000, 30 * 60 * 1000);
+const MESSAGE_REPLY_PRESENCE_BEFORE = normalizeWAPresence(process.env.MESSAGE_REPLY_PRESENCE_BEFORE, 'composing');
+const MESSAGE_REPLY_PRESENCE_AFTER = normalizeWAPresence(process.env.MESSAGE_REPLY_PRESENCE_AFTER, 'paused');
+const MESSAGE_REPLY_PRESENCE_DELAY_MS = parseEnvInt(process.env.MESSAGE_REPLY_PRESENCE_DELAY_MS, 280, 0, 3_000);
+const MESSAGE_REPLY_PRESENCE_SUBSCRIBE = parseEnvBool(process.env.MESSAGE_REPLY_PRESENCE_SUBSCRIBE, true);
 const WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN = parseEnvBool(process.env.WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN, true);
 const SITE_ORIGIN =
   String(process.env.SITE_ORIGIN || process.env.WHATSAPP_LOGIN_BASE_URL || 'https://omnizap.shop')
@@ -149,6 +153,10 @@ const sendReply = (sock, remoteJid, messageInfo, expirationMessage, content, opt
   sendAndStore(sock, remoteJid, content, {
     quoted: messageInfo,
     ephemeralExpiration: expirationMessage,
+    presenceBefore: MESSAGE_REPLY_PRESENCE_BEFORE,
+    presenceAfter: MESSAGE_REPLY_PRESENCE_AFTER,
+    presenceDelayMs: MESSAGE_REPLY_PRESENCE_DELAY_MS,
+    presenceSubscribe: MESSAGE_REPLY_PRESENCE_SUBSCRIBE,
     ...(options || {}),
   });
 

@@ -443,6 +443,36 @@ export const parseEnvCsv = (value, fallback) => {
 };
 
 /**
+ * Estados de presença suportados pelo Baileys (WAPresence).
+ * Referência: Types/Chat.d.ts.
+ * @type {ReadonlyArray<import('@whiskeysockets/baileys').WAPresence>}
+ */
+export const WA_PRESENCE_VALUES = Object.freeze(['unavailable', 'available', 'composing', 'recording', 'paused']);
+const WA_PRESENCE_SET = new Set(WA_PRESENCE_VALUES);
+
+/**
+ * Verifica se o valor informado é um estado de presença válido.
+ * @param {unknown} value
+ * @returns {value is import('@whiskeysockets/baileys').WAPresence}
+ */
+export const isWAPresence = (value) => {
+  if (typeof value !== 'string') return false;
+  return WA_PRESENCE_SET.has(value.trim().toLowerCase());
+};
+
+/**
+ * Normaliza um estado de presença para o formato aceito pelo Baileys.
+ * @param {unknown} value
+ * @param {import('@whiskeysockets/baileys').WAPresence} [fallback='available']
+ * @returns {import('@whiskeysockets/baileys').WAPresence}
+ */
+export const normalizeWAPresence = (value, fallback = 'available') => {
+  const normalizedFallback = isWAPresence(fallback) ? String(fallback).trim().toLowerCase() : 'available';
+  if (!isWAPresence(value)) return /** @type {import('@whiskeysockets/baileys').WAPresence} */ (normalizedFallback);
+  return /** @type {import('@whiskeysockets/baileys').WAPresence} */ (String(value).trim().toLowerCase());
+};
+
+/**
  * Normaliza um JID para o formato canônico.
  * @param {string} jid - JID de entrada.
  * @returns {string} JID normalizado ou string vazia quando ausente.

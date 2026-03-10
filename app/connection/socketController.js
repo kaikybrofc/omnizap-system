@@ -1,7 +1,7 @@
 import makeWASocket, { DisconnectReason, Browsers, getAggregateVotesInPollMessage, areJidsSameUser, WAMessageStatus, WAMessageStubType } from '@whiskeysockets/baileys';
 
 import NodeCache from 'node-cache';
-import { parseEnvBool, parseEnvCsv, parseEnvInt, resolveBaileysVersion, resolveAddressingModeFromMessageKey, normalizeAddressingMode, normalizePnToJid, baileysConnectionLogger as logger, baileysSocketLogger } from '../config/index.js';
+import { parseEnvBool, parseEnvCsv, parseEnvInt, resolveBaileysVersion, resolveAddressingModeFromMessageKey, normalizeAddressingMode, normalizePnToJid, normalizeWAPresence, baileysConnectionLogger as logger, baileysSocketLogger } from '../config/index.js';
 
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
@@ -19,7 +19,7 @@ import { dbConfig, executeQuery, findBy, findById, pool, remove } from '../../da
 import { extractSenderInfoFromMessage, primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../config/index.js';
 import { queueBaileysEventInsert, queueChatUpdate, queueLidUpdate, queueMessageInsert } from '../services/dbWriteQueue.js';
 import { buildGroupMetadataFromGroup, buildGroupMetadataFromUpdate, upsertGroupMetadata, parseParticipantsFromDb } from '../services/groupMetadataService.js';
-import { buildMessageData } from '../services/messagePersistenceService.js';
+import { buildMessageData } from '../configParts/messagePersistenceService.js';
 import { useDbAuthState } from './baileysDbAuthState.js';
 
 import { fileURLToPath } from 'node:url';
@@ -2036,7 +2036,8 @@ export async function updateDefaultDisappearingMode(duration) {
  * @returns {Promise<void>} Uma promessa que resolve quando a atualização de presença é enviada.
  */
 export async function sendPresenceUpdate(type, toJid) {
-  return runControllerSocketMethod('sendPresenceUpdate', type, toJid);
+  const normalizedType = normalizeWAPresence(type, 'available');
+  return runControllerSocketMethod('sendPresenceUpdate', normalizedType, toJid);
 }
 
 /**
