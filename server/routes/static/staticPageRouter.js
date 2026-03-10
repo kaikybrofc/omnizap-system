@@ -98,6 +98,21 @@ export const maybeHandleStaticPageRequest = async (req, res, { pathname } = {}) 
   const templateName = resolveStaticTemplateName(normalizedPath);
   if (!templateName) return false;
 
+  // Redireciona usuário logado tentando acessar página de login
+  if (templateName === 'login.html') {
+    try {
+      const session = await globalThis.resolveGoogleWebSessionFromRequestBridge?.(req);
+      if (session?.sub && (session.ownerJid || session.ownerPhone || session.email)) {
+        res.statusCode = 302;
+        res.setHeader('Location', '/user/');
+        res.end();
+        return true;
+      }
+    } catch (error) {
+      logger.warn('Falha ao verificar sessao para redirecionamento de login.', { error: error?.message });
+    }
+  }
+
   const templatePath = path.join(PUBLIC_PAGES_DIR, templateName);
   try {
     const html = await fs.readFile(templatePath, 'utf8');

@@ -1,6 +1,6 @@
 import { withTimeout } from '../../http/httpRequestUtils.js';
 
-export const createStickerCatalogNonCatalogHandlers = ({ sendJson, sendText, logger, getSystemSummaryCached, systemSummaryCache, systemSummaryCacheSeconds, getReadmeSummaryCached, readmeSummaryCache, readmeSummaryCacheSeconds, getGlobalRankingSummaryCached, globalRankRefreshSeconds, globalRankCache, sanitizeRankingPayloadByBot, getActiveSocket, resolveBotUserCandidates, getMarketplaceGlobalStatsCached, marketplaceGlobalStatsCacheSeconds, marketplaceGlobalStatsCache, githubRepoInfo, githubProjectCacheSeconds, fetchGitHubProjectSummary, buildSupportInfo, buildBotContactInfo, getMarketplaceStatsCached, resolveGoogleWebSessionFromRequest, isAuthenticatedGoogleSession, stickerWebGoogleClientId, homeBootstrapExposeContact, trackWebVisitMetric, resolveVisitPathFromReferrer, normalizeCatalogVisibility }) => {
+export const createStickerCatalogNonCatalogHandlers = ({ sendJson, sendText, logger, getSystemSummaryCached, systemSummaryCache, systemSummaryCacheSeconds, getReadmeSummaryCached, readmeSummaryCache, readmeSummaryCacheSeconds, getGlobalRankingSummaryCached, globalRankRefreshSeconds, globalRankCache, sanitizeRankingPayloadByBot, getActiveSocket, resolveBotUserCandidates, getMarketplaceGlobalStatsCached, marketplaceGlobalStatsCacheSeconds, marketplaceGlobalStatsCache, githubRepoInfo, githubProjectCacheSeconds, fetchGitHubProjectSummary, buildSupportInfo, buildBotContactInfo, getMarketplaceStatsCached, resolveGoogleWebSessionFromRequest, mapGoogleSessionResponseData, isAuthenticatedGoogleSession, stickerWebGoogleClientId, homeBootstrapExposeContact, trackWebVisitMetric, resolveVisitPathFromReferrer, normalizeCatalogVisibility }) => {
   const buildHomeRealtimeSnapshot = async ({ systemSummary = null } = {}) => {
     const totalUsersRaw = Number(systemSummary?.platform?.total_users);
     const totalMessagesRaw = Number(systemSummary?.usage?.total_messages);
@@ -104,7 +104,7 @@ export const createStickerCatalogNonCatalogHandlers = ({ sendJson, sendText, log
 
     sendJson(req, res, 200, {
       data: {
-        session,
+        session: mapGoogleSessionResponseData(session),
         support,
         bot_contact: botContact,
         marketplace_stats: statsPayload,

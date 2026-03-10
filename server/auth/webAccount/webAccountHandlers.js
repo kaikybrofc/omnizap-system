@@ -203,7 +203,7 @@ const buildHttpError = (message, { statusCode = 400, code = 'BAD_REQUEST' } = {}
   return error;
 };
 
-export const createWebAccountAuthHandlers = ({ sendJson, readJsonBody, logger, parseUserPasswordUpsertPayload, parseUserPasswordRecoveryRequestPayload, parseUserPasswordRecoveryVerifyPayload, parseUserPasswordLoginPayload, resolveGoogleWebSessionFromRequest, mapGoogleSessionResponseData, revokeGoogleWebSessionsByIdentity, createPersistedGoogleWebSessionFromIdentity, setGoogleWebSessionCookie, issueAccessTokenForSession, userPasswordAuthService, userPasswordRecoveryService, resolveRequestRemoteIp, normalizeEmail, normalizeGoogleSubject, normalizeJid, isWebAuthJwtEnabled, signWebAuthJwt, verifyWebAuthJwt, passwordRecoverySessionAuthMethod, passwordRecoverySessionTtlSeconds, userProfileWebPath, userPasswordResetWebPath, toSiteAbsoluteUrl, executeQuery, tables, toIsoOrNull, sanitizeText, listStickerPacksByOwner, listStickerPackEngagementByPackIds, mapPackSummary, isPackPubliclyVisible, resolveMyProfileOwnerCandidates, shouldHidePackFromMyProfileDefault, parseEnvBool, clampInt, stickerWebGoogleClientId, stickerWebGoogleAuthRequired }) => {
+export const createWebAccountAuthHandlers = ({ sendJson, readJsonBody, logger, parseUserPasswordUpsertPayload, parseUserPasswordRecoveryRequestPayload, parseUserPasswordRecoveryVerifyPayload, parseUserPasswordLoginPayload, resolveGoogleWebSessionFromRequest, mapGoogleSessionResponseData, revokeGoogleWebSessionsByIdentity, createPersistedGoogleWebSessionFromIdentity, setGoogleWebSessionCookie, issueAccessTokenForSession, userPasswordAuthService, userPasswordRecoveryService, resolveRequestRemoteIp, normalizeEmail, normalizeGoogleSubject, normalizeJid, isWebAuthJwtEnabled, signWebAuthJwt, verifyWebAuthJwt, passwordRecoverySessionAuthMethod, passwordRecoverySessionTtlSeconds, userProfileWebPath, userPasswordResetWebPath, toSiteAbsoluteUrl, executeQuery, tables, toIsoOrNull, sanitizeText, listStickerPacksByOwner, listStickerPackEngagementByPackIds, mapPackSummary, isPackPubliclyVisible, resolveMyProfileOwnerCandidates, shouldHidePackFromMyProfileDefault, parseEnvBool, clampInt, stickerWebGoogleClientId, stickerWebGoogleAuthRequired, toWhatsAppPhoneDigits, getActiveSocket: _getActiveSocket, profilePictureUrlFromActiveSocket }) => {
   const passwordPolicy = typeof userPasswordAuthService?.getPolicy === 'function' ? userPasswordAuthService.getPolicy() : {};
   const passwordLoginIdentityMaxAttempts = clampInt(process.env.WEB_USER_PASSWORD_LOGIN_IDENTITY_MAX_ATTEMPTS, Number(passwordPolicy?.maxFailedAttempts || 8) || 8, 3, 100);
   const passwordLoginIdentityLockoutSeconds = clampInt(process.env.WEB_USER_PASSWORD_LOGIN_IDENTITY_LOCKOUT_SECONDS, Number(passwordPolicy?.lockoutSeconds || 900) || 900, 30, 86_400);
@@ -1095,27 +1095,133 @@ export const createWebAccountAuthHandlers = ({ sendJson, readJsonBody, logger, p
 
     let lastLoginAt = null;
     let lastSeenAt = null;
+    let dbOwnerJid = null;
+    let dbPicture = null;
 
     if (identityClauses.length) {
       try {
-        const rows = await executeQuery(
-          `SELECT last_login_at, last_seen_at
-             FROM ${tables.STICKER_WEB_GOOGLE_USER}
-            WHERE ${identityClauses.join(' OR ')}
-            ORDER BY COALESCE(last_login_at, last_seen_at, updated_at, created_at) DESC
-            LIMIT 1`,
-          identityParams,
-        );
+        const rows = await executeQuery('SELECT last_login_at, last_seen_at, owner_jid, picture FROM ' + tables.STICKER_WEB_GOOGLE_USER + ' WHERE ' + identityClauses.join(' OR ') + ' ORDER BY COALESCE(last_login_at, last_seen_at, updated_at, created_at) DESC LIMIT 1', identityParams);
         const entry = Array.isArray(rows) ? rows[0] : null;
         lastLoginAt = toIsoOrNull(entry?.last_login_at);
         lastSeenAt = toIsoOrNull(entry?.last_seen_at);
+        dbOwnerJid = normalizeJid(entry?.owner_jid);
+        dbPicture = entry?.picture;
       } catch (error) {
-        logger.warn('Falha ao resolver resumo de conta do perfil web.', {
-          action: 'sticker_pack_my_profile_account_summary_failed',
-          google_sub: normalizedSub,
-          owner_jid: normalizedOwnerJid,
-          error: error?.message,
-        });
+        logger.warn('Falha ao resolver resumo de conta do perfil web.', { error: error?.message });
+      }
+    }
+
+    const effectiveOwnerJid = normalizedOwnerJid || dbOwnerJid;
+    let rpg = null;
+    const usage = { messages: 0, packs: 0, stickers: 0, activity_chart: [], insights: {} };
+
+    if (effectiveOwnerJid) {
+      try {
+        // Basic RPG Info
+        const rpgRows = await executeQuery('SELECT level, xp, gold, created_at, updated_at FROM ' + tables.RPG_PLAYER + ' WHERE jid = ? LIMIT 1', [effectiveOwnerJid]);
+        const rpgRow = rpgRows?.[0];
+
+        if (rpgRow) {
+          const activePokemonRows = await executeQuery('SELECT poke_id, nickname, level, is_shiny FROM ' + tables.RPG_PLAYER_POKEMON + ' WHERE owner_jid = ? AND is_active = 1 LIMIT 1', [effectiveOwnerJid]);
+          const pokemonCountRows = await executeQuery('SELECT COUNT(*) as total FROM ' + tables.RPG_PLAYER_POKEMON + ' WHERE owner_jid = ?', [effectiveOwnerJid]);
+          const pvpStatsRows = await executeQuery('SELECT COALESCE(SUM(matches_played), 0) AS matches_played, COALESCE(SUM(wins), 0) AS wins, COALESCE(SUM(losses), 0) AS losses FROM ' + tables.RPG_PVP_WEEKLY_STATS + ' WHERE owner_jid = ?', [effectiveOwnerJid]);
+          const karmaRows = await executeQuery('SELECT karma_score, positive_votes, negative_votes FROM ' + tables.RPG_KARMA_PROFILE + ' WHERE owner_jid = ? LIMIT 1', [effectiveOwnerJid]);
+          const inventoryRows = await executeQuery('SELECT COUNT(*) as total FROM ' + tables.RPG_PLAYER_INVENTORY + ' WHERE owner_jid = ?', [effectiveOwnerJid]);
+
+          const karmaRow = karmaRows?.[0];
+          const pvpRow = pvpStatsRows?.[0];
+
+          rpg = {
+            level: Number(rpgRow.level || 1),
+            xp: Number(rpgRow.xp || 0),
+            gold: Number(rpgRow.gold || 0),
+            member_since: toIsoOrNull(rpgRow.created_at),
+            active_pokemon: activePokemonRows?.[0] || null,
+            total_pokemons: Number(pokemonCountRows?.[0]?.total || 0),
+            inventory_count: Number(inventoryRows?.[0]?.total || 0),
+            karma: karmaRow
+              ? {
+                  score: Number(karmaRow.karma_score),
+                  positive: Number(karmaRow.positive_votes),
+                  negative: Number(karmaRow.negative_votes),
+                }
+              : { score: 0, positive: 0, negative: 0 },
+            pvp: {
+              matches: Number(pvpRow?.matches_played || 0),
+              wins: Number(pvpRow?.wins || 0),
+              losses: Number(pvpRow?.losses || 0),
+            },
+          };
+          const rpgLastSeen = toIsoOrNull(rpgRow.updated_at);
+          if (rpgLastSeen && (!lastSeenAt || new Date(rpgLastSeen) > new Date(lastSeenAt))) {
+            lastSeenAt = rpgLastSeen;
+          }
+        }
+
+        // Usage Stats
+        const msgStatsRows = await executeQuery('SELECT COUNT(*) as total, MIN(timestamp) as first_msg, MAX(timestamp) as last_msg FROM ' + tables.MESSAGES + ' WHERE canonical_sender_id = ? OR sender_id = ?', [effectiveOwnerJid, effectiveOwnerJid]);
+        const msgStats = msgStatsRows?.[0];
+        usage.messages = Number(msgStats?.total || 0);
+        usage.first_message_at = toIsoOrNull(msgStats?.first_msg);
+        usage.last_message_at = toIsoOrNull(msgStats?.last_msg);
+
+        const commandStatsRows = await executeQuery('SELECT COUNT(*) as total FROM ' + tables.MESSAGES + " WHERE (canonical_sender_id = ? OR sender_id = ?) AND content LIKE '/%'", [effectiveOwnerJid, effectiveOwnerJid]);
+
+        const topCommandRows = await executeQuery("SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(content, ' ', 1), '\\n', 1) as cmd, COUNT(*) as total FROM " + tables.MESSAGES + " WHERE (canonical_sender_id = ? OR sender_id = ?) AND content LIKE '/%' GROUP BY cmd ORDER BY total DESC LIMIT 1", [effectiveOwnerJid, effectiveOwnerJid]);
+
+        const typeSql = "(CASE WHEN JSON_EXTRACT(raw_message, '$.message.conversation') IS NOT NULL THEN 'texto' WHEN JSON_EXTRACT(raw_message, '$.message.extendedTextMessage') IS NOT NULL THEN 'texto' WHEN JSON_EXTRACT(raw_message, '$.message.imageMessage') IS NOT NULL THEN 'imagem' WHEN JSON_EXTRACT(raw_message, '$.message.videoMessage') IS NOT NULL THEN 'video' WHEN JSON_EXTRACT(raw_message, '$.message.audioMessage') IS NOT NULL THEN 'audio' WHEN JSON_EXTRACT(raw_message, '$.message.stickerMessage') IS NOT NULL THEN 'figurinha' WHEN JSON_EXTRACT(raw_message, '$.message.documentMessage') IS NOT NULL THEN 'documento' WHEN JSON_EXTRACT(raw_message, '$.message.reactionMessage') IS NOT NULL THEN 'reacao' ELSE 'outros' END)";
+        const topTypeRows = await executeQuery('SELECT ' + typeSql + ' as type, COUNT(*) as total FROM ' + tables.MESSAGES + ' WHERE canonical_sender_id = ? OR sender_id = ? GROUP BY type ORDER BY total DESC LIMIT 1', [effectiveOwnerJid, effectiveOwnerJid]);
+
+        const groupsCountRows = await executeQuery('SELECT COUNT(DISTINCT chat_id) as total FROM ' + tables.MESSAGES + " WHERE (canonical_sender_id = ? OR sender_id = ?) AND chat_id LIKE '%@g.us'", [effectiveOwnerJid, effectiveOwnerJid]);
+
+        const topGroupRows = await executeQuery('SELECT m.chat_id, COALESCE(gm.subject, m.chat_id) as name, COUNT(*) as total FROM ' + tables.MESSAGES + ' m LEFT JOIN ' + tables.GROUPS_METADATA + " gm ON gm.id = m.chat_id WHERE (m.canonical_sender_id = ? OR m.sender_id = ?) AND m.chat_id LIKE '%@g.us' GROUP BY m.chat_id, gm.subject ORDER BY total DESC LIMIT 1", [effectiveOwnerJid, effectiveOwnerJid]);
+
+        const activeHourRows = await executeQuery('SELECT HOUR(timestamp) as hour, COUNT(*) as total FROM ' + tables.MESSAGES + ' WHERE canonical_sender_id = ? OR sender_id = ? GROUP BY hour ORDER BY total DESC LIMIT 1', [effectiveOwnerJid, effectiveOwnerJid]);
+
+        const chartRows = await executeQuery('SELECT DATE(timestamp) as day, COUNT(*) as count FROM ' + tables.MESSAGES + ' WHERE (canonical_sender_id = ? OR sender_id = ?) AND timestamp >= NOW() - INTERVAL 7 DAY GROUP BY DATE(timestamp) ORDER BY day ASC', [effectiveOwnerJid, effectiveOwnerJid]);
+
+        let avgDaily = 0;
+        if (usage.messages > 0 && usage.first_message_at) {
+          const daysDiff = Math.max(1, (Date.now() - new Date(usage.first_message_at).getTime()) / (1000 * 60 * 60 * 24));
+          avgDaily = (usage.messages / daysDiff).toFixed(2);
+        }
+
+        usage.insights = {
+          commands_total: Number(commandStatsRows?.[0]?.total || 0),
+          top_command: topCommandRows?.[0]?.cmd || 'N/D',
+          top_command_count: Number(topCommandRows?.[0]?.total || 0),
+          top_message_type: topTypeRows?.[0]?.type || 'texto',
+          groups_active: Number(groupsCountRows?.[0]?.total || 0),
+          top_group: topGroupRows?.[0]?.name || 'N/D',
+          active_hour: activeHourRows?.[0]?.hour ?? null,
+          avg_daily: avgDaily,
+        };
+
+        usage.activity_chart = (chartRows || []).map((r) => ({
+          day: r.day instanceof Date ? r.day.toISOString().slice(5, 10) : String(r.day).slice(5, 10),
+          count: Number(r.count),
+        }));
+      } catch (error) {
+        logger.warn('Falha ao buscar estatisticas expandidas do usuario.', { owner_jid: effectiveOwnerJid, error: error?.message });
+      }
+    }
+
+    const packRows = await executeQuery('SELECT COUNT(*) as packs, SUM(sticker_count) as stickers FROM ' + tables.STICKER_PACK + ' WHERE owner_jid = ? AND deleted_at IS NULL', [effectiveOwnerJid]);
+    usage.packs = Number(packRows?.[0]?.packs || 0);
+    usage.stickers = Number(packRows?.[0]?.stickers || 0);
+
+    // Resolve Profile Picture
+    let picture = dbPicture || session?.user?.picture;
+    const isGeneric = !picture || picture.includes('brand-logo');
+
+    if (effectiveOwnerJid && isGeneric) {
+      try {
+        const waPicture = await profilePictureUrlFromActiveSocket(effectiveOwnerJid, 'image', 3000);
+        if (waPicture) {
+          picture = waPicture;
+        }
+      } catch {
+        logger.debug('Falha ao buscar foto de perfil do WhatsApp.', { jid: effectiveOwnerJid });
       }
     }
 
@@ -1124,6 +1230,10 @@ export const createWebAccountAuthHandlers = ({ sendJson, readJsonBody, logger, p
       status: 'active',
       last_login_at: lastLoginAt,
       last_seen_at: lastSeenAt,
+      rpg,
+      usage,
+      owner_phone: toWhatsAppPhoneDigits(effectiveOwnerJid),
+      picture: picture || null,
     };
   };
 

@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { URL, URLSearchParams } from 'node:url';
 
 import { executeQuery, pool, TABLES } from '../../../database/index.js';
-import { normalizeJid, resolveBotJid, getActiveSocket, extractUserIdInfo, resolveUserId } from '../../../app/config/index.js';
+import { normalizeJid, resolveBotJid, getActiveSocket, profilePictureUrlFromActiveSocket, extractUserIdInfo, resolveUserId } from '../../../app/config/index.js';
 import { resolveWhatsAppOwnerJidFromLoginPayload, toWhatsAppOwnerJid, toWhatsAppPhoneDigits } from '../../../app/services/whatsappLoginLinkService.js';
 import logger from '#logger';
 import { listStickerPacksForCatalog, findStickerPackByPackKey, listStickerPacksByOwner, bumpStickerPackVersion, findStickerPackByOwnerAndIdentifier, softDeleteStickerPack, updateStickerPackFields } from '../../../app/modules/stickerPackModule/stickerPackRepository.js';
@@ -2125,6 +2125,9 @@ const { upsertGoogleWebUserRecord, resolveGoogleWebSessionFromRequest, mapGoogle
 // Configuração de pontes para o systemController resolver dependências circulares
 globalThis.getMarketplaceStatsCachedBridge = (visibility) => getMarketplaceStatsCached(visibility);
 globalThis.resolveGoogleWebSessionFromRequestBridge = (req) => resolveGoogleWebSessionFromRequest(req);
+globalThis.mapGoogleSessionResponseDataBridge = (sess, opts) => mapGoogleSessionResponseData(sess, opts);
+globalThis.getActiveSocketBridge = () => getActiveSocket();
+globalThis.profilePictureUrlFromActiveSocketBridge = (jid, type, timeout) => profilePictureUrlFromActiveSocket(jid, type, timeout);
 
 revokeGoogleWebSessionsByIdentityBridge = revokeGoogleWebSessionsByIdentity;
 

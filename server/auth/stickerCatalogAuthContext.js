@@ -136,6 +136,9 @@ export const createStickerCatalogAuthContext = ({ executeQuery, runSqlTransactio
     clampInt,
     stickerWebGoogleClientId,
     stickerWebGoogleAuthRequired,
+    toWhatsAppPhoneDigits,
+    getActiveSocket: () => globalThis.getActiveSocketBridge?.() || null,
+    profilePictureUrlFromActiveSocket: (jid, type, timeout) => globalThis.profilePictureUrlFromActiveSocketBridge?.(jid, type, timeout) || Promise.resolve(null),
   });
 
   return {

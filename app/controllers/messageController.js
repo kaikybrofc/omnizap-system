@@ -3,9 +3,10 @@ import 'dotenv/config';
 import { isAdminCommand } from '../modules/adminModule/groupCommandHandlers.js';
 import { explicarComandoGlobal, registerGlobalHelpCommandExecution } from '../services/globalModuleAiHelpService.js';
 import { extractSupportedStickerMediaDetails, processSticker } from '../modules/stickerModule/stickerCommand.js';
-import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, isGroupJid, isSameJidUser, normalizeJid, resolveBotJid, extractSenderInfoFromMessage, resolveUserId, resolveAddressingModeFromMessageKey, resolveCanonicalWhatsAppJid, parseEnvBool, parseEnvInt } from '../config/index.js';
+import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, isGroupJid, isStatusJid, isSameJidUser, normalizeJid, resolveBotJid, extractSenderInfoFromMessage, resolveUserId, resolveAddressingModeFromMessageKey, resolveCanonicalWhatsAppJid, parseEnvBool, parseEnvInt } from '../config/index.js';
 import { isUserAdmin } from '../config/index.js';
 import { isAdminSenderAsync } from '../config/index.js';
+import { executeQuery, TABLES } from '../../database/index.js';
 import logger from '#logger';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { maybeCaptureIncomingSticker } from '../modules/stickerPackModule/stickerPackCommandHandlers.js';
@@ -391,6 +392,13 @@ export const handleMessages = async (update, sock) => {
           isGroupMessage,
           remoteJid,
         });
+
+        // Update user activity in DB
+        if (senderJid && !isStatusJid(remoteJid)) {
+          void executeQuery(`UPDATE ${TABLES.RPG_PLAYER} SET updated_at = CURRENT_TIMESTAMP WHERE jid = ?`, [senderJid]).catch(() => {});
+
+          void executeQuery(`UPDATE web_google_user SET last_seen_at = CURRENT_TIMESTAMP WHERE owner_jid = ?`, [senderJid]).catch(() => {});
+        }
 
         const senderName = messageInfo?.pushName;
         const expirationMessage = getExpiration(messageInfo);

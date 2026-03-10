@@ -230,6 +230,8 @@ const LoginApp = ({ config }) => {
         const sessionData = payload?.data || null;
         if (isAuthenticatedSession(sessionData)) {
           setSession(sessionData);
+          // Redireciona imediatamente se já estiver autenticado
+          window.location.replace(config.panelPath);
         }
       })
       .catch(() => {});

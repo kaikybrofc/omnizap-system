@@ -128,6 +128,7 @@ export const systemHandlers = createStickerCatalogNonCatalogHandlers({
   // Estas serão injetadas via bridge para evitar circular dependency
   getMarketplaceStatsCached: (vis) => globalThis.getMarketplaceStatsCachedBridge?.(vis),
   resolveGoogleWebSessionFromRequest: (req) => globalThis.resolveGoogleWebSessionFromRequestBridge?.(req),
+  mapGoogleSessionResponseData: (sess, opts) => globalThis.mapGoogleSessionResponseDataBridge?.(sess, opts),
   isAuthenticatedGoogleSession: (sess) => Boolean(sess?.sub && (sess?.ownerJid || sess?.ownerPhone || sess?.email)),
 });
 
