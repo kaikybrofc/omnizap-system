@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="night">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Comandos do Bot para WhatsApp | OmniZap</title>
-    <meta name="description" content="Biblioteca de automação OmniZap com comandos para moderação, figurinhas, engajamento, mídia e utilidades para grupos de WhatsApp." />
+    <meta name="description" content="Explore a biblioteca completa de comandos do OmniZap para moderação, stickers, mídia e utilidades inteligentes." />
     <meta name="keywords" content="comandos bot whatsapp, comandos omnizap, bot para grupo whatsapp, automacao whatsapp" />
-    <meta name="robots" content="index, follow, max-snippet:-1" />
+    <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://omnizap.shop/comandos/" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="manifest" href="/site.webmanifest" />
@@ -14,294 +14,28 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Sora:wght@100..800&display=swap" rel="stylesheet" />
-
+    <link rel="stylesheet" href="/assets/css/commands-react.css" />
     <style>
-      :root {
-        --bc: 210 40% 96%;
-        --p: 142 71% 45%;
-        --s: 217 91% 60%;
-      }
-      * {
-        box-sizing: border-box;
-      }
       body {
         margin: 0;
         background: #020617;
-        background-image: radial-gradient(at 0% 0%, hsla(142, 71%, 45%, 0.12) 0px, transparent 50%), radial-gradient(at 100% 0%, hsla(217, 91%, 60%, 0.12) 0px, transparent 50%);
-        color: hsl(var(--bc));
+        color: #fff;
         font-family: 'Sora', sans-serif;
-        line-height: 1.6;
+      }
+      #commands-react-root {
         min-height: 100vh;
-      }
-      .container {
-        width: min(1100px, 94vw);
-        margin: 0 auto;
-        padding: 40px 0 80px;
-      }
-      .navbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 1rem 0;
-        margin-bottom: 3rem;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      }
-      .logo {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        text-decoration: none;
-        color: inherit;
-        font-weight: 800;
-        font-size: 1.2rem;
-      }
-      .logo img {
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
-      }
-      .nav-links a {
-        padding: 6px 14px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        color: rgba(255, 255, 255, 0.6);
-        text-decoration: none;
-        font-size: 0.8rem;
-        font-weight: 600;
-        transition: all 0.2s;
-      }
-      .nav-links a:hover {
-        color: #fff;
-        border-color: rgba(255, 255, 255, 0.2);
-      }
-
-      .hero {
-        text-align: center;
-        margin-bottom: 4rem;
-      }
-      .pill {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 999px;
-        background: hsla(142, 71%, 45%, 0.1);
-        border: 1px solid hsla(142, 71%, 45%, 0.2);
-        color: hsla(142, 71%, 45%, 1);
-        font-size: 0.7rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        margin-bottom: 1rem;
-      }
-      h1 {
-        font-family: 'Space Grotesk', sans-serif;
-        font-size: clamp(2rem, 5vw, 3.5rem);
-        font-weight: 800;
-        margin: 0 0 1rem;
-        line-height: 1.1;
-        letter-spacing: -0.02em;
-      }
-      .hero p {
-        color: rgba(255, 255, 255, 0.5);
-        font-size: 1.1rem;
-        max-width: 700px;
-        margin: 0 auto 2rem;
-      }
-
-      .glass-card {
-        background: rgba(255, 255, 255, 0.02);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 2.5rem;
-        padding: 2.5rem;
-        margin-bottom: 2rem;
-      }
-
-      .search-wrap {
-        margin-bottom: 2rem;
-      }
-      .catalog-search {
-        width: 100%;
-        padding: 1.2rem 1.5rem;
-        border-radius: 1.5rem;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        color: #fff;
-        font-family: inherit;
-        font-size: 1rem;
-        transition: all 0.2s;
-      }
-      .catalog-search:focus {
-        outline: none;
-        border-color: hsla(142, 71%, 45%, 0.5);
-        background: rgba(255, 255, 255, 0.05);
-      }
-
-      .commands-grid {
-        display: grid;
-        gap: 2rem;
-      }
-      .category-title {
-        font-family: 'Space Grotesk', sans-serif;
-        font-size: 1.5rem;
-        font-weight: 800;
-        margin-bottom: 1.5rem;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-      .command-list {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: 1rem;
-        list-style: none;
-        padding: 0;
-      }
-      .command-item {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 1.2rem;
-        padding: 1.5rem;
-        transition: transform 0.2s;
-      }
-      .command-item:hover {
-        transform: translateY(-3px);
-        border-color: rgba(255, 255, 255, 0.1);
-      }
-      .command-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 0.8rem;
-      }
-      .command-head code {
-        font-family: monospace;
-        font-weight: 800;
-        color: hsla(142, 71%, 45%, 1);
-        font-size: 1rem;
-      }
-      .command-module {
-        font-size: 0.65rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        opacity: 0.4;
-        letter-spacing: 0.05em;
-      }
-      .command-item p {
-        margin: 0;
-        font-size: 0.85rem;
-        color: rgba(255, 255, 255, 0.6);
-      }
-      .command-usage {
-        margin-top: 1rem !important;
-        font-size: 0.75rem !important;
-        font-weight: 700;
-        color: rgba(255, 255, 255, 0.3) !important;
-      }
-
-      .footer {
-        text-align: center;
-        margin-top: 4rem;
-        opacity: 0.2;
-        font-size: 0.7rem;
-        font-weight: 700;
-        letter-spacing: 0.2em;
-      }
-
-      @media (max-width: 768px) {
-        .glass-card {
-          padding: 1.5rem;
-        }
-        .command-list {
-          grid-template-columns: 1fr;
-        }
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <header class="navbar">
-        <a href="/" class="logo">
-          <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" />
-          <span>OmniZap<span style="color: hsla(142, 71%, 45%, 1)">.</span></span>
-        </a>
-        <nav class="nav-links">
-          <a href="/">Início</a>
-          <a href="/stickers/">Marketplace</a>
-          <a href="/login/">Adicionar Bot</a>
-        </nav>
-      </header>
-
-      <section class="hero">
-        <span class="pill">Biblioteca de Automação</span>
-        <h1>
-          Todos os comandos <br />
-          ao seu alcance.
-        </h1>
-        <p>Explore as dezenas de ferramentas integradas para moderar, engajar e automatizar seu grupo no WhatsApp.</p>
-        <p id="catalog-summary" style="font-size: 0.8rem; opacity: 0.5">Carregando dados...</p>
-      </section>
-
-      <main class="glass-card">
-        <div class="search-wrap">
-          <input id="command-search" class="catalog-search" type="search" placeholder="Busque por comando ou funcionalidade..." autocomplete="off" />
-        </div>
-
-        <div id="commands-grid" class="commands-grid">
-          <p style="text-align: center; padding: 3rem; opacity: 0.5">Sincronizando catálogo de comandos...</p>
-        </div>
+    <div id="commands-react-root"></div>
+    <noscript>
+      <main style="max-width: 800px; margin: 50px auto; padding: 20px; text-align: center">
+        <h1>OmniZap - Catálogo de Comandos</h1>
+        <p>JavaScript é necessário para carregar a biblioteca interativa de comandos.</p>
+        <a href="/" style="color: #22c55e">Voltar para Home</a>
       </main>
-
-      <footer class="footer">© 2026 OMNIZAP SYSTEM · COMMANDS CATALOG V2</footer>
-    </div>
-
-    <script>
-      (function () {
-        const catalogUrl = '/comandos/commands-catalog.json';
-        const commandGrid = document.getElementById('commands-grid');
-        const searchInput = document.getElementById('command-search');
-        const summaryNode = document.getElementById('catalog-summary');
-
-        const escapeHtml = (v) => String(v || '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
-
-        const renderCategories = (categories, filter = '') => {
-          const query = filter.toLowerCase().trim();
-          let html = '';
-          categories.forEach((cat) => {
-            const filtered = cat.commands.filter((cmd) => cmd.name.toLowerCase().includes(query) || cmd.descricao.toLowerCase().includes(query) || (cmd.aliases && cmd.aliases.some((a) => a.toLowerCase().includes(query))));
-            if (!filtered.length) return;
-
-            html += `<div class="category-block">
-              <h3 class="category-title">${cat.icon || '🧩'} ${cat.label}</h3>
-              <ul class="command-list">
-                ${filtered
-                  .map(
-                    (cmd) => `
-                  <li class="command-item">
-                    <div class="command-head">
-                      <code>/${escapeHtml(cmd.name)}</code>
-                      <span class="command-module">${escapeHtml(cmd.module_label || cmd.module)}</span>
-                    </div>
-                    <p>${escapeHtml(cmd.descricao)}</p>
-                    <p class="command-usage">USO: ${escapeHtml(cmd.metodos_de_uso ? cmd.metodos_de_uso[0] : '/' + cmd.name)}</p>
-                  </li>
-                `,
-                  )
-                  .join('')}
-              </ul>
-            </div>`;
-          });
-          commandGrid.innerHTML = html || '<p style="text-align:center; opacity:0.5; padding:3rem;">Nenhum comando encontrado.</p>';
-        };
-
-        fetch(catalogUrl)
-          .then((r) => r.json())
-          .then((data) => {
-            summaryNode.textContent = `${data.totals.commands} comandos ativos em ${data.totals.modules} módulos.`;
-            renderCategories(data.categories, '');
-            searchInput.addEventListener('input', (e) => renderCategories(data.categories, e.target.value));
-          });
-      })();
-    </script>
+    </noscript>
+    <script type="module" src="/assets/js/commands-react.bundle.js"></script>
   </body>
 </html>

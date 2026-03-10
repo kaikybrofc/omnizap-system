@@ -11,16 +11,16 @@ const modulesRoot = path.join(repoRoot, 'app', 'modules');
 const outputPath = path.join(repoRoot, 'public', 'comandos', 'commands-catalog.json');
 
 const CATEGORY_META = {
-  admin: { label: 'Moderacao e Admin', icon: '🛡️' },
+  admin: { label: 'Moderação e Admin', icon: '🛡️' },
   figurinhas: { label: 'Figurinhas', icon: '🎨' },
-  midia: { label: 'Midia', icon: '🎵' },
-  ia: { label: 'Inteligencia Artificial', icon: '🤖' },
+  midia: { label: 'Mídia', icon: '🎵' },
+  ia: { label: 'Inteligência Artificial', icon: '🤖' },
   anime: { label: 'Anime e Imagens', icon: '🖼️' },
-  jogos: { label: 'Jogos e Diversao', icon: '🎮' },
-  estatisticas: { label: 'Estatisticas', icon: '📊' },
-  menu: { label: 'Menu e Navegacao', icon: '📚' },
+  jogos: { label: 'Jogos e Diversão', icon: '🎮' },
+  estatisticas: { label: 'Estatísticas', icon: '📊' },
+  menu: { label: 'Menu e Navegação', icon: '📚' },
   sistema: { label: 'Sistema', icon: '🧰' },
-  usuario: { label: 'Perfil de Usuario', icon: '👤' },
+  usuario: { label: 'Perfil de Usuário', icon: '👤' },
 };
 
 const CATEGORY_ORDER = ['admin', 'figurinhas', 'midia', 'ia', 'jogos', 'estatisticas', 'anime', 'usuario', 'menu', 'sistema'];
@@ -58,6 +58,21 @@ const resolveCategoryMeta = (key) => {
   return { label, icon: '🧩' };
 };
 
+const deepMerge = (target, source) => {
+  if (!source) return target;
+  const output = { ...target };
+  for (const key in source) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      if (source[key] !== null && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+        output[key] = deepMerge(target[key] || {}, source[key]);
+      } else {
+        output[key] = source[key];
+      }
+    }
+  }
+  return output;
+};
+
 const listModuleConfigs = async () => {
   const dirs = await fs.readdir(modulesRoot, { withFileTypes: true });
   const configs = [];
@@ -77,39 +92,123 @@ const listModuleConfigs = async () => {
   return configs.sort((left, right) => left.moduleDirName.localeCompare(right.moduleDirName));
 };
 
-const sanitizeCommand = ({ command, moduleDirName, moduleName }) => {
+const sanitizeCommand = ({ command: rawCommand, moduleDefaults, moduleDirName, moduleName }) => {
+  // Merge overrides from module defaults
+  const command = deepMerge(moduleDefaults?.command || {}, rawCommand);
+
   const commandName = String(command?.name || '').trim();
   if (!commandName) return null;
 
-  const category = normalizeCategoryKey(command?.categoria);
+  const category = normalizeCategoryKey(command?.categoria || command?.category);
   const aliases = unique(ensureArray(command?.aliases).map((alias) => String(alias)));
-  const usageMethods = unique(ensureArray(command?.metodos_de_uso).map((method) => String(method).replaceAll('<prefix>', '/').trim()));
-  const usageVariants =
-    command?.mensagens_uso && typeof command.mensagens_uso === 'object'
-      ? Object.entries(command.mensagens_uso).reduce((acc, [variantKey, methods]) => {
-          const normalizedVariantKey = String(variantKey || '').trim();
-          const normalizedMethods = unique(ensureArray(methods).map((method) => String(method).replaceAll('<prefix>', '/').trim()));
-          if (normalizedVariantKey && normalizedMethods.length) {
-            acc[normalizedVariantKey] = normalizedMethods;
-          }
-          return acc;
-        }, {})
-      : {};
+
+  // Usage methods & docs
+  const usageMethods = unique(ensureArray(command?.metodos_de_uso || command?.usage || command?.docs?.usage_examples).map((method) => String(method).replaceAll('<prefix>', '/').trim()));
+  const usageVariants = deepMerge(moduleDefaults?.responses || {}, command?.docs?.usage_variants || command?.mensagens_uso || {});
+
+  const normalizedUsageVariants = Object.entries(usageVariants).reduce((acc, [variantKey, methods]) => {
+    const normalizedVariantKey = String(variantKey || '').trim();
+    const normalizedMethods = unique(ensureArray(methods).map((method) => String(method).replaceAll('<prefix>', '/').trim()));
+    if (normalizedVariantKey && normalizedMethods.length) {
+      acc[normalizedVariantKey] = normalizedMethods;
+    }
+    return acc;
+  }, {});
+
+  // Requirements (Requirements merged with defaults)
+  const req = deepMerge(moduleDefaults?.requirements || moduleDefaults?.pre_condicoes || {}, command?.requirements || command?.pre_condicoes || {});
+  const requirements = {
+    group: Boolean(req.require_group ?? req.requer_grupo),
+    admin: Boolean(req.require_group_admin ?? req.requer_admin),
+    owner: Boolean(req.require_bot_owner ?? req.requer_admin_principal),
+    google_login: Boolean(req.require_google_login ?? req.requer_google_login),
+    nsfw: Boolean(req.require_nsfw_enabled ?? req.requer_nsfw),
+    media: Boolean(req.require_media ?? req.requer_midia),
+    reply: Boolean(req.require_reply_message ?? req.requer_mensagem_respondida),
+  };
+
+  // Access & Premium
+  const acc = deepMerge(moduleDefaults?.access || moduleDefaults?.acesso || {}, command?.access || command?.acesso || {});
+  const premium = Boolean(acc.premium_only ?? acc.somente_premium);
+  const allowedPlans = unique(ensureArray(acc.allowed_plans || acc.planos_permitidos));
+
+  // Rate Limits
+  const rl = deepMerge(moduleDefaults?.rate_limit || {}, command?.limits?.rate_limit || command?.rate_limit || {});
+  const rateLimit = rl.max ? { max: rl.max, window_ms: rl.janela_ms || rl.window_ms, scope: rl.escopo || rl.scope } : null;
+
+  // Discovery
+  const disc = deepMerge(moduleDefaults?.discovery || {}, command?.discovery || {});
+  const keywords = unique([...ensureArray(command?.capability_keywords), ...ensureArray(disc.keywords)]);
+  const userPhrasings = unique([...ensureArray(command?.user_phrasings), ...ensureArray(disc.user_phrasings)]);
+
+  // Arguments
+  const rawArgs = command?.arguments || command?.argumentos || [];
+  const args = ensureArray(rawArgs)
+    .map((arg) => ({
+      name: String(arg.name || arg.nome || '').trim(),
+      type: String(arg.type || arg.tipo || 'string').trim(),
+      required: Boolean(arg.required ?? arg.obrigatorio),
+      description: String(arg.description || arg.descricao || '').trim(),
+      default: arg.default ?? null,
+      validation: arg.validation || arg.validacao || null,
+    }))
+    .filter((a) => a.name);
+
+  // Advanced Info (New Fields)
+  const collectedData = unique([...ensureArray(moduleDefaults?.privacy?.data_categories), ...ensureArray(command?.privacy?.data_categories), ...ensureArray(command?.informacoes_coletadas), ...ensureArray(command?.collected_data)]);
+  const dependencies = unique([...ensureArray(moduleDefaults?.dependencies), ...ensureArray(command?.dependencies), ...ensureArray(command?.dependencias_externas)]);
+  const sideEffects = unique([...ensureArray(command?.efeitos_colaterais), ...ensureArray(command?.side_effects)]);
+
+  const responses = deepMerge(moduleDefaults?.responses || moduleDefaults?.respostas_padrao || {}, command?.responses || command?.respostas_padrao || {});
+
+  const observability = deepMerge(moduleDefaults?.observability || {}, command?.observability || {});
+  const privacy = deepMerge(moduleDefaults?.privacy || {}, command?.privacy || {});
+  const behavior = deepMerge(moduleDefaults?.behavior || {}, command?.behavior || {});
 
   return {
     key: `${moduleDirName}:${commandName}`,
     name: commandName,
+    id: command?.id || `${moduleDirName}.${commandName}`,
     aliases,
     module: moduleDirName,
     module_label: moduleName,
     category,
     category_label: resolveCategoryMeta(category).label,
-    descricao: String(command?.descricao || '').trim(),
-    permissao_necessaria: String(command?.permissao_necessaria || '').trim(),
-    local_de_uso: unique(ensureArray(command?.local_de_uso).map((item) => String(item).trim())),
+    descricao: String(command?.description || command?.descricao || '').trim(),
+    requirements,
+    premium,
+    allowed_plans: allowedPlans,
+    rate_limit: rateLimit,
+    local_de_uso: unique(ensureArray(command?.contexts || command?.local_de_uso).map((item) => String(item).trim())),
     subcomandos: unique(ensureArray(command?.subcomandos).map((item) => String(item).trim())),
     metodos_de_uso: usageMethods,
-    mensagens_uso: usageVariants,
+    mensagens_uso: normalizedUsageVariants,
+    arguments: args,
+    responses,
+    technical: {
+      collected_data: collectedData,
+      dependencies,
+      side_effects: sideEffects,
+      behavior,
+      handler: command?.handler || null,
+      risk_level: String(command?.risk_level || 'low'),
+      stability: String(command?.stability || 'stable'),
+      version: String(command?.version || '1.0.0'),
+    },
+    observability: {
+      event_name: observability.event_name || null,
+      analytics_event: observability.analytics_event || observability.evento_analytics || null,
+      tags: unique([...ensureArray(observability.tags), ...ensureArray(observability.tags_log)]),
+    },
+    privacy: {
+      retention: privacy.retention_policy || privacy.retencao || null,
+      legal_basis: privacy.legal_basis || privacy.base_legal || null,
+    },
+    discovery: {
+      keywords,
+      user_phrasings: userPhrasings,
+      priority: Number(command?.suggestion_priority || disc.suggestion_priority || 0),
+    },
   };
 };
 
@@ -122,12 +221,13 @@ const buildCatalog = async () => {
     const raw = await fs.readFile(configPath, 'utf8');
     const parsed = JSON.parse(raw);
     const moduleName = String(parsed?.module || moduleDirName).trim() || moduleDirName;
+    const moduleDefaults = parsed?.defaults || {};
     const entries = ensureArray(parsed?.commands);
 
     const moduleCommands = [];
     for (const entry of entries) {
       if (!entry || entry.enabled === false) continue;
-      const sanitized = sanitizeCommand({ command: entry, moduleDirName, moduleName });
+      const sanitized = sanitizeCommand({ command: entry, moduleDefaults, moduleDirName, moduleName });
       if (!sanitized) continue;
       moduleCommands.push(sanitized);
       commands.push(sanitized);
@@ -182,7 +282,7 @@ const buildCatalog = async () => {
   });
 
   return {
-    schema_version: '1.0.0',
+    schema_version: '3.0.0',
     generated_at: new Date().toISOString(),
     totals: {
       modules: sortedModules.length,
