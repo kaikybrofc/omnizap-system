@@ -196,6 +196,19 @@ const toObjectDetailsIfAny = (error) => {
   return undefined;
 };
 
+const isUnknownColumnError = (error, columnName = '') => {
+  const code = String(error?.code || '').toUpperCase();
+  const errno = Number(error?.errno || 0);
+  if (code !== 'ER_BAD_FIELD_ERROR' && errno !== 1054) return false;
+  if (!columnName) return true;
+  const message = String(error?.message || '').toLowerCase();
+  const normalizedColumn = String(columnName || '')
+    .trim()
+    .toLowerCase();
+  if (!normalizedColumn) return true;
+  return message.includes(`unknown column '${normalizedColumn}'`) || message.includes(`unknown column \`${normalizedColumn}\``);
+};
+
 const buildHttpError = (message, { statusCode = 400, code = 'BAD_REQUEST' } = {}) => {
   const error = new Error(String(message || 'Erro interno.'));
   error.statusCode = Number(statusCode) || 400;
@@ -1100,7 +1113,13 @@ export const createWebAccountAuthHandlers = ({ sendJson, readJsonBody, logger, p
 
     if (identityClauses.length) {
       try {
-        const rows = await executeQuery('SELECT last_login_at, last_seen_at, owner_jid, picture FROM ' + tables.STICKER_WEB_GOOGLE_USER + ' WHERE ' + identityClauses.join(' OR ') + ' ORDER BY COALESCE(last_login_at, last_seen_at, updated_at, created_at) DESC LIMIT 1', identityParams);
+        let rows = null;
+        try {
+          rows = await executeQuery('SELECT last_login_at, last_seen_at, owner_jid, picture_url AS picture FROM ' + tables.STICKER_WEB_GOOGLE_USER + ' WHERE ' + identityClauses.join(' OR ') + ' ORDER BY COALESCE(last_login_at, last_seen_at, updated_at, created_at) DESC LIMIT 1', identityParams);
+        } catch (error) {
+          if (!isUnknownColumnError(error, 'picture_url')) throw error;
+          rows = await executeQuery('SELECT last_login_at, last_seen_at, owner_jid, picture FROM ' + tables.STICKER_WEB_GOOGLE_USER + ' WHERE ' + identityClauses.join(' OR ') + ' ORDER BY COALESCE(last_login_at, last_seen_at, updated_at, created_at) DESC LIMIT 1', identityParams);
+        }
         const entry = Array.isArray(rows) ? rows[0] : null;
         lastLoginAt = toIsoOrNull(entry?.last_login_at);
         lastSeenAt = toIsoOrNull(entry?.last_seen_at);
@@ -1206,9 +1225,11 @@ export const createWebAccountAuthHandlers = ({ sendJson, readJsonBody, logger, p
       }
     }
 
-    const packRows = await executeQuery('SELECT COUNT(*) as packs, SUM(sticker_count) as stickers FROM ' + tables.STICKER_PACK + ' WHERE owner_jid = ? AND deleted_at IS NULL', [effectiveOwnerJid]);
-    usage.packs = Number(packRows?.[0]?.packs || 0);
-    usage.stickers = Number(packRows?.[0]?.stickers || 0);
+    if (effectiveOwnerJid) {
+      const packRows = await executeQuery('SELECT COUNT(DISTINCT p.id) AS packs, COUNT(i.sticker_id) AS stickers FROM ' + tables.STICKER_PACK + ' p LEFT JOIN ' + tables.STICKER_PACK_ITEM + ' i ON i.pack_id = p.id WHERE p.owner_jid = ? AND p.deleted_at IS NULL', [effectiveOwnerJid]);
+      usage.packs = Number(packRows?.[0]?.packs || 0);
+      usage.stickers = Number(packRows?.[0]?.stickers || 0);
+    }
 
     // Resolve Profile Picture
     let picture = dbPicture || session?.user?.picture;
