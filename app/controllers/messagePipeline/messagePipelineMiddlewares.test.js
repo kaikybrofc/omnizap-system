@@ -207,6 +207,112 @@ test('conversation middleware responde e interrompe pipeline', async () => {
   assert.equal(stopSpy.calls[0].processingResult, 'conversation_reply');
 });
 
+test('conversation middleware resolve hasGoogleLogin=true quando usuario esta vinculado', async () => {
+  const googleLinkCalls = [];
+  let capturedToolSecurity = null;
+
+  const middleware = createConversationMiddleware({
+    logger: { warn: () => {} },
+    isUserAdmin: async () => false,
+    isAdminSenderAsync: async () => false,
+    resolveCanonicalSenderJidForContext: async () => '5511999999999@s.whatsapp.net',
+    isWhatsAppUserLinkedToGoogleWebAccount: async (payload) => {
+      googleLinkCalls.push(payload);
+      return true;
+    },
+    WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN: true,
+    ensureUserHasGoogleWebLoginForCommand: async () => ({ allowed: true }),
+    executeMessageCommandRoute: async () => ({ commandRoute: 'menu', commandResult: { ok: true } }),
+    isAdminCommand: () => false,
+    runCommand: async () => ({ ok: true }),
+    sendReply: async () => {},
+    routeConversationMessage: async ({ resolveToolSecurityContext }) => {
+      capturedToolSecurity = await resolveToolSecurityContext();
+      return { handled: false };
+    },
+    stopMessagePipeline: () => ({ stop: true }),
+  });
+
+  const result = await middleware(createBaseContext({ isCommandMessage: false, isNotifyUpsert: true, isMessageFromBot: false }));
+
+  assert.equal(result, null);
+  assert.deepEqual(googleLinkCalls, [{ ownerJid: '5511999999999@s.whatsapp.net' }]);
+  assert.equal(capturedToolSecurity?.hasGoogleLogin, true);
+});
+
+test('conversation middleware resolve hasGoogleLogin=false quando usuario nao esta vinculado', async () => {
+  const googleLinkCalls = [];
+  let capturedToolSecurity = null;
+
+  const middleware = createConversationMiddleware({
+    logger: { warn: () => {} },
+    isUserAdmin: async () => false,
+    isAdminSenderAsync: async () => false,
+    resolveCanonicalSenderJidForContext: async () => '5511999999999@s.whatsapp.net',
+    isWhatsAppUserLinkedToGoogleWebAccount: async (payload) => {
+      googleLinkCalls.push(payload);
+      return false;
+    },
+    WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN: true,
+    ensureUserHasGoogleWebLoginForCommand: async () => ({ allowed: true }),
+    executeMessageCommandRoute: async () => ({ commandRoute: 'menu', commandResult: { ok: true } }),
+    isAdminCommand: () => false,
+    runCommand: async () => ({ ok: true }),
+    sendReply: async () => {},
+    routeConversationMessage: async ({ resolveToolSecurityContext }) => {
+      capturedToolSecurity = await resolveToolSecurityContext();
+      return { handled: false };
+    },
+    stopMessagePipeline: () => ({ stop: true }),
+  });
+
+  const result = await middleware(createBaseContext({ isCommandMessage: false, isNotifyUpsert: true, isMessageFromBot: false }));
+
+  assert.equal(result, null);
+  assert.deepEqual(googleLinkCalls, [{ ownerJid: '5511999999999@s.whatsapp.net' }]);
+  assert.equal(capturedToolSecurity?.hasGoogleLogin, false);
+});
+
+test('conversation middleware mantem hasGoogleLogin indefinido quando consulta de vinculo falha', async () => {
+  const warnCalls = [];
+  const googleLinkCalls = [];
+  let capturedToolSecurity = null;
+
+  const middleware = createConversationMiddleware({
+    logger: {
+      warn: (...args) => {
+        warnCalls.push(args);
+      },
+    },
+    isUserAdmin: async () => false,
+    isAdminSenderAsync: async () => false,
+    resolveCanonicalSenderJidForContext: async () => '5511999999999@s.whatsapp.net',
+    isWhatsAppUserLinkedToGoogleWebAccount: async (payload) => {
+      googleLinkCalls.push(payload);
+      throw new Error('lookup failed');
+    },
+    WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN: true,
+    ensureUserHasGoogleWebLoginForCommand: async () => ({ allowed: true }),
+    executeMessageCommandRoute: async () => ({ commandRoute: 'menu', commandResult: { ok: true } }),
+    isAdminCommand: () => false,
+    runCommand: async () => ({ ok: true }),
+    sendReply: async () => {},
+    routeConversationMessage: async ({ resolveToolSecurityContext }) => {
+      capturedToolSecurity = await resolveToolSecurityContext();
+      return { handled: false };
+    },
+    stopMessagePipeline: () => ({ stop: true }),
+  });
+
+  const result = await middleware(createBaseContext({ isCommandMessage: false, isNotifyUpsert: true, isMessageFromBot: false }));
+
+  assert.equal(result, null);
+  assert.deepEqual(googleLinkCalls, [{ ownerJid: '5511999999999@s.whatsapp.net' }]);
+  assert.equal(capturedToolSecurity?.hasGoogleLogin, undefined);
+  assert.equal(warnCalls.length, 1);
+  assert.equal(warnCalls[0][1]?.action, 'tool_security_google_login_check_failed');
+});
+
 test('command middleware ignora comando duplicado', async () => {
   const stopSpy = createStopSpy();
   let markCalled = false;

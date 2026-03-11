@@ -47,7 +47,9 @@ export const createConversationMiddleware = ({
       try {
         const canonicalSenderJid = await resolveCanonicalSenderJidForContext(ctx);
         if (canonicalSenderJid) {
-          hasGoogleLogin = await isWhatsAppUserLinkedToGoogleWebAccount(canonicalSenderJid);
+          hasGoogleLogin = await isWhatsAppUserLinkedToGoogleWebAccount({
+            ownerJid: canonicalSenderJid,
+          });
         }
       } catch (error) {
         logger.warn('Falha ao resolver estado de login para tool execution.', {
