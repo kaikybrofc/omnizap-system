@@ -3,7 +3,7 @@ import { getJidUser, getProfilePicBuffer, normalizeJid } from '../../config/inde
 import { isUserAdmin } from '../../config/index.js';
 import { extractUserIdInfo, isWhatsAppUserId, resolveUserId, resolveUserIdCached } from '../../config/index.js';
 import { fetchBlocklistFromActiveSocket } from '../../config/index.js';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import logger from '#logger';
 import { MESSAGE_TYPE_SQL, TIMESTAMP_TO_DATETIME_SQL } from '../statsModule/rankingCommon.js';

@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
 import { isAdminCommand } from '../modules/adminModule/groupCommandHandlers.js';
-import { explicarComandoGlobal, registerGlobalHelpCommandExecution } from '../services/globalModuleAiHelpService.js';
+import { explicarComandoGlobal, registerGlobalHelpCommandExecution } from '../services/ai/globalModuleAiHelpService.js';
 import { extractSupportedStickerMediaDetails, processSticker } from '../modules/stickerModule/stickerCommand.js';
 import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, isGroupJid, isStatusJid, isSameJidUser, normalizeJid, normalizeWAPresence, resolveBotJid, extractSenderInfoFromMessage, resolveUserId, resolveAddressingModeFromMessageKey, resolveCanonicalWhatsAppJid, parseEnvBool, parseEnvInt } from '../config/index.js';
 import { isUserAdmin } from '../config/index.js';
@@ -12,13 +12,13 @@ import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { maybeCaptureIncomingSticker } from '../modules/stickerPackModule/stickerPackCommandHandlers.js';
 import groupConfigStore from '../store/groupConfigStore.js';
 import { sendAndStore } from '../configParts/messagePersistenceService.js';
-import { resolveCaptchaByMessage } from '../services/captchaService.js';
-import { buildWhatsAppGoogleLoginUrl } from '../services/whatsappLoginLinkService.js';
-import { isWhatsAppUserLinkedToGoogleWebAccount } from '../services/googleWebLinkService.js';
+import { resolveCaptchaByMessage } from '../services/messaging/captchaService.js';
+import { buildWhatsAppGoogleLoginUrl } from '../services/auth/whatsappLoginLinkService.js';
+import { isWhatsAppUserLinkedToGoogleWebAccount } from '../services/auth/googleWebLinkService.js';
 import { createMessageAnalysisEvent } from '../modules/analyticsModule/messageAnalysisEventRepository.js';
-import { routeConversationMessage } from '../services/conversationRouterService.js';
-import { executeMessageCommandRoute, isKnownNonAdminCommand } from '../services/messageCommandExecutionService.js';
-import { canSendMessageInStickerFocus, registerMessageUsageInStickerFocus, resolveStickerFocusMessageClassification, resolveStickerFocusState, shouldSendStickerFocusWarning } from '../services/stickerFocusService.js';
+import { routeConversationMessage } from '../services/ai/conversationRouterService.js';
+import { executeMessageCommandRoute, isKnownNonAdminCommand } from '../services/ai/messageCommandExecutionService.js';
+import { canSendMessageInStickerFocus, registerMessageUsageInStickerFocus, resolveStickerFocusMessageClassification, resolveStickerFocusState, shouldSendStickerFocusWarning } from '../services/sticker/stickerFocusService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';

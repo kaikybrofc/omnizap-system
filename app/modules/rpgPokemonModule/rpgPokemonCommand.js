@@ -1,4 +1,4 @@
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { resolveUserIdCached } from '../../config/index.js';
 import logger from '#logger';
 import { buildRpgHelpText, buildUsageText } from './rpgPokemonMessages.js';

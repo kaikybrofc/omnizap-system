@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
 import logger from '#logger';
-import { insertLearnedKeywords, insertLearnedPatterns, listPendingLearningEvents, markLearningEventsProcessed } from '../services/aiLearningRepository.js';
-import { getAllToolRecords, getToolRegistryStats } from '../services/moduleToolRegistryService.js';
-import { markToolCandidateLearningCacheDirty } from '../services/toolCandidateSelectorService.js';
+import { insertLearnedKeywords, insertLearnedPatterns, listPendingLearningEvents, markLearningEventsProcessed } from '../services/ai/aiLearningRepository.js';
+import { getAllToolRecords, getToolRegistryStats } from '../services/ai/moduleToolRegistryService.js';
+import { markToolCandidateLearningCacheDirty } from '../services/ai/toolCandidateSelectorService.js';
 
 const DEFAULT_INTERVAL_MS = 10 * 60 * 1000;
 const DEFAULT_BATCH_SIZE = 50;

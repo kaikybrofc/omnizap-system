@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { convertToWebp } from './convertToWebp.js';
 import { addStickerMetadata } from './addStickerMetadata.js';
 import { getJidUser } from '../../config/index.js';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { addStickerToAutoPack } from '../stickerPackModule/autoPackCollectorRuntime.js';
 import { getStickerUsageText } from './stickerConfigRuntime.js';
 

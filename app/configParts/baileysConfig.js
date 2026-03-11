@@ -4,7 +4,7 @@ import { fetchLatestBaileysVersion, downloadContentFromMessage, jidNormalizedUse
 
 import { baileysConfigLogger as logger } from './loggerConfig.js';
 import { executeQuery, TABLES } from '../../database/index.js';
-import { buildRowPlaceholders, createFlushRunner } from '../services/queueUtils.js';
+import { buildRowPlaceholders, createFlushRunner } from '../services/infra/queueUtils.js';
 import { recordError, setQueueDepth } from '../observability/metrics.js';
 import { readFile } from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';

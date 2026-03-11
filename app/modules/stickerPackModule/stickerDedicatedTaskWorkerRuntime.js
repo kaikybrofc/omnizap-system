@@ -1,6 +1,6 @@
 import logger from '#logger';
 import { setQueueDepth } from '../../observability/metrics.js';
-import { isFeatureEnabled } from '../../services/featureFlagService.js';
+import { isFeatureEnabled } from '../../services/infra/featureFlagService.js';
 import { runStickerClassificationCycle } from './stickerClassificationBackgroundRuntime.js';
 import { runStickerAutoPackByTagsCycle } from './stickerAutoPackByTagsRuntime.js';
 import { claimWorkerTask, completeWorkerTask, countWorkerTasksByStatus, failWorkerTask } from './stickerWorkerTaskQueueRepository.js';

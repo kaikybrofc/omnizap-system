@@ -73,6 +73,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "validate:command-configs": "node ./scripts/validate-command-configs.mjs",
+    "command-config:schema:generate": "node ./scripts/generate-command-config-schema.mjs",
+    "command-config:schema:validate": "node ./scripts/validate-command-config-schema.mjs",
     "format": "node ./scripts/run-prettier-all.mjs --write",
     "format:check": "node ./scripts/run-prettier-all.mjs --check",
     "check": "npm run format:check && npm run lint && npm run validate:command-configs && npm test",
@@ -121,6 +123,7 @@
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.2.1",
+    "ajv": "^8.18.0",
     "daisyui": "^5.5.19",
     "eslint": "^9.39.2",
     "prettier": "^3.8.1",

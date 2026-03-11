@@ -1,5 +1,5 @@
 import logger from '#logger';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { readStickerAssetBuffer } from './stickerStorageService.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 

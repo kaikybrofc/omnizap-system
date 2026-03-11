@@ -20,7 +20,7 @@ import 'dotenv/config';
 import logger from '#logger';
 import { connectToWhatsApp, getActiveSocket } from './app/connection/socketController.js';
 import { backfillLidMapFromMessagesOnce } from './app/config/index.js';
-import { initializeNewsBroadcastService, stopNewsBroadcastService } from './app/services/newsBroadcastService.js';
+import { initializeNewsBroadcastService, stopNewsBroadcastService } from './app/services/messaging/newsBroadcastService.js';
 import initializeDatabase from './database/init.js';
 import { startHttpServer, stopHttpServer } from './server/index.js';
 import { startEmailAutomationRuntime, stopEmailAutomationRuntime } from './server/email/emailAutomationRuntime.js';
@@ -31,7 +31,7 @@ import { startStickerPackScoreSnapshotRuntime, stopStickerPackScoreSnapshotRunti
 import { startStickerDomainEventConsumer, stopStickerDomainEventConsumer } from './app/modules/stickerPackModule/stickerDomainEventConsumerRuntime.js';
 import { startAiLearningWorker, stopAiLearningWorker } from './app/workers/aiLearningWorker.js';
 import { startCommandConfigEnrichmentWorker, stopCommandConfigEnrichmentWorker } from './app/workers/commandConfigEnrichmentWorker.js';
-import { formatCommandConfigValidationReport, validateAllCommandConfigs } from './app/services/commandConfigValidationService.js';
+import { formatCommandConfigValidationReport, validateAllCommandConfigs } from './app/services/ai/commandConfigValidationService.js';
 
 /**
  * Timeout máximo para inicialização do banco (criar/verificar DB + tabelas).

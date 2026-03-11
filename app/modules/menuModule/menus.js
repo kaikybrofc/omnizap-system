@@ -1,7 +1,7 @@
 import logger from '#logger';
 import { buildAnimeMenu, buildAiMenu, buildMediaMenu, buildMenuCaption, buildQuoteMenu, buildStatsMenu, buildStickerMenu, buildAdminMenu } from './common.js';
 import getImageBuffer from '../../utils/http/getImageBufferModule.js';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 
 const MENU_IMAGE_ENV = 'IMAGE_MENU';
 const sanitizeLogValue = (value) =>

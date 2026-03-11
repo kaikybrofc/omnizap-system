@@ -1,5 +1,5 @@
 import { baileysConnectionLogger as logger } from './loggerConfig.js';
-import { queueMessageInsert } from '../services/dbWriteQueue.js';
+import { queueMessageInsert } from '../services/infra/dbWriteQueue.js';
 import { parseEnvBool, parseEnvInt, normalizeJid, isGroupJid, isStatusJid, isBroadcastJid, isNewsletterJid, normalizeWAPresence } from './baileysConfig.js';
 
 const BAILEYS_SEND_RETRY_ATTEMPTS = parseEnvInt(process.env.BAILEYS_SEND_RETRY_ATTEMPTS, 2, 1, 5);

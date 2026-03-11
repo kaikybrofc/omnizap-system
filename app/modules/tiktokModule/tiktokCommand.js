@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { URL } from 'node:url';
 
 import logger from '#logger';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { getTikTokUsageText } from './tiktokConfigRuntime.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';

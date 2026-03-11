@@ -3,7 +3,7 @@ import { isUserAdmin, updateGroupParticipants } from '../../config/index.js';
 import { getJidUser, isLidJid, isSameJidUser, isWhatsAppJid, normalizeJid } from '../../config/index.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 import logger from '#logger';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { extractSenderInfoFromMessage, resolveUserId } from '../../config/index.js';
 
 /**

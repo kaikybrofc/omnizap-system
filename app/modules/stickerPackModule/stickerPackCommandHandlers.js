@@ -1,5 +1,5 @@
 import logger from '#logger';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { getJidServer, isUserJid, normalizeJid } from '../../config/index.js';
 import stickerPackService from './stickerPackServiceRuntime.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
@@ -8,7 +8,7 @@ import { buildStickerPackMessage, sendStickerPackWithFallback } from './stickerP
 import { sanitizeText } from './stickerPackUtils.js';
 import { executeQuery, TABLES } from '../../../database/index.js';
 import { extractSenderInfoFromMessage, extractUserIdInfo, resolveUserId } from '../../config/index.js';
-import { toWhatsAppPhoneDigits } from '../../services/whatsappLoginLinkService.js';
+import { toWhatsAppPhoneDigits } from '../../services/auth/whatsappLoginLinkService.js';
 
 /**
  * Handlers de comando textual para gerenciamento de packs de figurinha.

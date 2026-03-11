@@ -1,6 +1,6 @@
 import logger from '#logger';
 import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 
 const METRICS_ENDPOINT = process.env.METRICS_ENDPOINT || `http://localhost:${process.env.METRICS_PORT || 9102}${process.env.METRICS_PATH || '/metrics'}`;
 const METRICS_TOKEN = String(process.env.METRICS_TOKEN || process.env.METRICS_API_KEY || '').trim();

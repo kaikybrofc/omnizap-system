@@ -1,5 +1,5 @@
 import logger from '#logger';
-import { isFeatureEnabled } from '../../services/featureFlagService.js';
+import { isFeatureEnabled } from '../../services/infra/featureFlagService.js';
 import { enqueueDomainEvent } from './domainEventOutboxRepository.js';
 
 const resolveDefaultIdempotencyKey = ({ eventType, aggregateType, aggregateId, payload = null }) => {

@@ -1,6 +1,6 @@
 import logger from '#logger';
 import { setQueueDepth } from '../../observability/metrics.js';
-import { isFeatureEnabled } from '../../services/featureFlagService.js';
+import { isFeatureEnabled } from '../../services/infra/featureFlagService.js';
 import { claimDomainEvent, completeDomainEvent, countDomainEventsByStatus, failDomainEvent } from './domainEventOutboxRepository.js';
 import { STICKER_DOMAIN_EVENTS } from './domainEvents.js';
 import { enqueueWorkerTask } from './stickerWorkerTaskQueueRepository.js';

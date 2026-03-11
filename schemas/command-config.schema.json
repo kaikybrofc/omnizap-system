@@ -1,0 +1,582 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omnizap.shop/schemas/command-config.schema.json",
+  "title": "OmniZap Command Config Schema (v2)",
+  "description": "Schema padrão para arquivos app/modules/*/commandConfig.json.",
+  "type": "object",
+  "required": ["schema_version", "module", "enabled", "source_files", "defaults", "commands"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^2\\."
+    },
+    "module": {
+      "type": "string"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "source_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "required": ["command", "requirements"],
+      "properties": {
+        "inheritance_mode": {
+          "type": ["string", "null"]
+        },
+        "compatibility_mode": {
+          "type": ["string", "null"]
+        },
+        "legacy_field_aliases": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "command": {
+          "type": "object",
+          "required": ["enabled", "category", "version", "stability", "deprecated", "risk_level"],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "category": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "stability": {
+              "type": "string"
+            },
+            "deprecated": {
+              "type": "boolean"
+            },
+            "replaced_by": {
+              "type": ["string", "null"]
+            },
+            "risk_level": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        },
+        "requirements": {
+          "type": "object",
+          "required": ["require_group", "require_group_admin", "require_bot_owner", "require_google_login", "require_nsfw_enabled", "require_media", "require_reply_message"],
+          "properties": {
+            "require_group": {
+              "type": "boolean"
+            },
+            "require_group_admin": {
+              "type": "boolean"
+            },
+            "require_bot_owner": {
+              "type": "boolean"
+            },
+            "require_google_login": {
+              "type": "boolean"
+            },
+            "require_nsfw_enabled": {
+              "type": "boolean"
+            },
+            "require_media": {
+              "type": "boolean"
+            },
+            "require_reply_message": {
+              "type": "boolean"
+            },
+            "legacy": {
+              "type": "object",
+              "required": ["requer_grupo", "requer_admin", "requer_admin_principal", "requer_google_login", "requer_nsfw", "requer_midia", "requer_mensagem_respondida"],
+              "properties": {
+                "requer_grupo": {
+                  "type": "boolean"
+                },
+                "requer_admin": {
+                  "type": "boolean"
+                },
+                "requer_admin_principal": {
+                  "type": "boolean"
+                },
+                "requer_google_login": {
+                  "type": "boolean"
+                },
+                "requer_nsfw": {
+                  "type": "boolean"
+                },
+                "requer_midia": {
+                  "type": "boolean"
+                },
+                "requer_mensagem_respondida": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        },
+        "pre_condicoes": {
+          "type": "object",
+          "required": ["requer_grupo", "requer_admin", "requer_admin_principal", "requer_google_login", "requer_nsfw", "requer_midia", "requer_mensagem_respondida"],
+          "properties": {
+            "requer_grupo": {
+              "type": "boolean"
+            },
+            "requer_admin": {
+              "type": "boolean"
+            },
+            "requer_admin_principal": {
+              "type": "boolean"
+            },
+            "requer_google_login": {
+              "type": "boolean"
+            },
+            "requer_nsfw": {
+              "type": "boolean"
+            },
+            "requer_midia": {
+              "type": "boolean"
+            },
+            "requer_mensagem_respondida": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "responses": {
+          "type": "object"
+        },
+        "respostas_padrao": {
+          "type": "object"
+        },
+        "access": {
+          "type": "object",
+          "required": ["premium_only", "allowed_plans"],
+          "properties": {
+            "premium_only": {
+              "type": "boolean"
+            },
+            "allowed_plans": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": true
+        },
+        "plan_limits": {
+          "type": "object",
+          "required": ["comum", "premium"],
+          "properties": {
+            "comum": {
+              "type": "object",
+              "required": ["max", "janela_ms", "escopo"],
+              "properties": {
+                "max": {
+                  "type": ["integer", "null"]
+                },
+                "janela_ms": {
+                  "type": ["integer", "null"]
+                },
+                "escopo": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": true
+            },
+            "premium": {
+              "type": "object",
+              "required": ["max", "janela_ms", "escopo"],
+              "properties": {
+                "max": {
+                  "type": ["integer", "null"]
+                },
+                "janela_ms": {
+                  "type": ["integer", "null"]
+                },
+                "escopo": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        },
+        "limite_uso_por_plano": {
+          "type": "object",
+          "required": ["comum", "premium"],
+          "properties": {
+            "comum": {
+              "type": "object",
+              "required": ["max", "janela_ms", "escopo"],
+              "properties": {
+                "max": {
+                  "type": ["integer", "null"]
+                },
+                "janela_ms": {
+                  "type": ["integer", "null"]
+                },
+                "escopo": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": true
+            },
+            "premium": {
+              "type": "object",
+              "required": ["max", "janela_ms", "escopo"],
+              "properties": {
+                "max": {
+                  "type": ["integer", "null"]
+                },
+                "janela_ms": {
+                  "type": ["integer", "null"]
+                },
+                "escopo": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "aliases", "metodos_de_uso", "argumentos", "categoria", "enabled", "pre_condicoes", "id", "description", "usage", "permission", "contexts", "collected_data", "requirements", "arguments", "dependencies", "side_effects", "docs", "behavior", "limits", "observability", "privacy", "discovery", "access", "plan_limits", "version", "stability", "deprecated", "risk_level", "handler"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metodos_de_uso": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "argumentos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["nome", "tipo", "obrigatorio"],
+              "properties": {
+                "nome": {
+                  "type": "string"
+                },
+                "tipo": {
+                  "type": "string"
+                },
+                "obrigatorio": {
+                  "type": "boolean"
+                },
+                "validacao": {
+                  "type": ["string", "null"]
+                },
+                "default": {}
+              },
+              "additionalProperties": true
+            }
+          },
+          "categoria": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "pre_condicoes": {
+            "type": "object",
+            "required": ["requer_grupo", "requer_admin", "requer_admin_principal", "requer_google_login", "requer_nsfw", "requer_midia", "requer_mensagem_respondida"],
+            "properties": {
+              "requer_grupo": {
+                "type": "boolean"
+              },
+              "requer_admin": {
+                "type": "boolean"
+              },
+              "requer_admin_principal": {
+                "type": "boolean"
+              },
+              "requer_google_login": {
+                "type": "boolean"
+              },
+              "requer_nsfw": {
+                "type": "boolean"
+              },
+              "requer_midia": {
+                "type": "boolean"
+              },
+              "requer_mensagem_respondida": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": true
+          },
+          "id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "usage": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permission": {
+            "type": "string"
+          },
+          "contexts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "collected_data": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requirements": {
+            "type": "object",
+            "required": ["require_group", "require_group_admin", "require_bot_owner", "require_google_login", "require_nsfw_enabled", "require_media", "require_reply_message"],
+            "properties": {
+              "require_group": {
+                "type": "boolean"
+              },
+              "require_group_admin": {
+                "type": "boolean"
+              },
+              "require_bot_owner": {
+                "type": "boolean"
+              },
+              "require_google_login": {
+                "type": "boolean"
+              },
+              "require_nsfw_enabled": {
+                "type": "boolean"
+              },
+              "require_media": {
+                "type": "boolean"
+              },
+              "require_reply_message": {
+                "type": "boolean"
+              },
+              "legacy": {
+                "type": "object",
+                "required": ["requer_grupo", "requer_admin", "requer_admin_principal", "requer_google_login", "requer_nsfw", "requer_midia", "requer_mensagem_respondida"],
+                "properties": {
+                  "requer_grupo": {
+                    "type": "boolean"
+                  },
+                  "requer_admin": {
+                    "type": "boolean"
+                  },
+                  "requer_admin_principal": {
+                    "type": "boolean"
+                  },
+                  "requer_google_login": {
+                    "type": "boolean"
+                  },
+                  "requer_nsfw": {
+                    "type": "boolean"
+                  },
+                  "requer_midia": {
+                    "type": "boolean"
+                  },
+                  "requer_mensagem_respondida": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": true
+          },
+          "arguments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "type", "required"],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "default": {},
+                "enum": {
+                  "type": ["array", "null"],
+                  "items": {
+                    "type": ["string", "number", "boolean"]
+                  }
+                },
+                "description": {
+                  "type": ["string", "null"]
+                },
+                "validation": {
+                  "type": ["string", "null"]
+                },
+                "position": {
+                  "type": ["integer", "null"]
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "side_effects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "docs": {
+            "type": "object"
+          },
+          "behavior": {
+            "type": "object"
+          },
+          "limits": {
+            "type": "object"
+          },
+          "observability": {
+            "type": "object"
+          },
+          "privacy": {
+            "type": "object"
+          },
+          "discovery": {
+            "type": "object"
+          },
+          "access": {
+            "type": "object",
+            "required": ["premium_only", "allowed_plans"],
+            "properties": {
+              "premium_only": {
+                "type": "boolean"
+              },
+              "allowed_plans": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": true
+          },
+          "plan_limits": {
+            "type": "object",
+            "required": ["comum", "premium"],
+            "properties": {
+              "comum": {
+                "type": "object",
+                "required": ["max", "janela_ms", "escopo"],
+                "properties": {
+                  "max": {
+                    "type": ["integer", "null"]
+                  },
+                  "janela_ms": {
+                    "type": ["integer", "null"]
+                  },
+                  "escopo": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": true
+              },
+              "premium": {
+                "type": "object",
+                "required": ["max", "janela_ms", "escopo"],
+                "properties": {
+                  "max": {
+                    "type": ["integer", "null"]
+                  },
+                  "janela_ms": {
+                    "type": ["integer", "null"]
+                  },
+                  "escopo": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": true
+          },
+          "version": {
+            "type": "string"
+          },
+          "stability": {
+            "type": "string"
+          },
+          "deprecated": {
+            "type": "boolean"
+          },
+          "replaced_by": {
+            "type": ["string", "null"]
+          },
+          "risk_level": {
+            "type": "string"
+          },
+          "handler": {
+            "type": "object",
+            "required": ["file", "method"],
+            "properties": {
+              "file": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string"
+              },
+              "command_case": {
+                "type": ["string", "null"]
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "textos": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    }
+  },
+  "additionalProperties": true
+}

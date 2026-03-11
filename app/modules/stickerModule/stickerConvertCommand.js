@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import logger from '#logger';
 import { downloadMediaMessage, extractMediaDetails, getJidUser } from '../../config/index.js';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { getStickerUsageText } from './stickerConfigRuntime.js';
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'sticker-convert');

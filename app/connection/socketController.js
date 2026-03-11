@@ -8,17 +8,17 @@ import qrcode from 'qrcode-terminal';
 import path from 'node:path';
 
 import { handleMessages } from '../controllers/messageController.js';
-import { syncNewsBroadcastService } from '../services/newsBroadcastService.js';
+import { syncNewsBroadcastService } from '../services/messaging/newsBroadcastService.js';
 import { setActiveSocket as storeActiveSocket, runActiveSocketMethod, isSocketOpen } from '../config/index.js';
 import { recordError, recordMessagesUpsert } from '../observability/metrics.js';
-import { resolveCaptchaByReaction } from '../services/captchaService.js';
+import { resolveCaptchaByReaction } from '../services/messaging/captchaService.js';
 
 import { handleGroupUpdate as handleGroupParticipantsEvent, handleGroupJoinRequest } from '../modules/adminModule/groupEventHandlers.js';
 
 import { dbConfig, executeQuery, findBy, findById, pool, remove } from '../../database/index.js';
 import { extractSenderInfoFromMessage, primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../config/index.js';
-import { queueBaileysEventInsert, queueChatUpdate, queueLidUpdate, queueMessageInsert } from '../services/dbWriteQueue.js';
-import { buildGroupMetadataFromGroup, buildGroupMetadataFromUpdate, upsertGroupMetadata, parseParticipantsFromDb } from '../services/groupMetadataService.js';
+import { queueBaileysEventInsert, queueChatUpdate, queueLidUpdate, queueMessageInsert } from '../services/infra/dbWriteQueue.js';
+import { buildGroupMetadataFromGroup, buildGroupMetadataFromUpdate, upsertGroupMetadata, parseParticipantsFromDb } from '../services/group/groupMetadataService.js';
 import { buildMessageData } from '../configParts/messagePersistenceService.js';
 import { useDbAuthState } from './baileysDbAuthState.js';
 

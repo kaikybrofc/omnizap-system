@@ -6,7 +6,7 @@ import { URL, URLSearchParams } from 'node:url';
 
 import { executeQuery, pool, TABLES } from '../../../database/index.js';
 import { normalizeJid, resolveBotJid, getActiveSocket, profilePictureUrlFromActiveSocket, extractUserIdInfo, resolveUserId } from '../../../app/config/index.js';
-import { resolveWhatsAppOwnerJidFromLoginPayload, toWhatsAppOwnerJid, toWhatsAppPhoneDigits } from '../../../app/services/whatsappLoginLinkService.js';
+import { resolveWhatsAppOwnerJidFromLoginPayload, toWhatsAppOwnerJid, toWhatsAppPhoneDigits } from '../../../app/services/auth/whatsappLoginLinkService.js';
 import logger from '#logger';
 import { listStickerPacksForCatalog, findStickerPackByPackKey, listStickerPacksByOwner, bumpStickerPackVersion, findStickerPackByOwnerAndIdentifier, softDeleteStickerPack, updateStickerPackFields } from '../../../app/modules/stickerPackModule/stickerPackRepository.js';
 import { listStickerPackItems, countStickerPackItemRefsByStickerId, createStickerPackItem, getStickerPackItemByStickerId, removeStickerPackItemByStickerId, removeStickerPackItemsByPackId } from '../../../app/modules/stickerPackModule/stickerPackItemRepository.js';
@@ -39,7 +39,7 @@ import { convertToWebp } from '../../../app/modules/stickerModule/convertToWebp.
 import { sanitizeText } from '../../../app/modules/stickerPackModule/stickerPackUtils.js';
 import stickerPackService from '../../../app/modules/stickerPackModule/stickerPackServiceRuntime.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from '../../../app/modules/stickerPackModule/stickerPackErrors.js';
-import { getFeatureFlagsSnapshot, isFeatureEnabled, refreshFeatureFlags } from '../../../app/services/featureFlagService.js';
+import { getFeatureFlagsSnapshot, isFeatureEnabled, refreshFeatureFlags } from '../../../app/services/infra/featureFlagService.js';
 
 const parseEnvBool = (value, fallback = false) => {
   if (value === undefined || value === null || value === '') return fallback;

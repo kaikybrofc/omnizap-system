@@ -7,7 +7,7 @@ import logger from '#logger';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import aiPromptStore from '../../store/aiPromptStore.js';
 import { downloadMediaMessage, extractAllMediaDetails, getJidUser, isSameJidUser, normalizeJid } from '../../config/index.js';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { getAdminJid, resolveAdminJid } from '../../config/index.js';
 import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../../config/index.js';
 import { getAiCommandOperationalLimits, getAiCommandOptionConfig, getAiCommandSystemMessages, getAiUsageText, isAiCommandPremiumOnly } from './aiConfigRuntime.js';

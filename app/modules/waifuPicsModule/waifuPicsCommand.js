@@ -2,7 +2,7 @@ import axios from 'axios';
 
 import logger from '#logger';
 import groupConfigStore from '../../store/groupConfigStore.js';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { getWaifuPicsCommandEntry, getWaifuPicsTextConfig, getWaifuPicsUsageText as getWaifuPicsRuntimeUsageText, resolveWaifuPicsCommandName } from './waifuPicsConfigRuntime.js';
 
 /**

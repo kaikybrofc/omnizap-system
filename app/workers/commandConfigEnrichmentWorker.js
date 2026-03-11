@@ -1,8 +1,8 @@
 import logger from '#logger';
-import { getToolRecord } from '../services/moduleToolRegistryService.js';
-import { applyCommandConfigEnrichmentSuggestion, getCommandConfigEnrichmentCursor, listLearningEventsForCommandConfigEnrichment, saveCommandConfigEnrichmentSuggestion, updateCommandConfigEnrichmentCursor } from '../services/commandConfigEnrichmentRepository.js';
-import { generateCommandConfigEnrichmentSuggestion } from '../services/commandConfigEnrichmentService.js';
-import { markToolCandidateCommandConfigCacheDirty } from '../services/toolCandidateSelectorService.js';
+import { getToolRecord } from '../services/ai/moduleToolRegistryService.js';
+import { applyCommandConfigEnrichmentSuggestion, getCommandConfigEnrichmentCursor, listLearningEventsForCommandConfigEnrichment, saveCommandConfigEnrichmentSuggestion, updateCommandConfigEnrichmentCursor } from '../services/ai/commandConfigEnrichmentRepository.js';
+import { generateCommandConfigEnrichmentSuggestion } from '../services/ai/commandConfigEnrichmentService.js';
+import { markToolCandidateCommandConfigCacheDirty } from '../services/ai/toolCandidateSelectorService.js';
 
 const DEFAULT_INTERVAL_MS = 30 * 60 * 1000;
 const DEFAULT_BATCH_SIZE = 30;

@@ -2,7 +2,7 @@ import logger from '#logger';
 import { resolveBotJid } from '../../config/index.js';
 import { isWhatsAppUserId } from '../../config/index.js';
 import { buildRankingMessage, getRankingReport, renderRankingImage } from './rankingCommon.js';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 
 const RANKING_LIMIT = 5;
 const RENDER_TIMEOUT_MS = 15000;

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { formatCommandConfigValidationReport, validateAllCommandConfigs } from '../app/services/commandConfigValidationService.js';
+import { formatCommandConfigValidationReport, validateAllCommandConfigs } from '../app/services/ai/commandConfigValidationService.js';
 
 const report = validateAllCommandConfigs();
 const printable = formatCommandConfigValidationReport(report, { maxErrors: 80 });

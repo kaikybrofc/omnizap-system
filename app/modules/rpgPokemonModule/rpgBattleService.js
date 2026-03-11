@@ -1,4 +1,4 @@
-import { getEffectText, getAbility, getEvolutionChain, getFlavorText, getLocalizedGenus, getLocalizedName, getMove, getNature, getPokemon, getPokemonImage, getSpecies, getType } from '../../services/pokeApiService.js';
+import { getEffectText, getAbility, getEvolutionChain, getFlavorText, getLocalizedGenus, getLocalizedName, getMove, getNature, getPokemon, getPokemonImage, getSpecies, getType } from '../../services/external/pokeApiService.js';
 import logger from '#logger';
 
 const MIN_LEVEL = 1;

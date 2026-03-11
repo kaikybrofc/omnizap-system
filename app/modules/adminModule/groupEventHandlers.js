@@ -2,13 +2,13 @@ import groupConfigStore from '../../store/groupConfigStore.js';
 import logger from '#logger';
 import { getGroupMetadata, getGroupInviteCode, getGroupRequestParticipantsList, updateGroupRequestParticipants } from '../../config/index.js';
 import { getJidUser, isSameJidUser, resolveBotJid } from '../../config/index.js';
-import { updateGroupParticipantsFromAction } from '../../services/groupMetadataService.js';
-import { CAPTCHA_TIMEOUT_MINUTES, clearCaptchaForUser, registerCaptchaChallenge } from '../../services/captchaService.js';
+import { updateGroupParticipantsFromAction } from '../../services/group/groupMetadataService.js';
+import { CAPTCHA_TIMEOUT_MINUTES, clearCaptchaForUser, registerCaptchaChallenge } from '../../services/messaging/captchaService.js';
 
 import fs from 'node:fs';
 import path from 'node:path';
 import moment from 'moment-timezone';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { getAdminEventConfig } from './adminConfigRuntime.js';
 
 const ADMIN_EVENT_CONFIG = getAdminEventConfig();

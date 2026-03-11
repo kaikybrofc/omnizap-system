@@ -10,7 +10,7 @@ import { runSocketMethod } from '../../config/index.js';
 import { convertToWebp } from '../stickerModule/convertToWebp.js';
 import { addStickerMetadata } from '../stickerModule/addStickerMetadata.js';
 import { fetchLatestPushNames } from '../statsModule/rankingCommon.js';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { getQuoteUsageText } from './quoteConfigRuntime.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import logger from '#logger';
-import { createModuleAiHelpService } from '../../services/moduleAiHelpCoreService.js';
+import { createModuleAiHelpService } from '../../services/ai/moduleAiHelpCoreService.js';
 import { getAdminCommandEntry, getAdminModuleConfig, resolveAdminCommandName } from './adminConfigRuntime.js';
 
 const __filename = fileURLToPath(import.meta.url);

@@ -1,7 +1,7 @@
 import { baileysGroupsLogger as logger } from './loggerConfig.js';
 import { findById, findAll, TABLES } from '../../database/index.js';
 import { isGroupJid, isLidJid, isSameJidUser, isWhatsAppJid, normalizeJid } from './baileysConfig.js';
-import { parseParticipantsFromDb } from '../services/groupMetadataService.js';
+import { parseParticipantsFromDb } from '../services/group/groupMetadataService.js';
 import { extractUserIdInfo, resolveUserIdCached } from './baileysConfig.js';
 import { getActiveSocket, runSocketMethod } from './baileysConfig.js';
 

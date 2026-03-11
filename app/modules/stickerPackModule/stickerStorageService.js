@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import logger from '#logger';
 import { downloadMediaMessage, extractMediaDetails } from '../../config/index.js';
-import { isFeatureEnabled } from '../../services/featureFlagService.js';
+import { isFeatureEnabled } from '../../services/infra/featureFlagService.js';
 import { createStickerAsset, findLatestStickerAssetByOwner, findStickerAssetById, findStickerAssetBySha256, updateStickerAssetStoragePath } from './stickerAssetRepository.js';
 import { ensureStickerAssetClassified } from './stickerClassificationService.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';

@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import logger from '#logger';
-import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { getAdminJid } from '../../config/index.js';
 import { getPlayUsageText } from './playConfigRuntime.js';
 
