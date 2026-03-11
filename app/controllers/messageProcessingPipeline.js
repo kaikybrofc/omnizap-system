@@ -19,6 +19,10 @@ import { createMessageAnalysisEvent } from '../modules/analyticsModule/messageAn
 import { routeConversationMessage } from '../services/ai/conversationRouterService.js';
 import { executeMessageCommandRoute, isKnownNonAdminCommand } from '../services/ai/messageCommandExecutionService.js';
 import { canSendMessageInStickerFocus, registerMessageUsageInStickerFocus, resolveStickerFocusMessageClassification, resolveStickerFocusState, shouldSendStickerFocusWarning } from '../services/sticker/stickerFocusService.js';
+import { createPreProcessingMiddlewares } from './messagePipeline/preProcessingMiddlewares.js';
+import { createConversationMiddleware } from './messagePipeline/conversationMiddleware.js';
+import { createCommandMiddleware } from './messagePipeline/commandMiddleware.js';
+import { createPostProcessingMiddleware } from './messagePipeline/postProcessingMiddleware.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';
@@ -514,510 +518,86 @@ const createMessagePipelineContext = async ({ messageInfo, upsertType, isNotifyU
   };
 };
 
-const touchSenderLastSeenMiddleware = async (ctx) => {
-  if (!ctx.senderJid || isStatusJid(ctx.remoteJid)) return;
-
-  void executeQuery(`UPDATE ${TABLES.RPG_PLAYER} SET updated_at = CURRENT_TIMESTAMP WHERE jid = ?`, [ctx.senderJid]).catch(() => {});
-  void executeQuery(`UPDATE web_google_user SET last_seen_at = CURRENT_TIMESTAMP WHERE owner_jid = ?`, [ctx.senderJid]).catch(() => {});
-};
-
-const ignoreUnprocessableMessageMiddleware = async (ctx) => {
-  const isStatusBroadcast = ctx.remoteJid === 'status@broadcast';
-  const isStubMessage = typeof ctx.messageInfo?.messageStubType === 'number';
-  const isProtocolMessage = Boolean(ctx.messageInfo?.message?.protocolMessage);
-  const isMissingMessage = !ctx.messageInfo?.message;
-
-  if (!isStatusBroadcast && !isStubMessage && !isProtocolMessage && !isMissingMessage) {
-    return null;
-  }
-
-  return stopMessagePipeline(ctx, 'ignored_unprocessable', {
-    ignored_reason: isStatusBroadcast ? 'status_broadcast' : isStubMessage ? 'stub_message' : isProtocolMessage ? 'protocol_message' : 'missing_message_node',
-  });
-};
-
-const applyGroupPolicyMiddleware = async (ctx) => {
-  if (!ctx.isGroupMessage) return null;
-
-  const shouldSkip = await handleAntiLink({
-    sock: ctx.sock,
-    messageInfo: ctx.messageInfo,
-    extractedText: ctx.extractedText,
-    remoteJid: ctx.remoteJid,
-    senderJid: ctx.senderJid,
-    senderIdentity: ctx.senderIdentity,
-    botJid: ctx.botJid,
-  });
-  if (shouldSkip) {
-    return stopMessagePipeline(ctx, 'blocked_antilink', {
-      blocked_by: 'anti_link',
-    });
-  }
-
-  await ensureCommandPrefixForContext(ctx);
-  return null;
-};
-
-const resolveCaptchaMiddleware = async (ctx) => {
-  if (!ctx.isGroupMessage || ctx.isMessageFromBot) return;
-
-  await resolveCaptchaByMessage({
-    groupId: ctx.remoteJid,
-    senderJid: ctx.senderJid,
-    senderIdentity: ctx.senderIdentity,
-    messageKey: ctx.key,
-    messageInfo: ctx.messageInfo,
-    extractedText: ctx.extractedText,
-  });
-};
-
-const handleStartLoginTriggerMiddleware = async (ctx) => {
-  if (!ctx.isNotifyUpsert) return null;
-
-  const handledStartLogin = await maybeHandleStartLoginMessage({
-    sock: ctx.sock,
-    messageInfo: ctx.messageInfo,
-    extractedText: ctx.extractedText,
-    senderName: ctx.senderName,
-    senderJid: ctx.senderJid,
-    remoteJid: ctx.remoteJid,
-    expirationMessage: ctx.expirationMessage,
-    isMessageFromBot: ctx.isMessageFromBot,
-    isGroupMessage: ctx.isGroupMessage,
-  });
-
-  if (!handledStartLogin) return null;
-  return stopMessagePipeline(ctx, 'handled_start_login', {
-    flow: 'whatsapp_google_login',
-  });
-};
-
-const detectCommandIntentMiddleware = async (ctx) => {
-  ctx.hasCommandPrefix = ctx.extractedText.startsWith(ctx.commandPrefix);
-  ctx.isCommandMessage = ctx.hasCommandPrefix && ctx.isNotifyUpsert;
-
-  ctx.analysisPayload.isCommand = ctx.isCommandMessage;
-  ctx.analysisPayload.commandPrefix = ctx.commandPrefix;
-
-  if (ctx.hasCommandPrefix && !ctx.isNotifyUpsert) {
-    mergeAnalysisMetadata(ctx.analysisPayload, {
-      command_suppressed_reason: 'non_notify_upsert',
-    });
-  }
-};
-
-const applyStickerFocusMiddleware = async (ctx) => {
-  if (!ctx.isGroupMessage || ctx.isCommandMessage || ctx.isMessageFromBot) return null;
-
-  const activeGroupConfig = await ensureGroupConfigForContext(ctx);
-  const stickerFocusState = resolveStickerFocusState(activeGroupConfig);
-  if (!stickerFocusState.enabled) return null;
-
-  const messageClassification = resolveStickerFocusMessageClassification({
-    messageInfo: ctx.messageInfo,
-    extractedText: ctx.extractedText,
-    mediaEntries: ctx.mediaEntries,
-  });
-  if (!messageClassification.isThrottleCandidate) return null;
-
-  const senderIsAdmin = await isUserAdmin(ctx.remoteJid, ctx.senderJid);
-  if (senderIsAdmin || stickerFocusState.isChatWindowOpen) return null;
-
-  const messageGate = canSendMessageInStickerFocus({
-    groupId: ctx.remoteJid,
-    senderJid: ctx.senderJid,
-    messageCooldownMs: stickerFocusState.messageCooldownMs,
-    messageAllowanceCount: stickerFocusState.messageAllowanceCount,
-  });
-
-  if (!messageGate.allowed) {
-    ctx.analysisPayload.processingResult = 'blocked_sticker_focus_message';
-    mergeAnalysisMetadata(ctx.analysisPayload, {
-      blocked_by: 'sticker_focus_mode',
-      sticker_focus_message_type: messageClassification.messageType,
-      sticker_focus_message_allowance_count: stickerFocusState.messageAllowanceCount,
-      sticker_focus_message_cooldown_minutes: stickerFocusState.messageCooldownMinutes,
-      sticker_focus_remaining_minutes: formatRemainingMinutesLabel(messageGate.remainingMs),
-      sticker_focus_alert_only: true,
-    });
-
-    if (shouldSendStickerFocusWarning({ groupId: ctx.remoteJid, senderJid: ctx.senderJid })) {
-      try {
-        await sendReply(ctx.sock, ctx.remoteJid, ctx.messageInfo, ctx.expirationMessage, {
-          text: '🖼️ Este chat está com *foco em sticker* ativo.\n' + 'Siga o padrão: envie apenas *imagens* ou *vídeos* para criação automática, ou compartilhe seus *stickers*.\n' + `Mensagens como texto e áudio seguem uma janela de tempo: *${formatStickerFocusRuleLabel(stickerFocusState)}*.\n` + `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${ctx.commandPrefix}chatwindow on*.`,
-        });
-      } catch (error) {
-        logger.warn('Falha ao enviar aviso de sticker focus.', {
-          action: 'sticker_focus_warning_failed',
-          groupId: ctx.remoteJid,
-          senderJid: ctx.senderJid,
-          error: error?.message,
-        });
-      }
-    }
-
-    return stopMessagePipeline(ctx);
-  }
-
-  registerMessageUsageInStickerFocus({
-    groupId: ctx.remoteJid,
-    senderJid: ctx.senderJid,
-    messageCooldownMs: stickerFocusState.messageCooldownMs,
-    messageAllowanceCount: stickerFocusState.messageAllowanceCount,
-  });
-
-  return null;
-};
-
-const resolveToolSecurityContextForConversation = async (ctx) => {
-  if (ctx.memo.toolSecurityContext) return ctx.memo.toolSecurityContext;
-
-  let isSenderAdmin = false;
-  if (ctx.isGroupMessage) {
-    try {
-      isSenderAdmin = await isUserAdmin(ctx.remoteJid, ctx.senderIdentity);
-    } catch (error) {
-      logger.warn('Falha ao resolver permissao admin para tool execution.', {
-        action: 'tool_security_admin_check_failed',
-        remoteJid: ctx.remoteJid,
-        senderJid: ctx.senderJid,
-        error: error?.message,
-      });
-    }
-  }
-
-  let isSenderOwner = false;
-  try {
-    isSenderOwner = await isAdminSenderAsync(ctx.senderIdentity);
-  } catch (error) {
-    logger.warn('Falha ao resolver admin principal para tool execution.', {
-      action: 'tool_security_owner_check_failed',
-      remoteJid: ctx.remoteJid,
-      senderJid: ctx.senderJid,
-      error: error?.message,
-    });
-  }
-
-  let hasGoogleLogin;
-  if (!ctx.isMessageFromBot && WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN) {
-    try {
-      const canonicalSenderJid = await resolveCanonicalSenderJidForContext(ctx);
-      if (canonicalSenderJid) {
-        hasGoogleLogin = await isWhatsAppUserLinkedToGoogleWebAccount(canonicalSenderJid);
-      }
-    } catch (error) {
-      logger.warn('Falha ao resolver estado de login para tool execution.', {
-        action: 'tool_security_google_login_check_failed',
-        remoteJid: ctx.remoteJid,
-        senderJid: ctx.senderJid,
-        error: error?.message,
-      });
-    }
-  }
-
-  ctx.memo.toolSecurityContext = {
-    isGroupMessage: ctx.isGroupMessage,
-    isSenderAdmin,
-    isSenderOwner,
-    hasGoogleLogin,
-  };
-  return ctx.memo.toolSecurityContext;
-};
-
-const executeToolCommandFromConversation = async (ctx, { commandName, args = [], text = '' } = {}) => {
-  const normalizedCommand = String(commandName || '')
-    .trim()
-    .toLowerCase();
-  if (!normalizedCommand) {
-    return {
-      ok: false,
-      alreadyResponded: false,
-      text: 'Comando invalido na tool call.',
-    };
-  }
-
-  if (!ctx.isMessageFromBot && WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN) {
-    const authCheck = await ensureUserHasGoogleWebLoginForCommand({
-      sock: ctx.sock,
-      messageInfo: ctx.messageInfo,
-      senderJid: ctx.senderJid,
-      remoteJid: ctx.remoteJid,
-      expirationMessage: ctx.expirationMessage,
-      commandPrefix: ctx.commandPrefix,
-    });
-    if (!authCheck.allowed) {
-      return {
-        ok: false,
-        alreadyResponded: true,
-        text: '',
-        errorCode: 'auth_required',
-      };
-    }
-  }
-
-  const commandExecution = await executeMessageCommandRoute({
-    command: normalizedCommand,
-    args: Array.isArray(args) ? args : [],
-    text: String(text || ''),
-    isAdminCommandRoute: isAdminCommand(normalizedCommand),
-    sock: ctx.sock,
-    remoteJid: ctx.remoteJid,
-    messageInfo: ctx.messageInfo,
-    expirationMessage: ctx.expirationMessage,
-    senderJid: ctx.senderJid,
-    senderName: ctx.senderName,
-    senderIdentity: ctx.senderIdentity,
-    botJid: ctx.botJid,
-    isGroupMessage: ctx.isGroupMessage,
-    commandPrefix: ctx.commandPrefix,
-    runCommand,
-    sendReply,
-  });
-
-  const commandRoute = commandExecution?.commandRoute || 'unknown';
-  const commandResult = commandExecution?.commandResult || { ok: false };
-  return {
-    ok: commandResult.ok && commandRoute !== 'unknown',
-    commandRoute,
-    alreadyResponded: commandResult.ok || commandRoute === 'unknown',
-    text: '',
-    error: commandResult?.error || null,
-  };
-};
-
-const routeConversationMiddleware = async (ctx) => {
-  if (ctx.isCommandMessage || ctx.isMessageFromBot || !ctx.isNotifyUpsert) return null;
-
-  try {
-    const conversationResult = await routeConversationMessage({
-      messageInfo: ctx.messageInfo,
-      extractedText: ctx.extractedText,
-      isCommandMessage: ctx.isCommandMessage,
-      mediaEntries: ctx.mediaEntries,
-      isGroupMessage: ctx.isGroupMessage,
-      remoteJid: ctx.remoteJid,
-      senderJid: ctx.senderJid,
-      botJid: ctx.botJid,
-      botJidCandidates: ctx.botJidCandidates,
-      commandPrefix: ctx.commandPrefix,
-      toolCommandExecutor: (payload) => executeToolCommandFromConversation(ctx, payload),
-      resolveToolSecurityContext: () => resolveToolSecurityContextForConversation(ctx),
-    });
-
-    if (!conversationResult?.handled) return null;
-
-    if (conversationResult?.text) {
-      await sendReply(ctx.sock, ctx.remoteJid, ctx.messageInfo, ctx.expirationMessage, {
-        text: conversationResult.text,
-      });
-    }
-
-    return stopMessagePipeline(ctx, 'conversation_reply', {
-      conversation_router: true,
-      conversation_reason: conversationResult.reason || null,
-      conversation_trigger_kind: conversationResult?.metadata?.trigger_kind || null,
-      conversation_intent_type: conversationResult?.metadata?.intent_type || null,
-      conversation_module_key: conversationResult?.metadata?.module_key || null,
-      conversation_command_name: conversationResult?.metadata?.command_name || null,
-      conversation_suppress_reply: Boolean(conversationResult?.metadata?.suppress_reply),
-    });
-  } catch (error) {
-    logger.warn('Falha ao processar rota conversacional global.', {
-      action: 'conversation_router_failed',
-      remoteJid: ctx.remoteJid,
-      senderJid: ctx.senderJid,
-      isGroupMessage: ctx.isGroupMessage,
-      error: error?.message,
-    });
-  }
-
-  return null;
-};
-
-const executeCommandMiddleware = async (ctx) => {
-  if (!ctx.isCommandMessage) return null;
-
-  const commandBody = ctx.extractedText.substring(ctx.commandPrefix.length);
-  const match = commandBody.match(/^(\S+)([\s\S]*)$/);
-  const command = match ? match[1].toLowerCase() : '';
-  const rawArgs = match && match[2] !== undefined ? match[2].trim() : '';
-  const args = rawArgs ? rawArgs.split(/\s+/) : [];
-  const text = match && match[2] !== undefined ? match[2] : '';
-  const isAdminCommandRoute = isAdminCommand(command);
-  const isKnownCommand = isKnownNonAdminCommand(command) || isAdminCommandRoute;
-
-  ctx.analysisPayload.commandName = command || null;
-  ctx.analysisPayload.commandArgsCount = args.length;
-  ctx.analysisPayload.commandKnown = isKnownCommand;
-
-  if (isDuplicateCommandExecution(ctx.remoteJid, ctx.key?.id)) {
-    return stopMessagePipeline(ctx, 'duplicate_command_ignored', {
-      dedupe_ttl_ms: MESSAGE_COMMAND_DEDUPE_TTL_MS,
-    });
-  }
-  markCommandExecution(ctx.remoteJid, ctx.key?.id);
-
-  if (!ctx.isMessageFromBot && WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN) {
-    const canonicalSenderJid = await resolveCanonicalSenderJidForContext(ctx);
-    const authCheck = await ensureUserHasGoogleWebLoginForCommand({
-      sock: ctx.sock,
-      messageInfo: ctx.messageInfo,
-      senderJid: ctx.senderJid,
-      remoteJid: ctx.remoteJid,
-      expirationMessage: ctx.expirationMessage,
-      commandPrefix: ctx.commandPrefix,
-      canonicalUserId: canonicalSenderJid,
-    });
-
-    if (!authCheck.allowed) {
-      return stopMessagePipeline(ctx, 'auth_required', {
-        auth_required_for_command: command || null,
-        auth_login_url: authCheck.loginUrl || SITE_LOGIN_URL,
-      });
-    }
-  }
-
-  if (COMMAND_REACT_EMOJI) {
-    try {
-      await sendAndStore(ctx.sock, ctx.remoteJid, {
-        react: {
-          text: COMMAND_REACT_EMOJI,
-          key: ctx.key,
-        },
-      });
-    } catch (error) {
-      logger.warn('Falha ao enviar reação de comando:', error?.message);
-    }
-  }
-
-  const execution = await executeMessageCommandRoute({
-    command,
-    args,
-    text,
-    isAdminCommandRoute,
-    sock: ctx.sock,
-    remoteJid: ctx.remoteJid,
-    messageInfo: ctx.messageInfo,
-    expirationMessage: ctx.expirationMessage,
-    senderJid: ctx.senderJid,
-    senderName: ctx.senderName,
-    senderIdentity: ctx.senderIdentity,
-    botJid: ctx.botJid,
-    isGroupMessage: ctx.isGroupMessage,
-    commandPrefix: ctx.commandPrefix,
-    runCommand,
-    sendReply,
-  });
-  const commandResult = execution?.commandResult || { ok: false };
-  const commandRoute = execution?.commandRoute || 'unknown';
-  if (commandRoute === 'unknown') {
-    ctx.analysisPayload.processingResult = 'unknown_command';
-  }
-
-  mergeAnalysisMetadata(ctx.analysisPayload, {
-    command_route: commandRoute,
-  });
-
-  if (ctx.analysisPayload.processingResult === 'processed') {
-    ctx.analysisPayload.processingResult = commandResult.ok ? 'command_executed' : 'command_error';
-  }
-
-  if (commandResult.ok && commandRoute !== 'unknown') {
-    try {
-      await registerGlobalHelpCommandExecution({
-        chatId: ctx.remoteJid,
-        userId: ctx.senderJid,
-        isGroupMessage: ctx.isGroupMessage,
-        executedCommand: command,
-      });
-    } catch (error) {
-      logger.warn('Falha ao registrar feedback de sugestao global.', {
-        action: 'global_help_feedback_register_failed',
-        command,
-        commandRoute,
-        remoteJid: ctx.remoteJid,
-        senderJid: ctx.senderJid,
-        error: error?.message,
-      });
-    }
-  }
-
-  if (!commandResult.ok) {
-    ctx.analysisPayload.errorCode = normalizeAnalysisErrorCode(commandResult.error);
-    let senderIsAdminForHelp = false;
-    if (ctx.isGroupMessage) {
-      try {
-        senderIsAdminForHelp = await isUserAdmin(ctx.remoteJid, ctx.senderIdentity);
-      } catch (error) {
-        logger.warn('Falha ao resolver permissao de admin para ajuda de comando.', {
-          action: 'command_error_help_admin_check_failed',
-          command,
-          remoteJid: ctx.remoteJid,
-          senderJid: ctx.senderJid,
-          error: error?.message,
-        });
-      }
-    }
-
-    const commandErrorHelpText = await buildCommandErrorHelpText({
-      command,
-      commandRoute,
-      commandPrefix: ctx.commandPrefix,
-      isGroupMessage: ctx.isGroupMessage,
-      isSenderAdmin: senderIsAdminForHelp,
-    });
-
-    const fallbackErrorText = commandErrorHelpText ? `❌ Houve um erro ao processar *${ctx.commandPrefix}${command}*.\n\n${commandErrorHelpText}` : `❌ Houve um erro ao processar *${ctx.commandPrefix}${command}*.\n\nTente novamente ou use *${ctx.commandPrefix}menu* para validar o formato de uso.`;
-
-    await runCommand('command-error-help', () =>
-      sendReply(ctx.sock, ctx.remoteJid, ctx.messageInfo, ctx.expirationMessage, {
-        text: fallbackErrorText,
-      }),
-    );
-  }
-
-  return null;
-};
-
-const runPostProcessingMiddleware = async (ctx) => {
-  if (!ctx.isMessageFromBot) {
-    await runCommand('pack-capture', () =>
-      maybeCaptureIncomingSticker({
-        messageInfo: ctx.messageInfo,
-        senderJid: ctx.senderJid,
-        isMessageFromBot: ctx.isMessageFromBot,
-      }),
-    );
-  }
-
-  if (!ctx.isGroupMessage || ctx.isCommandMessage || ctx.isMessageFromBot) return;
-
-  const autoStickerMedia = extractSupportedStickerMediaDetails(ctx.messageInfo, {
-    includeQuoted: false,
-  });
-
-  if (!autoStickerMedia || autoStickerMedia.mediaType === 'sticker') return;
-
-  const activeGroupConfig = await ensureGroupConfigForContext(ctx);
-  if (!activeGroupConfig?.autoStickerEnabled) return;
-
-  ctx.analysisPayload.processingResult = 'autosticker_triggered';
-  mergeAnalysisMetadata(ctx.analysisPayload, {
-    auto_sticker_media_type: autoStickerMedia.mediaType || null,
-  });
-
-  const autoStickerResult = await runCommand('autosticker', () =>
-    processSticker(ctx.sock, ctx.messageInfo, ctx.senderJid, ctx.remoteJid, ctx.expirationMessage, ctx.senderName, '', {
-      includeQuotedMedia: false,
-      showAutoPackNotice: false,
-      commandPrefix: ctx.commandPrefix,
-    }),
-  );
-
-  if (!autoStickerResult.ok) {
-    ctx.analysisPayload.errorCode = normalizeAnalysisErrorCode(autoStickerResult.error);
-  }
-};
+const {
+  touchSenderLastSeenMiddleware,
+  ignoreUnprocessableMessageMiddleware,
+  applyGroupPolicyMiddleware,
+  resolveCaptchaMiddleware,
+  handleStartLoginTriggerMiddleware,
+  detectCommandIntentMiddleware,
+  applyStickerFocusMiddleware,
+} = createPreProcessingMiddlewares({
+  executeQuery,
+  TABLES,
+  isStatusJid,
+  stopMessagePipeline,
+  handleAntiLink,
+  ensureCommandPrefixForContext,
+  resolveCaptchaByMessage,
+  maybeHandleStartLoginMessage,
+  mergeAnalysisMetadata,
+  ensureGroupConfigForContext,
+  resolveStickerFocusState,
+  resolveStickerFocusMessageClassification,
+  isUserAdmin,
+  canSendMessageInStickerFocus,
+  registerMessageUsageInStickerFocus,
+  shouldSendStickerFocusWarning,
+  sendReply,
+  formatStickerFocusRuleLabel,
+  formatRemainingMinutesLabel,
+  logger,
+});
+
+const routeConversationMiddleware = createConversationMiddleware({
+  logger,
+  isUserAdmin,
+  isAdminSenderAsync,
+  resolveCanonicalSenderJidForContext,
+  isWhatsAppUserLinkedToGoogleWebAccount,
+  WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN,
+  ensureUserHasGoogleWebLoginForCommand,
+  executeMessageCommandRoute,
+  isAdminCommand,
+  runCommand,
+  sendReply,
+  routeConversationMessage,
+  stopMessagePipeline,
+});
+
+const executeCommandMiddleware = createCommandMiddleware({
+  isAdminCommand,
+  isKnownNonAdminCommand,
+  isDuplicateCommandExecution,
+  markCommandExecution,
+  MESSAGE_COMMAND_DEDUPE_TTL_MS,
+  stopMessagePipeline,
+  WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN,
+  resolveCanonicalSenderJidForContext,
+  ensureUserHasGoogleWebLoginForCommand,
+  SITE_LOGIN_URL,
+  COMMAND_REACT_EMOJI,
+  sendAndStore,
+  executeMessageCommandRoute,
+  runCommand,
+  sendReply,
+  registerGlobalHelpCommandExecution,
+  logger,
+  normalizeAnalysisErrorCode,
+  isUserAdmin,
+  buildCommandErrorHelpText,
+  mergeAnalysisMetadata,
+});
+
+const runPostProcessingMiddleware = createPostProcessingMiddleware({
+  runCommand,
+  maybeCaptureIncomingSticker,
+  extractSupportedStickerMediaDetails,
+  ensureGroupConfigForContext,
+  mergeAnalysisMetadata,
+  processSticker,
+  normalizeAnalysisErrorCode,
+});
 
 const MESSAGE_PIPELINE_MIDDLEWARES = [
   touchSenderLastSeenMiddleware,
