@@ -1,5 +1,5 @@
-import { executeQuery, TABLES } from '../../database/index.js';
-import { normalizeJid } from '../config/index.js';
+import { executeQuery, TABLES } from '../../../database/index.js';
+import { normalizeJid } from '../../config/index.js';
 import { toWhatsAppPhoneDigits } from './whatsappLoginLinkService.js';
 
 const parseEnvInt = (value, fallback, min, max) => {

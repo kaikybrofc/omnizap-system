@@ -1,9 +1,9 @@
 import axios from 'axios';
 import logger from '#logger';
-import groupConfigStore from '../store/groupConfigStore.js';
-import { TABLES, findAll } from '../../database/index.js';
-import { getActiveSocket } from '../config/index.js';
-import getImageBuffer from '../utils/http/getImageBufferModule.js';
+import groupConfigStore from '../../store/groupConfigStore.js';
+import { TABLES, findAll } from '../../../database/index.js';
+import { getActiveSocket } from '../../config/index.js';
+import getImageBuffer from '../../utils/http/getImageBufferModule.js';
 import { sendAndStore } from './messagePersistenceService.js';
 
 const DEFAULT_NEWS_API_URL = 'http://127.0.0.1:3001';

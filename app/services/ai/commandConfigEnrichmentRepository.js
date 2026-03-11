@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import logger from '#logger';
-import { executeQuery, TABLES } from '../../database/index.js';
+import { executeQuery, TABLES } from '../../../database/index.js';
 
 const MAX_MODULE_KEY_LENGTH = 64;
 const MAX_COMMAND_NAME_LENGTH = 64;

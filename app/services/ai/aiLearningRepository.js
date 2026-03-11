@@ -1,5 +1,5 @@
 import logger from '#logger';
-import { executeQuery, TABLES } from '../../database/index.js';
+import { executeQuery, TABLES } from '../../../database/index.js';
 
 const MAX_QUESTION_LENGTH = 512;
 const MAX_TOOL_LENGTH = 64;

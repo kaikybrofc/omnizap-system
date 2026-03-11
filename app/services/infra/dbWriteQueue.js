@@ -1,9 +1,9 @@
 import logger from '#logger';
-import { executeQuery, TABLES } from '../../database/index.js';
-import { queueLidUpdate, flushLidQueue, resolveUserIdCached } from '../config/index.js';
+import { executeQuery, TABLES } from '../../../database/index.js';
+import { queueLidUpdate, flushLidQueue, resolveUserIdCached } from '../../config/index.js';
 import { buildPlaceholders, createFlushRunner } from './queueUtils.js';
-import { recordError, setQueueDepth } from '../observability/metrics.js';
-import { sanitizeUnicodeString, toSafeJsonColumnValue } from '../utils/json/jsonSanitizer.js';
+import { recordError, setQueueDepth } from '../../observability/metrics.js';
+import { sanitizeUnicodeString, toSafeJsonColumnValue } from '../../utils/json/jsonSanitizer.js';
 
 /**
  * Converte um valor para número com fallback.

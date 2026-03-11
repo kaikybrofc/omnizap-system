@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { URL } from 'node:url';
-import { getJidServer, getJidUser, normalizeJid } from '../config/index.js';
+import { getJidServer, getJidUser, normalizeJid } from '../../config/index.js';
 
 const WHATSAPP_USER_SERVERS = new Set(['s.whatsapp.net', 'c.us', 'hosted']);
 const DEFAULT_LOGIN_BASE_URL = 'https://omnizap.shop';

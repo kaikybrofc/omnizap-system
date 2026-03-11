@@ -1,6 +1,6 @@
 import axios from 'axios';
 import logger from '#logger';
-import { recordPokeApiCacheHit } from '../observability/metrics.js';
+import { recordPokeApiCacheHit } from '../../observability/metrics.js';
 
 const BASE_URL = 'https://pokeapi.co/api/v2';
 const MIN_CACHE_TTL_MS = 6 * 60 * 60 * 1000;

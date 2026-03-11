@@ -1,7 +1,7 @@
 import logger from '#logger';
-import { isSameJidUser } from '../config/index.js';
+import { isSameJidUser } from '../../config/index.js';
 import { responderPerguntaGlobal } from './globalModuleAiHelpService.js';
-import { appendConversationSessionMessage, getConversationSession, setConversationSessionIntent } from '../store/conversationSessionStore.js';
+import { appendConversationSessionMessage, getConversationSession, setConversationSessionIntent } from '../../store/conversationSessionStore.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;

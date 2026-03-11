@@ -2,23 +2,23 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import logger from '#logger';
-import { adminAiHelpWrapper } from '../modules/adminModule/adminAiHelpService.js';
-import { aiAiHelpWrapper } from '../modules/aiModule/aiAiHelpService.js';
-import { gameAiHelpWrapper } from '../modules/gameModule/gameAiHelpService.js';
-import { menuAiHelpWrapper } from '../modules/menuModule/menuAiHelpService.js';
-import { playAiHelpWrapper } from '../modules/playModule/playAiHelpService.js';
-import { quoteAiHelpWrapper } from '../modules/quoteModule/quoteAiHelpService.js';
-import { rpgPokemonAiHelpWrapper } from '../modules/rpgPokemonModule/rpgPokemonAiHelpService.js';
-import { statsAiHelpWrapper } from '../modules/statsModule/statsAiHelpService.js';
-import { stickerAiHelpWrapper } from '../modules/stickerModule/stickerAiHelpService.js';
-import { stickerPackAiHelpWrapper } from '../modules/stickerPackModule/stickerPackAiHelpService.js';
-import { systemMetricsAiHelpWrapper } from '../modules/systemMetricsModule/systemMetricsAiHelpService.js';
-import { tiktokAiHelpWrapper } from '../modules/tiktokModule/tiktokAiHelpService.js';
-import { userAiHelpWrapper } from '../modules/userModule/userAiHelpService.js';
-import { waifuPicsAiHelpWrapper } from '../modules/waifuPicsModule/waifuPicsAiHelpService.js';
+import { adminAiHelpWrapper } from '../../modules/adminModule/adminAiHelpService.js';
+import { aiAiHelpWrapper } from '../../modules/aiModule/aiAiHelpService.js';
+import { gameAiHelpWrapper } from '../../modules/gameModule/gameAiHelpService.js';
+import { menuAiHelpWrapper } from '../../modules/menuModule/menuAiHelpService.js';
+import { playAiHelpWrapper } from '../../modules/playModule/playAiHelpService.js';
+import { quoteAiHelpWrapper } from '../../modules/quoteModule/quoteAiHelpService.js';
+import { rpgPokemonAiHelpWrapper } from '../../modules/rpgPokemonModule/rpgPokemonAiHelpService.js';
+import { statsAiHelpWrapper } from '../../modules/statsModule/statsAiHelpService.js';
+import { stickerAiHelpWrapper } from '../../modules/stickerModule/stickerAiHelpService.js';
+import { stickerPackAiHelpWrapper } from '../../modules/stickerPackModule/stickerPackAiHelpService.js';
+import { systemMetricsAiHelpWrapper } from '../../modules/systemMetricsModule/systemMetricsAiHelpService.js';
+import { tiktokAiHelpWrapper } from '../../modules/tiktokModule/tiktokAiHelpService.js';
+import { userAiHelpWrapper } from '../../modules/userModule/userAiHelpService.js';
+import { waifuPicsAiHelpWrapper } from '../../modules/waifuPicsModule/waifuPicsAiHelpService.js';
 import { getAiHelpCachedResponse, listAiHelpCachedResponses, upsertAiHelpCachedResponse } from './aiHelpResponseCacheRepository.js';
 import { maybeResolveAndExecuteToolCall } from './globalToolCallingService.js';
-import { getConversationSession, setConversationSessionIntent } from '../store/conversationSessionStore.js';
+import { getConversationSession, setConversationSessionIntent } from '../../store/conversationSessionStore.js';
 
 const GLOBAL_HELP_WRAPPERS = [menuAiHelpWrapper, stickerAiHelpWrapper, stickerPackAiHelpWrapper, playAiHelpWrapper, aiAiHelpWrapper, quoteAiHelpWrapper, waifuPicsAiHelpWrapper, statsAiHelpWrapper, systemMetricsAiHelpWrapper, gameAiHelpWrapper, userAiHelpWrapper, rpgPokemonAiHelpWrapper, tiktokAiHelpWrapper, adminAiHelpWrapper];
 
