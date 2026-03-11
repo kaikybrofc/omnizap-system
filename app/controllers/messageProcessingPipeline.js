@@ -339,25 +339,29 @@ const persistMessageAnalysisEvent = (payload) => {
 
 const buildSiteLoginUrlForUser = (canonicalUserId) => buildWhatsAppGoogleLoginUrl({ userId: canonicalUserId }) || SITE_LOGIN_URL;
 
-const ensureUserHasGoogleWebLoginForCommand = async ({ sock, messageInfo, senderJid, remoteJid, expirationMessage, commandPrefix, canonicalUserId = '' }) => {
+const ensureUserHasGoogleWebLoginForCommand = async ({ sock, messageInfo, senderJid, remoteJid, expirationMessage, commandPrefix, canonicalUserId = '', knownHasGoogleLogin } = {}) => {
   const isGroupMessage = isGroupJid(remoteJid);
   const normalizedCanonicalUserId = String(canonicalUserId || '').trim();
   const resolvedCanonicalUserId = normalizedCanonicalUserId || (await resolveCanonicalSenderJidFromMessage({ messageInfo, senderJid }));
-  let linked = false;
-  try {
-    linked = await isWhatsAppUserLinkedToGoogleWebAccount({
-      ownerJid: resolvedCanonicalUserId || senderJid,
-    });
-  } catch (error) {
-    logger.warn('Falha ao validar vínculo Google Web para comando do WhatsApp. Comando liberado por fallback.', {
-      action: 'whatsapp_command_google_link_check_failed',
-      error: error?.message,
-    });
-    return {
-      allowed: true,
-      canonicalUserId: resolvedCanonicalUserId,
-      loginUrl: '',
-    };
+  const hasKnownGoogleLogin = typeof knownHasGoogleLogin === 'boolean';
+  let linked = Boolean(knownHasGoogleLogin ? knownHasGoogleLogin : false);
+
+  if (!hasKnownGoogleLogin) {
+    try {
+      linked = await isWhatsAppUserLinkedToGoogleWebAccount({
+        ownerJid: resolvedCanonicalUserId || senderJid,
+      });
+    } catch (error) {
+      logger.warn('Falha ao validar vínculo Google Web para comando do WhatsApp. Comando liberado por fallback.', {
+        action: 'whatsapp_command_google_link_check_failed',
+        error: error?.message,
+      });
+      return {
+        allowed: true,
+        canonicalUserId: resolvedCanonicalUserId,
+        loginUrl: '',
+      };
+    }
   }
 
   if (linked) {
@@ -428,6 +432,42 @@ const resolveCanonicalSenderJidForContext = async (ctx) => {
     });
   }
   return ctx.memo.canonicalSenderJidPromise;
+};
+
+const resolveSenderAdminForContext = async (ctx, { mode = 'identity' } = {}) => {
+  if (!ctx.isGroupMessage) return false;
+
+  const normalizedMode = String(mode || '').trim().toLowerCase() === 'jid' ? 'jid' : 'identity';
+  const memoKey = normalizedMode === 'jid' ? 'senderAdminByJidPromise' : 'senderAdminByIdentityPromise';
+  if (!ctx.memo[memoKey]) {
+    const adminTarget = normalizedMode === 'jid' ? ctx.senderJid : ctx.senderIdentity;
+    ctx.memo[memoKey] = isUserAdmin(ctx.remoteJid, adminTarget);
+  }
+  return ctx.memo[memoKey];
+};
+
+const resolveSenderOwnerForContext = async (ctx) => {
+  if (!ctx.memo.senderOwnerPromise) {
+    ctx.memo.senderOwnerPromise = isAdminSenderAsync(ctx.senderIdentity);
+  }
+  return ctx.memo.senderOwnerPromise;
+};
+
+const resolveHasGoogleLoginForContext = async (ctx) => {
+  if (ctx.isMessageFromBot || !WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN) {
+    return undefined;
+  }
+
+  if (!ctx.memo.hasGoogleLoginPromise) {
+    ctx.memo.hasGoogleLoginPromise = (async () => {
+      const canonicalSenderJid = await resolveCanonicalSenderJidForContext(ctx);
+      if (!canonicalSenderJid) return undefined;
+      return isWhatsAppUserLinkedToGoogleWebAccount({
+        ownerJid: canonicalSenderJid,
+      });
+    })();
+  }
+  return ctx.memo.hasGoogleLoginPromise;
 };
 
 const createMessagePipelineContext = async ({ messageInfo, upsertType, isNotifyUpsert, sock }) => {
@@ -539,6 +579,7 @@ const {
   ensureGroupConfigForContext,
   resolveStickerFocusState,
   resolveStickerFocusMessageClassification,
+  resolveSenderAdminForContext,
   isUserAdmin,
   canSendMessageInStickerFocus,
   registerMessageUsageInStickerFocus,
@@ -551,6 +592,9 @@ const {
 
 const routeConversationMiddleware = createConversationMiddleware({
   logger,
+  resolveSenderAdminForContext,
+  resolveSenderOwnerForContext,
+  resolveHasGoogleLoginForContext,
   isUserAdmin,
   isAdminSenderAsync,
   resolveCanonicalSenderJidForContext,
@@ -584,6 +628,7 @@ const executeCommandMiddleware = createCommandMiddleware({
   registerGlobalHelpCommandExecution,
   logger,
   normalizeAnalysisErrorCode,
+  resolveSenderAdminForContext,
   isUserAdmin,
   buildCommandErrorHelpText,
   mergeAnalysisMetadata,

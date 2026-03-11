@@ -313,6 +313,56 @@ test('conversation middleware mantem hasGoogleLogin indefinido quando consulta d
   assert.equal(warnCalls[0][1]?.action, 'tool_security_google_login_check_failed');
 });
 
+test('conversation middleware reaproveita contexto de seguranca e evita lookup de login google duplicado', async () => {
+  let resolveHasGoogleLoginCalls = 0;
+  let ensureAuthCalls = 0;
+  let knownHasGoogleLoginInEnsure;
+  let toolSecurityReadCount = 0;
+
+  const middleware = createConversationMiddleware({
+    logger: { warn: () => {} },
+    resolveSenderAdminForContext: async () => false,
+    resolveSenderOwnerForContext: async () => false,
+    resolveHasGoogleLoginForContext: async () => {
+      resolveHasGoogleLoginCalls += 1;
+      return false;
+    },
+    isUserAdmin: async () => false,
+    isAdminSenderAsync: async () => false,
+    resolveCanonicalSenderJidForContext: async () => '5511999999999@s.whatsapp.net',
+    isWhatsAppUserLinkedToGoogleWebAccount: async () => {
+      throw new Error('fallback should not be used');
+    },
+    WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN: true,
+    ensureUserHasGoogleWebLoginForCommand: async ({ knownHasGoogleLogin }) => {
+      ensureAuthCalls += 1;
+      knownHasGoogleLoginInEnsure = knownHasGoogleLogin;
+      return { allowed: true };
+    },
+    executeMessageCommandRoute: async () => ({ commandRoute: 'menu', commandResult: { ok: true } }),
+    isAdminCommand: () => false,
+    runCommand: async () => ({ ok: true }),
+    sendReply: async () => {},
+    routeConversationMessage: async ({ resolveToolSecurityContext, toolCommandExecutor }) => {
+      await resolveToolSecurityContext();
+      toolSecurityReadCount += 1;
+      await resolveToolSecurityContext();
+      toolSecurityReadCount += 1;
+      await toolCommandExecutor({ commandName: 'menu', args: [], text: '' });
+      return { handled: false };
+    },
+    stopMessagePipeline: () => ({ stop: true }),
+  });
+
+  const result = await middleware(createBaseContext({ isCommandMessage: false, isNotifyUpsert: true, isMessageFromBot: false }));
+
+  assert.equal(result, null);
+  assert.equal(toolSecurityReadCount, 2);
+  assert.equal(resolveHasGoogleLoginCalls, 1);
+  assert.equal(ensureAuthCalls, 1);
+  assert.equal(knownHasGoogleLoginInEnsure, false);
+});
+
 test('command middleware ignora comando duplicado', async () => {
   const stopSpy = createStopSpy();
   let markCalled = false;

@@ -17,6 +17,7 @@ export const createCommandMiddleware = ({
   registerGlobalHelpCommandExecution,
   logger,
   normalizeAnalysisErrorCode,
+  resolveSenderAdminForContext,
   isUserAdmin,
   buildCommandErrorHelpText,
   mergeAnalysisMetadata,
@@ -134,7 +135,7 @@ export const createCommandMiddleware = ({
       let senderIsAdminForHelp = false;
       if (ctx.isGroupMessage) {
         try {
-          senderIsAdminForHelp = await isUserAdmin(ctx.remoteJid, ctx.senderIdentity);
+          senderIsAdminForHelp = typeof resolveSenderAdminForContext === 'function' ? await resolveSenderAdminForContext(ctx, { mode: 'identity' }) : await isUserAdmin(ctx.remoteJid, ctx.senderIdentity);
         } catch (error) {
           logger.warn('Falha ao resolver permissao de admin para ajuda de comando.', {
             action: 'command_error_help_admin_check_failed',

@@ -11,6 +11,7 @@ export const createPreProcessingMiddlewares = ({
   ensureGroupConfigForContext,
   resolveStickerFocusState,
   resolveStickerFocusMessageClassification,
+  resolveSenderAdminForContext,
   isUserAdmin,
   canSendMessageInStickerFocus,
   registerMessageUsageInStickerFocus,
@@ -126,7 +127,7 @@ export const createPreProcessingMiddlewares = ({
     });
     if (!messageClassification.isThrottleCandidate) return null;
 
-    const senderIsAdmin = await isUserAdmin(ctx.remoteJid, ctx.senderJid);
+    const senderIsAdmin = typeof resolveSenderAdminForContext === 'function' ? await resolveSenderAdminForContext(ctx, { mode: 'jid' }) : await isUserAdmin(ctx.remoteJid, ctx.senderJid);
     if (senderIsAdmin || stickerFocusState.isChatWindowOpen) return null;
 
     const messageGate = canSendMessageInStickerFocus({

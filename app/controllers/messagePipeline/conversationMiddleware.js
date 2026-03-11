@@ -1,5 +1,8 @@
 export const createConversationMiddleware = ({
   logger,
+  resolveSenderAdminForContext,
+  resolveSenderOwnerForContext,
+  resolveHasGoogleLoginForContext,
   isUserAdmin,
   isAdminSenderAsync,
   resolveCanonicalSenderJidForContext,
@@ -19,7 +22,7 @@ export const createConversationMiddleware = ({
     let isSenderAdmin = false;
     if (ctx.isGroupMessage) {
       try {
-        isSenderAdmin = await isUserAdmin(ctx.remoteJid, ctx.senderIdentity);
+        isSenderAdmin = typeof resolveSenderAdminForContext === 'function' ? await resolveSenderAdminForContext(ctx, { mode: 'identity' }) : await isUserAdmin(ctx.remoteJid, ctx.senderIdentity);
       } catch (error) {
         logger.warn('Falha ao resolver permissao admin para tool execution.', {
           action: 'tool_security_admin_check_failed',
@@ -32,7 +35,7 @@ export const createConversationMiddleware = ({
 
     let isSenderOwner = false;
     try {
-      isSenderOwner = await isAdminSenderAsync(ctx.senderIdentity);
+      isSenderOwner = typeof resolveSenderOwnerForContext === 'function' ? await resolveSenderOwnerForContext(ctx) : await isAdminSenderAsync(ctx.senderIdentity);
     } catch (error) {
       logger.warn('Falha ao resolver admin principal para tool execution.', {
         action: 'tool_security_owner_check_failed',
@@ -45,11 +48,14 @@ export const createConversationMiddleware = ({
     let hasGoogleLogin;
     if (!ctx.isMessageFromBot && WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN) {
       try {
-        const canonicalSenderJid = await resolveCanonicalSenderJidForContext(ctx);
-        if (canonicalSenderJid) {
-          hasGoogleLogin = await isWhatsAppUserLinkedToGoogleWebAccount({
-            ownerJid: canonicalSenderJid,
-          });
+        hasGoogleLogin = typeof resolveHasGoogleLoginForContext === 'function' ? await resolveHasGoogleLoginForContext(ctx) : undefined;
+        if (hasGoogleLogin === undefined) {
+          const canonicalSenderJid = await resolveCanonicalSenderJidForContext(ctx);
+          if (canonicalSenderJid) {
+            hasGoogleLogin = await isWhatsAppUserLinkedToGoogleWebAccount({
+              ownerJid: canonicalSenderJid,
+            });
+          }
         }
       } catch (error) {
         logger.warn('Falha ao resolver estado de login para tool execution.', {
@@ -83,6 +89,17 @@ export const createConversationMiddleware = ({
     }
 
     if (!ctx.isMessageFromBot && WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN) {
+      let knownHasGoogleLogin;
+      if (typeof ctx.memo.toolSecurityContext?.hasGoogleLogin === 'boolean') {
+        knownHasGoogleLogin = ctx.memo.toolSecurityContext.hasGoogleLogin;
+      } else if (typeof resolveHasGoogleLoginForContext === 'function') {
+        try {
+          knownHasGoogleLogin = await resolveHasGoogleLoginForContext(ctx);
+        } catch {
+          knownHasGoogleLogin = undefined;
+        }
+      }
+
       const authCheck = await ensureUserHasGoogleWebLoginForCommand({
         sock: ctx.sock,
         messageInfo: ctx.messageInfo,
@@ -90,6 +107,7 @@ export const createConversationMiddleware = ({
         remoteJid: ctx.remoteJid,
         expirationMessage: ctx.expirationMessage,
         commandPrefix: ctx.commandPrefix,
+        knownHasGoogleLogin,
       });
       if (!authCheck.allowed) {
         return {
