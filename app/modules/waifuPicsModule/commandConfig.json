@@ -65,14 +65,14 @@
     "dependencies": ["Waifu.pics API"],
     "dependencias_externas": ["Waifu.pics API"],
     "responses": {
-      "success": "Comando executado com sucesso.",
-      "usage_error": "Formato de uso inválido. Consulte metodos_de_uso.",
-      "permission_error": "Permissão insuficiente para executar este comando."
+      "success": "Prontinho! Aqui está sua imagem. ✨",
+      "usage_error": "Ops! Parece que você esqueceu a categoria. Use <prefix>waifuajuda para ver as opções disponíveis. 🧐",
+      "permission_error": "Eita! Você não tem permissão para usar este comando. Entre em contato com um administrador. 🔐"
     },
     "respostas_padrao": {
-      "sucesso": "Comando executado com sucesso.",
-      "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
-      "erro_permissao": "Permissão insuficiente para executar este comando."
+      "sucesso": "Prontinho! Aqui está sua imagem. ✨",
+      "erro_uso": "Ops! Parece que você esqueceu a categoria. Use <prefix>waifuajuda para ver as opções disponíveis. 🧐",
+      "erro_permissao": "Eita! Você não tem permissão para usar este comando. Entre em contato com um administrador. 🔐"
     },
     "observability": {
       "event_name": "command.executed",
@@ -144,12 +144,12 @@
     {
       "name": "waifu",
       "aliases": ["waifupics", "wp"],
-      "descricao": "Envia imagem SFW da API Waifu.pics por categoria.",
-      "metodos_de_uso": ["<prefix>waifu <categoria>", "<prefix>waifupics neko"],
-      "permissao_necessaria": "usuario comum",
-      "limite_de_uso": "sem limite especifico",
-      "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "categoria solicitada na API waifu.pics", "configuracao do grupo para validar politicas de conteudo"],
+      "descricao": "Receba uma imagem incrível de anime (SFW)! Escolha uma categoria como 'neko' ou 'waifu'. ✨",
+      "metodos_de_uso": ["<prefix>waifu <categoria>", "<prefix>wp neko"],
+      "permissao_necessaria": "Livre para todos!",
+      "limite_de_uso": "Conforme seu plano de uso.",
+      "local_de_uso": ["Privado", "Grupos"],
+      "informacoes_coletadas": ["ID do chat", "ID do remetente", "Comando e categoria escolhida"],
       "enabled": true,
       "categoria": "anime",
       "subcomandos": [],
@@ -158,8 +158,8 @@
           "nome": "categoria",
           "tipo": "string",
           "obrigatorio": true,
-          "validacao": "categoria SFW suportada",
-          "default": null
+          "validacao": "Categorias seguras (SFW) da Waifu.pics",
+          "default": "waifu"
         }
       ],
       "pre_condicoes": {
@@ -214,21 +214,21 @@
         }
       },
       "mensagens_uso": {
-        "default": ["<prefix>waifu <categoria>", "<prefix>waifupics neko"]
+        "default": ["💡 *Uso:* <prefix>waifu <categoria>\nExemplo: <prefix>waifu neko", "Dica: Use <prefix>waifuajuda para ver todas as categorias! 🎨"]
       },
       "id": "waifupics.waifu",
-      "description": "Envia imagem SFW da API Waifu.pics por categoria.",
-      "usage": ["<prefix>waifu <categoria>", "<prefix>waifupics neko"],
+      "description": "Receba uma imagem incrível de anime (SFW)! Escolha uma categoria como 'neko' ou 'waifu'. ✨",
+      "usage": ["<prefix>waifu <categoria>", "<prefix>wp neko"],
       "docs": {
-        "summary": "Envia imagem SFW da API Waifu.pics por categoria.",
-        "usage_examples": ["<prefix>waifu <categoria>", "<prefix>waifupics neko"],
+        "summary": "Busca e envia imagens aleatórias de anime (Safe For Work).",
+        "usage_examples": ["<prefix>waifu waifu", "<prefix>wp neko"],
         "usage_variants": {
-          "default": ["<prefix>waifu <categoria>", "<prefix>waifupics neko"]
+          "default": ["<prefix>waifu <categoria>", "<prefix>wp neko"]
         }
       },
-      "permission": "usuario comum",
-      "contexts": ["privado", "grupo"],
-      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "categoria solicitada na API waifu.pics", "configuracao do grupo para validar politicas de conteudo"],
+      "permission": "Livre para todos!",
+      "contexts": ["Privado", "Grupos"],
+      "collected_data": ["ID do chat", "ID do remetente", "Comando e categoria escolhida"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -362,12 +362,12 @@
     {
       "name": "waifunsfw",
       "aliases": ["waifupicsnsfw", "wpnsfw"],
-      "descricao": "Envia imagem NSFW da API Waifu.pics por categoria.",
-      "metodos_de_uso": ["<prefix>waifunsfw <categoria>", "<prefix>waifupicsnsfw waifu"],
-      "permissao_necessaria": "usuario comum com NSFW habilitado no grupo",
-      "limite_de_uso": "depende de configuracao global e do grupo",
-      "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "categoria NSFW solicitada na API waifu.pics", "status NSFW global e por grupo para permitir bloqueio/liberacao"],
+      "descricao": "Mande aquela imagem picante (NSFW). Exige que o grupo autorize! 🔞",
+      "metodos_de_uso": ["<prefix>waifunsfw <categoria>", "<prefix>wpnsfw waifu"],
+      "permissao_necessaria": "Membros em grupos com NSFW ativado.",
+      "limite_de_uso": "Restrito a usuários Premium e grupos autorizados.",
+      "local_de_uso": ["Privado", "Grupos"],
+      "informacoes_coletadas": ["ID do chat", "ID do remetente", "Comando e categoria"],
       "enabled": true,
       "categoria": "anime",
       "subcomandos": [],
@@ -376,8 +376,8 @@
           "nome": "categoria",
           "tipo": "string",
           "obrigatorio": true,
-          "validacao": "categoria NSFW suportada",
-          "default": null
+          "validacao": "Categorias adultas (NSFW) da Waifu.pics",
+          "default": "waifu"
         }
       ],
       "pre_condicoes": {
@@ -432,21 +432,21 @@
         }
       },
       "mensagens_uso": {
-        "default": ["<prefix>waifunsfw <categoria>", "<prefix>waifupicsnsfw waifu"]
+        "default": ["🔞 *Uso:* <prefix>waifunsfw <categoria>\nExemplo: <prefix>wpnsfw blowjob", "Atenção: O grupo deve estar com NSFW ligado!"]
       },
       "id": "waifupics.waifunsfw",
-      "description": "Envia imagem NSFW da API Waifu.pics por categoria.",
-      "usage": ["<prefix>waifunsfw <categoria>", "<prefix>waifupicsnsfw waifu"],
+      "description": "Mande aquela imagem picante (NSFW). Exige que o grupo autorize! 🔞",
+      "usage": ["<prefix>waifunsfw <categoria>", "<prefix>wpnsfw waifu"],
       "docs": {
-        "summary": "Envia imagem NSFW da API Waifu.pics por categoria.",
-        "usage_examples": ["<prefix>waifunsfw <categoria>", "<prefix>waifupicsnsfw waifu"],
+        "summary": "Envia imagens de anime para maiores (Not Safe For Work) se permitido.",
+        "usage_examples": ["<prefix>waifunsfw waifu", "<prefix>wpnsfw neko"],
         "usage_variants": {
-          "default": ["<prefix>waifunsfw <categoria>", "<prefix>waifupicsnsfw waifu"]
+          "default": ["<prefix>waifunsfw <categoria>", "<prefix>wpnsfw waifu"]
         }
       },
-      "permission": "usuario comum com NSFW habilitado no grupo",
-      "contexts": ["privado", "grupo"],
-      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "categoria NSFW solicitada na API waifu.pics", "status NSFW global e por grupo para permitir bloqueio/liberacao"],
+      "permission": "Membros em grupos com NSFW ativado.",
+      "contexts": ["Privado", "Grupos"],
+      "collected_data": ["ID do chat", "ID do remetente", "Categoria"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -580,12 +580,12 @@
     {
       "name": "waifuajuda",
       "aliases": ["wppicshelp"],
-      "descricao": "Mostra ajuda e categorias disponiveis de Waifu.pics.",
+      "descricao": "Veja todas as categorias de fotos anime que eu posso te enviar! 📖",
       "metodos_de_uso": ["<prefix>waifuajuda"],
-      "permissao_necessaria": "usuario comum",
-      "limite_de_uso": "sem limite especifico",
-      "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "prefixo/categoria para montar texto de ajuda dinamico"],
+      "permissao_necessaria": "Livre para todos!",
+      "limite_de_uso": "Baixo consumo de recursos.",
+      "local_de_uso": ["Privado", "Grupos"],
+      "informacoes_coletadas": ["ID do chat", "ID do remetente"],
       "enabled": true,
       "categoria": "anime",
       "subcomandos": [],
@@ -642,21 +642,21 @@
         }
       },
       "mensagens_uso": {
-        "default": ["<prefix>waifuajuda"]
+        "default": ["📖 *Guia Rápido:* Digite <prefix>waifuajuda para ver as categorias SFW e NSFW disponíveis.", "Use <prefix>waifu <categoria> para receber uma imagem!"]
       },
       "id": "waifupics.waifuajuda",
-      "description": "Mostra ajuda e categorias disponiveis de Waifu.pics.",
+      "description": "Veja todas as categorias de fotos anime que eu posso te enviar! 📖",
       "usage": ["<prefix>waifuajuda"],
       "docs": {
-        "summary": "Mostra ajuda e categorias disponiveis de Waifu.pics.",
+        "summary": "Exibe o menu de ajuda detalhado do módulo Waifu.pics com todas as categorias.",
         "usage_examples": ["<prefix>waifuajuda"],
         "usage_variants": {
           "default": ["<prefix>waifuajuda"]
         }
       },
-      "permission": "usuario comum",
-      "contexts": ["privado", "grupo"],
-      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "prefixo/categoria para montar texto de ajuda dinamico"],
+      "permission": "Livre para todos!",
+      "contexts": ["Privado", "Grupos"],
+      "collected_data": ["ID do chat", "ID do remetente"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -775,6 +775,6 @@
     }
   ],
   "textos": {
-    "usage_header": ""
+    "usage_header": "🎨 *Menu de Fotos Anime (Waifu.pics)*\n\nOlá! Escolha uma categoria abaixo para receber uma imagem aleatória. ✨"
   }
 }
