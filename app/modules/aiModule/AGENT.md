@@ -3,22 +3,53 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
-
 - arquivo_base: `app/modules/aiModule/commandConfig.json`
 - schema_version: `2.0.0`
 - module_enabled: `true`
-- generated_at: `2026-03-08T10:59:41.156Z`
+- generated_at: `2026-03-11T02:35:17.177Z`
 
 ## Escopo do Modulo
-
 - module: `aiModule`
 - source_files:
 - catCommand.js
 - total_commands: `3`
 - total_enabled_commands: `3`
 
-## Protocolo de Resposta para IA
+## Defaults Schema v2
+- inheritance_mode: deep_merge_with_command_overrides
+- compatibility_mode: legacy_and_v2_fields
+- legacy_field_aliases:
+- descricao: description
+- metodos_de_uso: usage
+- permissao_necessaria: permission
+- local_de_uso: contexts
+- informacoes_coletadas: collected_data
+- pre_condicoes: requirements
+- dependencias_externas: dependencies
+- efeitos_colaterais: side_effects
+- observabilidade: observability
+- privacidade: privacy
+- limite_uso_por_plano: plan_limits
+- argumentos: arguments
+- acesso: access
+- defaults.command:
+- enabled: true
+- category: ia
+- version: 1.0.0
+- stability: stable
+- deprecated: false
+- replaced_by: null
+- risk_level: medium
+- defaults.requirements (legacy view):
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
 
+## Protocolo de Resposta para IA
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -27,22 +58,23 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
-
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
-
 ### ia
-
+- id: ai.ia
 - aliases: cat
 - enabled: true
 - categoria: ia
 - descricao: Perguntas para IA com suporte opcional a resposta em audio.
 - permissao_necessaria: usuario comum
-- limite_de_uso: texto sujeito a limites da API
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - privado
 - grupo
@@ -51,19 +83,19 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - <prefix>ia --audio sua pergunta
 - mensagens_uso (variantes):
 - default:
-- _<prefix>ia_ [--audio] sua pergunta
-- _<prefix>ia_ (responda ou envie uma imagem com legenda)
+- *<prefix>ia* [--audio] sua pergunta
+- *<prefix>ia* (responda ou envie uma imagem com legenda)
 - Opções:
 - --audio | --texto
 - --detail low | high | auto
 - Exemplo:
-- _<prefix>ia_ Explique como funciona a fotossíntese.
-- _<prefix>ia_ --audio Resuma a imagem.
+- *<prefix>ia* Explique como funciona a fotossíntese.
+- *<prefix>ia* --audio Resuma a imagem.
 - subcomandos:
 - (nenhum)
 - argumentos:
-- prompt | tipo: string | opcional | validacao: texto livre; pode usar contexto de mídia | default: null
-- flags | tipo: array<string> | opcional | validacao: aliases de áudio/texto suportados | default: []
+- prompt | tipo: string | opcional | validacao: texto livre; pode usar contexto de mídia | default: null | posicao: 0
+- flags | tipo: array | opcional | validacao: aliases de áudio/texto suportados | default: null | posicao: 1
 - pre_condicoes:
 - requer_grupo: nao
 - requer_admin: nao
@@ -96,29 +128,43 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - efeitos_colaterais:
 - envia resposta textual/áudio de IA
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
 - mensagens_sistema:
-- premium*only: ⭐ \_Comando Premium*
+- premium_only: ⭐ *Comando Premium*
 
 Este comando é exclusivo para usuários premium.
 Fale com o administrador para liberar o acesso.
+- openai_nao_configurada: ⚠️ *OpenAI não configurada*
 
-- openai*nao_configurada: ⚠️ \_OpenAI não configurada*
-
-Defina a variável _OPENAI_API_KEY_ no `.env` para usar o comando _cat_.
-
+Defina a variável *OPENAI_API_KEY* no `.env` para usar o comando *cat*.
 - imagem_muito_grande: ⚠️ A imagem enviada ultrapassa o limite de {{limite_mb}} MB. Envie uma imagem menor.
 - imagem_download_falhou: ⚠️ Não consegui baixar a imagem. Tente reenviar.
 - resposta_vazia: ⚠️ Não consegui gerar uma resposta agora. Tente novamente.
 - audio_muito_longo: ⚠️ A resposta ficou longa demais para áudio. Enviando em texto.
 - audio_falhou: ⚠️ Não consegui gerar o áudio agora. Enviando texto.
-- erro*openai: ❌ \_Erro ao falar com a IA*
-  Tente novamente em alguns instantes.
+- erro_openai: ❌ *Erro ao falar com a IA*
+Tente novamente em alguns instantes.
 - limites_operacionais:
 - (nao informado)
 - opcoes:
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - parse.audio_flags: --audio, --voz, --voice, --tts, -a
 - parse.text_flags: --texto, --text, --txt
 - parse.image_detail_aliases.low: low
@@ -131,26 +177,58 @@ Defina a variável _OPENAI_API_KEY_ no `.env` para usar o comando _cat_.
 - parse.image_detail_aliases.automatico: auto
 - parse.image_detail_aliases.automático: auto
 - observabilidade:
-- evento_analytics: whatsapp_command_cat
+- event_name: command.executed
+- analytics_event: whatsapp_command_cat
 - tags_log: whatsapp, command, aiModule, cat
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- prompt textual enviado
-- conteúdo de mídia anexada/citada (quando houver)
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Perguntas para IA com suporte opcional a resposta em audio.
+- usage_examples: <prefix>ia sua pergunta, <prefix>ia --audio sua pergunta
+- usage_variants.default: *<prefix>ia* [--audio] sua pergunta, *<prefix>ia* (responda ou envie uma imagem com legenda), , Opções:, --audio | --texto, --detail low | high | auto, , Exemplo:, *<prefix>ia* Explique como funciona a fotossíntese., *<prefix>ia* --audio Resuma a imagem.
+- behavior:
+- type: argument_driven
+- allowed_actions: (nenhum)
+- limits:
+- usage_description: texto sujeito a limites da API
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 8
+- plan_limits.comum.janela_ms: 300000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 40
+- plan_limits.premium.janela_ms: 300000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: ia, ia, privado, grupo
+- faq_queries: como usar ia, o que faz ia, comando ia
+- user_phrasings: quero usar ia, me ajuda com ia, perguntas para ia com
+- suggestion_priority: 100
+- handler:
+- file: catCommand.js
+- method: handleCatCommand
+- command_case: ia
 
 ### iaimagem
-
+- id: ai.iaimagem
 - aliases: catimage, catimg
 - enabled: true
 - categoria: ia
 - descricao: Gera/edita imagem com IA por prompt.
 - permissao_necessaria: usuario comum
-- limite_de_uso: imagem de entrada ate OPENAI_MAX_IMAGE_MB (padrao 50 MB)
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - privado
 - grupo
@@ -159,8 +237,8 @@ Defina a variável _OPENAI_API_KEY_ no `.env` para usar o comando _cat_.
 - <prefix>iaimagem --size 1536x1024 seu prompt
 - mensagens_uso (variantes):
 - default:
-- _<prefix>iaimagem_ seu prompt
-- _<prefix>iaimagem_ (responda uma imagem com legenda para editar)
+- *<prefix>iaimagem* seu prompt
+- *<prefix>iaimagem* (responda uma imagem com legenda para editar)
 - Opções:
 - --size 1024x1024 | 1024x1536 | 1536x1024 | auto
 - --quality low | medium | high | auto
@@ -168,14 +246,14 @@ Defina a variável _OPENAI_API_KEY_ no `.env` para usar o comando _cat_.
 - --background transparent | opaque | auto
 - --compression 0-100
 - Exemplo:
-- _<prefix>iaimagem_ --size 1536x1024 Um gato astronauta em aquarela.
+- *<prefix>iaimagem* --size 1536x1024 Um gato astronauta em aquarela.
 - subcomandos:
 - (nenhum)
 - argumentos:
-- prompt | tipo: string | opcional | validacao: texto livre para gerar/editar imagem | default: null
-- size | tipo: string | opcional | validacao: auto|1024x1024|1024x1536|1536x1024 | default: "auto"
-- quality | tipo: string | opcional | validacao: auto|low|medium|high | default: "auto"
-- format | tipo: string | opcional | validacao: png|jpeg|webp | default: "png"
+- prompt | tipo: string | opcional | validacao: texto livre para gerar/editar imagem | default: null | posicao: 0
+- size | tipo: string | opcional | validacao: auto|1024x1024|1024x1536|1536x1024 | default: null | posicao: 1
+- quality | tipo: string | opcional | validacao: auto|low|medium|high | default: null | posicao: 2
+- format | tipo: string | opcional | validacao: png|jpeg|webp | default: null | posicao: 3
 - pre_condicoes:
 - requer_grupo: nao
 - requer_admin: nao
@@ -207,32 +285,45 @@ Defina a variável _OPENAI_API_KEY_ no `.env` para usar o comando _cat_.
 - efeitos_colaterais:
 - envia imagem gerada/editada por IA
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
 - mensagens_sistema:
-- premium*only: ⭐ \_Comando Premium*
+- premium_only: ⭐ *Comando Premium*
 
 Este comando é exclusivo para usuários premium.
 Fale com o administrador para liberar o acesso.
+- openai_nao_configurada: ⚠️ *OpenAI não configurada*
 
-- openai*nao_configurada: ⚠️ \_OpenAI não configurada*
-
-Defina a variável _OPENAI_API_KEY_ no `.env` para usar o comando _catimg_.
-
+Defina a variável *OPENAI_API_KEY* no `.env` para usar o comando *catimg*.
 - imagem_muito_grande: ⚠️ A imagem enviada ultrapassa o limite de {{limite_mb}} MB. Envie uma imagem menor.
 - imagem_download_falhou: ⚠️ Não consegui baixar a imagem. Tente reenviar.
 - opcoes_invalidas: ⚠️ Opções inválidas no comando.
-  Detalhes: {{detalhes}}
+Detalhes: {{detalhes}}
 
-Use _{{prefix}}catimg_ sem opções para ver o formato correto.
-
+Use *{{prefix}}catimg* sem opções para ver o formato correto.
 - resposta_vazia: ⚠️ Não consegui gerar a imagem agora. Tente novamente.
-- erro*openai: ❌ \_Erro ao falar com a IA*
-  Tente novamente em alguns instantes.
+- erro_openai: ❌ *Erro ao falar com a IA*
+Tente novamente em alguns instantes.
 - limites_operacionais:
 - (nao informado)
 - opcoes:
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - geracao_imagem.size_options: auto, 1024x1024, 1024x1536, 1536x1024
 - geracao_imagem.size_aliases.1024: 1024x1024
 - geracao_imagem.size_aliases.square: 1024x1024
@@ -272,26 +363,58 @@ Use _{{prefix}}catimg_ sem opções para ver o formato correto.
 - geracao_imagem.compression.min: 0
 - geracao_imagem.compression.max: 100
 - observabilidade:
-- evento_analytics: whatsapp_command_catimg
+- event_name: command.executed
+- analytics_event: whatsapp_command_catimg
 - tags_log: whatsapp, command, aiModule, catimg
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- prompt de imagem
-- imagem anexada/citada (quando houver)
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Gera/edita imagem com IA por prompt.
+- usage_examples: <prefix>iaimagem seu prompt, <prefix>iaimagem --size 1536x1024 seu prompt
+- usage_variants.default: *<prefix>iaimagem* seu prompt, *<prefix>iaimagem* (responda uma imagem com legenda para editar), , Opções:, --size 1024x1024 | 1024x1536 | 1536x1024 | auto, --quality low | medium | high | auto, --format png | jpeg | webp, --background transparent | opaque | auto, --compression 0-100, , Exemplo:, *<prefix>iaimagem* --size 1536x1024 Um gato astronauta em aquarela.
+- behavior:
+- type: argument_driven
+- allowed_actions: (nenhum)
+- limits:
+- usage_description: imagem de entrada ate OPENAI_MAX_IMAGE_MB (padrao 50 MB)
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: true
+- access.planos_permitidos: premium
+- plan_limits.comum.max: 8
+- plan_limits.comum.janela_ms: 300000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 40
+- plan_limits.premium.janela_ms: 300000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: iaimagem, catimage, ia, privado, grupo
+- faq_queries: como usar iaimagem, o que faz iaimagem, comando iaimagem
+- user_phrasings: quero usar iaimagem, me ajuda com iaimagem, gera/edita imagem com ia
+- suggestion_priority: 100
+- handler:
+- file: catCommand.js
+- method: handleCatImageCommand
+- command_case: iaimagem
 
 ### pergunteia
-
+- id: ai.pergunteia
 - aliases: iaprompt, promptia, catprompt
 - enabled: true
 - categoria: ia
 - descricao: Define ou reseta o prompt personalizado da IA para o usuario.
 - permissao_necessaria: usuario comum
-- limite_de_uso: 1 prompt por usuario (atualizavel)
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - privado
 - grupo
@@ -300,13 +423,13 @@ Use _{{prefix}}catimg_ sem opções para ver o formato correto.
 - <prefix>pergunteia reset
 - mensagens_uso (variantes):
 - default:
-- _<prefix>pergunteia_ seu novo prompt
+- *<prefix>pergunteia* seu novo prompt
 - Para voltar ao padrão:
-- _<prefix>pergunteia reset_
+- *<prefix>pergunteia reset*
 - subcomandos:
 - reset
 - argumentos:
-- conteudo | tipo: string | obrigatorio | validacao: texto do prompt ou reset | default: null
+- conteudo | tipo: string | obrigatorio | validacao: texto do prompt ou reset | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: nao
 - requer_admin: nao
@@ -337,29 +460,73 @@ Use _{{prefix}}catimg_ sem opções para ver o formato correto.
 - efeitos_colaterais:
 - salva ou reseta prompt personalizado do usuário
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
 - mensagens_sistema:
-- premium*only: ⭐ \_Comando Premium*
+- premium_only: ⭐ *Comando Premium*
 
 Este comando é exclusivo para usuários premium.
 Fale com o administrador para liberar o acesso.
-
 - prompt_muito_longo: ⚠️ Prompt muito longo. Limite: {{max_chars}} caracteres.
 - prompt_reset_sucesso: ✅ Prompt da IA restaurado para o padrão.
 - prompt_update_sucesso: ✅ Prompt da IA atualizado para você.
 - limites_operacionais:
 - prompt_max_chars: 2000
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_catprompt
+- event_name: command.executed
+- analytics_event: whatsapp_command_catprompt
 - tags_log: whatsapp, command, aiModule, catprompt
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do remetente
-- prompt personalizado salvo pelo usuário
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Define ou reseta o prompt personalizado da IA para o usuario.
+- usage_examples: <prefix>pergunteia novo prompt, <prefix>pergunteia reset
+- usage_variants.default: *<prefix>pergunteia* seu novo prompt, , Para voltar ao padrão:, *<prefix>pergunteia reset*
+- behavior:
+- type: subcommand
+- allowed_actions: reset
+- limits:
+- usage_description: 1 prompt por usuario (atualizavel)
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 8
+- plan_limits.comum.janela_ms: 300000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 40
+- plan_limits.premium.janela_ms: 300000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: pergunteia, iaprompt, promptia, ia, privado, grupo
+- faq_queries: como usar pergunteia, o que faz pergunteia, comando pergunteia
+- user_phrasings: quero usar pergunteia, me ajuda com pergunteia, define ou reseta o
+- suggestion_priority: 100
+- handler:
+- file: catCommand.js
+- method: handleCatPromptCommand
+- command_case: pergunteia

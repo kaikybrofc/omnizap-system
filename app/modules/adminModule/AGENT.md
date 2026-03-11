@@ -3,14 +3,12 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
-
 - arquivo_base: `app/modules/adminModule/commandConfig.json`
 - schema_version: `2.0.0`
 - module_enabled: `true`
-- generated_at: `2026-03-08T10:59:41.156Z`
+- generated_at: `2026-03-11T02:35:17.177Z`
 
 ## Escopo do Modulo
-
 - module: `adminModule`
 - source_files:
 - groupCommandHandlers.js
@@ -19,8 +17,41 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_commands: `32`
 - total_enabled_commands: `32`
 
-## Configuracao AI Help
+## Defaults Schema v2
+- inheritance_mode: deep_merge_with_command_overrides
+- compatibility_mode: legacy_and_v2_fields
+- legacy_field_aliases:
+- descricao: description
+- metodos_de_uso: usage
+- permissao_necessaria: permission
+- local_de_uso: contexts
+- informacoes_coletadas: collected_data
+- pre_condicoes: requirements
+- dependencias_externas: dependencies
+- efeitos_colaterais: side_effects
+- observabilidade: observability
+- privacidade: privacy
+- limite_uso_por_plano: plan_limits
+- argumentos: arguments
+- acesso: access
+- defaults.command:
+- enabled: true
+- category: admin
+- version: 1.0.0
+- stability: stable
+- deprecated: false
+- replaced_by: null
+- risk_level: medium
+- defaults.requirements (legacy view):
+- requer_grupo: sim
+- requer_admin: sim
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: nao
+- requer_mensagem_respondida: nao
 
+## Configuracao AI Help
 - enabled: true
 - mode: hybrid_rag
 - rag_sources:
@@ -36,7 +67,6 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - llm.timeout_ms: 25000
 
 ## Protocolo de Resposta para IA
-
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -45,22 +75,23 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
-
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
-
 ### menuadmin
-
+- id: admin.menuadmin
 - aliases: adm, menuadm
 - enabled: true
 - categoria: admin
 - descricao: Exibe menu administrativo do bot para o grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: sem limite especifico
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: medium
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -115,6 +146,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -123,27 +157,75 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_menuadm
+- event_name: command.executed
+- analytics_event: whatsapp_command_menuadm
 - tags_log: whatsapp, command, adminModule, menuadm
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Exibe menu administrativo do bot para o grupo.
+- usage_examples: <prefix>menuadmin, <prefix>menuadmin ajuda <comando>, <prefix>menuadmin faq, <prefix>menuadmin perguntar <pergunta>
+- usage_variants.default: <prefix>menuadmin, <prefix>menuadmin ajuda <comando>, <prefix>menuadmin faq, <prefix>menuadmin perguntar <pergunta>
+- usage_variants.help: <prefix>menuadmin ajuda <comando>
+- usage_variants.ask: <prefix>menuadmin perguntar <pergunta>
+- behavior:
+- type: subcommand
+- allowed_actions: ajuda, faq, perguntar
+- action_argument: acao
+- limits:
+- usage_description: sem limite especifico
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: menuadmin, admin, grupo
+- faq_queries: como usar menuadmin, o que faz menuadmin, comando menuadmin
+- user_phrasings: quero usar menuadmin, me ajuda com menuadmin, exibe menu administrativo do
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: menuadm
 
 ### premium
-
+- id: admin.premium
 - aliases: vip
 - enabled: true
 - categoria: admin
 - descricao: Gerencia usuarios premium do sistema.
 - permissao_necessaria: admin principal do bot
-- limite_de_uso: sem limite especifico
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: high
 - local_de_uso:
 - privado
 - grupo
@@ -162,8 +244,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - remove
 - list
 - argumentos:
-- acao | tipo: string | obrigatorio | validacao: add|remove|list | default: null
-- usuarios | tipo: array<string> | opcional | validacao: menções/JIDs para add/remove | default: []
+- acao | tipo: string | obrigatorio | validacao: add|remove|list | default: null | posicao: 0
+- usuarios | tipo: array | opcional | validacao: menções/JIDs para add/remove | default: null | posicao: 1
 - pre_condicoes:
 - requer_grupo: nao
 - requer_admin: nao
@@ -197,6 +279,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -205,38 +290,86 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_premium
+- event_name: command.executed
+- analytics_event: whatsapp_command_premium
 - tags_log: whatsapp, command, adminModule, premium
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do remetente administrador
-- identificadores dos usuários premium gerenciados
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- sender_identifier
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Gerencia usuarios premium do sistema.
+- usage_examples: <prefix>premium list, <prefix>premium add @usuario, <prefix>premium remove @usuario
+- usage_variants.invalid_action: <prefix>premium <add|remove|list> @usuario1 @usuario2 ...
+- usage_variants.missing_targets: <prefix>premium <add|remove> @usuario1 @usuario2 ..., Também é possível responder à mensagem do usuário desejado.
+- behavior:
+- type: list_management
+- allowed_actions: add, remove, list
+- action_argument: acao
+- limits:
+- usage_description: sem limite especifico
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: premium, admin, privado, grupo
+- faq_queries: como usar premium, o que faz premium, comando premium
+- user_phrasings: quero usar premium, me ajuda com premium, gerencia usuarios premium do
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: premium
 
 ### nsfw
-
+- id: admin.nsfw
 - aliases: (nenhum)
 - enabled: true
 - categoria: admin
 - descricao: Ativa/desativa status de NSFW no grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: sem limite especifico
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: medium
 - local_de_uso:
 - grupo
 - metodos_de_uso:
 - <prefix>nsfw on
 - <prefix>nsfw off
 - <prefix>nsfw status
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - on
 - off
 - status
 - argumentos:
-- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -269,6 +402,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -277,39 +413,86 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_nsfw
+- event_name: command.executed
+- analytics_event: whatsapp_command_nsfw
 - tags_log: whatsapp, command, adminModule, nsfw
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Ativa/desativa status de NSFW no grupo.
+- usage_examples: <prefix>nsfw on, <prefix>nsfw off, <prefix>nsfw status
+- behavior:
+- type: toggle
+- allowed_actions: on, off, status
+- action_argument: acao
+- limits:
+- usage_description: sem limite especifico
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: true
+- access.planos_permitidos: premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: nsfw, admin, grupo
+- faq_queries: como usar nsfw, o que faz nsfw, comando nsfw
+- user_phrasings: quero usar nsfw, me ajuda com nsfw, ativa/desativa status de nsfw
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: nsfw
 
 ### autofigurinha
-
+- id: admin.autofigurinha
 - aliases: autosticker
 - enabled: true
 - categoria: admin
 - descricao: Ativa/desativa a geracao automatica de figurinhas no grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: sem limite especifico
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: medium
 - local_de_uso:
 - grupo
 - metodos_de_uso:
 - <prefix>autofigurinha on
 - <prefix>autofigurinha off
 - <prefix>autofigurinha status
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - on
 - off
 - status
 - argumentos:
-- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -342,6 +525,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -350,39 +536,86 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_autosticker
+- event_name: command.executed
+- analytics_event: whatsapp_command_autosticker
 - tags_log: whatsapp, command, adminModule, autosticker
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Ativa/desativa a geracao automatica de figurinhas no grupo.
+- usage_examples: <prefix>autofigurinha on, <prefix>autofigurinha off, <prefix>autofigurinha status
+- behavior:
+- type: toggle
+- allowed_actions: on, off, status
+- action_argument: acao
+- limits:
+- usage_description: sem limite especifico
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: autofigurinha, admin, grupo
+- faq_queries: como usar autofigurinha, o que faz autofigurinha, comando autofigurinha
+- user_phrasings: quero usar autofigurinha, me ajuda com autofigurinha, ativa/desativa a geracao automatica
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: autosticker
 
 ### modofigurinha
-
+- id: admin.modofigurinha
 - aliases: smode, stickermode
 - enabled: true
 - categoria: admin
 - descricao: Controla modo foco em figurinhas no grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: sem limite especifico
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: medium
 - local_de_uso:
 - grupo
 - metodos_de_uso:
 - <prefix>modofigurinha on
 - <prefix>modofigurinha off
 - <prefix>modofigurinha status
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - on
 - off
 - status
 - argumentos:
-- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -415,6 +648,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -423,27 +659,72 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_stickermode
+- event_name: command.executed
+- analytics_event: whatsapp_command_stickermode
 - tags_log: whatsapp, command, adminModule, stickermode
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Controla modo foco em figurinhas no grupo.
+- usage_examples: <prefix>modofigurinha on, <prefix>modofigurinha off, <prefix>modofigurinha status
+- behavior:
+- type: toggle
+- allowed_actions: on, off, status
+- action_argument: acao
+- limits:
+- usage_description: sem limite especifico
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: modofigurinha, smode, admin, grupo
+- faq_queries: como usar modofigurinha, o que faz modofigurinha, comando modofigurinha
+- user_phrasings: quero usar modofigurinha, me ajuda com modofigurinha, controla modo foco em
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: stickermode
 
 ### janelachat
-
+- id: admin.janelachat
 - aliases: chat, chatwindow
 - enabled: true
 - categoria: admin
 - descricao: Abre/fecha janela temporaria de chat livre no modo sticker.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: tempo limitado por configuracao do modulo
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: medium
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -451,13 +732,15 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - <prefix>janelachat off
 - <prefix>janelachat status
 - <prefix>janelachat on 15
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - on
 - off
 - status
 - argumentos:
-- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
-- minutos | tipo: integer | opcional | validacao: inteiro positivo dentro dos limites do módulo | default: null
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null | posicao: 0
+- minutos | tipo: integer | opcional | validacao: inteiro positivo dentro dos limites do módulo | default: null | posicao: 1
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -490,6 +773,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -498,39 +784,86 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_chatwindow
+- event_name: command.executed
+- analytics_event: whatsapp_command_chatwindow
 - tags_log: whatsapp, command, adminModule, chatwindow
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Abre/fecha janela temporaria de chat livre no modo sticker.
+- usage_examples: <prefix>janelachat on, <prefix>janelachat off, <prefix>janelachat status, <prefix>janelachat on 15
+- behavior:
+- type: toggle
+- allowed_actions: on, off, status
+- action_argument: acao
+- limits:
+- usage_description: tempo limitado por configuracao do modulo
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: janelachat, chat, admin, grupo
+- faq_queries: como usar janelachat, o que faz janelachat, comando janelachat
+- user_phrasings: quero usar janelachat, me ajuda com janelachat, abre/fecha janela temporaria de
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: chatwindow
 
 ### limitefigurinha
-
+- id: admin.limitefigurinha
 - aliases: smsglimit, stickertextlimit, stextlimit, stickermsglimit
 - enabled: true
 - categoria: admin
 - descricao: Define limite de mensagens por usuario no modo sticker.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: intervalo validado pelo modulo
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: medium
 - local_de_uso:
 - grupo
 - metodos_de_uso:
 - <prefix>limitefigurinha 5
 - <prefix>limitefigurinha status
 - <prefix>limitefigurinha reset
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - <minutos>
 - status
 - reset
 - argumentos:
-- valor | tipo: string | obrigatorio | validacao: minutos|status|reset | default: null
+- valor | tipo: string | obrigatorio | validacao: minutos|status|reset | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -563,6 +896,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -571,37 +907,84 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_stickermsglimit
+- event_name: command.executed
+- analytics_event: whatsapp_command_stickermsglimit
 - tags_log: whatsapp, command, adminModule, stickermsglimit
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Define limite de mensagens por usuario no modo sticker.
+- usage_examples: <prefix>limitefigurinha 5, <prefix>limitefigurinha status, <prefix>limitefigurinha reset
+- behavior:
+- type: subcommand
+- allowed_actions: set, status, reset
+- action_argument: valor
+- limits:
+- usage_description: intervalo validado pelo modulo
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: limitefigurinha, smsglimit, stickertextlimit, stextlimit, admin, grupo
+- faq_queries: como usar limitefigurinha, o que faz limitefigurinha, comando limitefigurinha
+- user_phrasings: quero usar limitefigurinha, me ajuda com limitefigurinha, define limite de mensagens
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: stickermsglimit
 
 ### novogrupo
-
+- id: admin.novogrupo
 - aliases: newgroup
 - enabled: true
 - categoria: admin
 - descricao: Cria um novo grupo com participantes informados.
 - permissao_necessaria: usuario comum
-- limite_de_uso: minimo de titulo e participantes
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - privado
 - grupo
 - metodos_de_uso:
 - <prefix>novogrupo <titulo> <participante1> <participante2>
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - (nenhum)
 - argumentos:
-- titulo | tipo: string | obrigatorio | validacao: texto não vazio | default: null
-- participantes | tipo: array<string> | obrigatorio | validacao: mínimo 1 participante | default: []
+- titulo | tipo: string | obrigatorio | validacao: texto não vazio | default: null | posicao: 0
+- participantes | tipo: array | obrigatorio | validacao: mínimo 1 participante | default: null | posicao: 1
 - pre_condicoes:
 - requer_grupo: nao
 - requer_admin: nao
@@ -634,6 +1017,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -642,27 +1028,71 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_newgroup
+- event_name: command.executed
+- analytics_event: whatsapp_command_newgroup
 - tags_log: whatsapp, command, adminModule, newgroup
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Cria um novo grupo com participantes informados.
+- usage_examples: <prefix>novogrupo <titulo> <participante1> <participante2>
+- behavior:
+- type: argument_driven
+- argument_count: 2
+- limits:
+- usage_description: minimo de titulo e participantes
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: novogrupo, admin, privado, grupo
+- faq_queries: como usar novogrupo, o que faz novogrupo, comando novogrupo
+- user_phrasings: quero usar novogrupo, me ajuda com novogrupo, cria um novo grupo
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: newgroup
 
 ### adicionar
-
+- id: admin.adicionar
 - aliases: add
 - enabled: true
 - categoria: admin
 - descricao: Adiciona participantes ao grupo atual.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: depende de permissoes do WhatsApp
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: high
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -674,7 +1104,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - subcomandos:
 - (nenhum)
 - argumentos:
-- participantes | tipo: array<string> | obrigatorio | validacao: menções/JIDs válidos | default: []
+- participantes | tipo: array | obrigatorio | validacao: menções/JIDs válidos | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -706,6 +1136,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -714,27 +1147,74 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_add
+- event_name: command.executed
+- analytics_event: whatsapp_command_add
 - tags_log: whatsapp, command, adminModule, add
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Adiciona participantes ao grupo atual.
+- usage_examples: <prefix>adicionar @participante
+- usage_variants.missing_targets: <prefix>adicionar @participante1 @participante2 ..., Também é possível informar os JIDs dos participantes.
+- behavior:
+- type: action_target
+- target_type: participant
+- action: adicionar
+- requires_targets: true
+- limits:
+- usage_description: depende de permissoes do WhatsApp
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: adicionar, admin, grupo
+- faq_queries: como usar adicionar, o que faz adicionar, comando adicionar
+- user_phrasings: quero usar adicionar, me ajuda com adicionar, adiciona participantes ao grupo
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: add
 
 ### banir
-
+- id: admin.banir
 - aliases: remover, ban
 - enabled: true
 - categoria: admin
 - descricao: Remove participantes do grupo atual.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: depende de permissoes do WhatsApp
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: high
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -746,7 +1226,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - subcomandos:
 - (nenhum)
 - argumentos:
-- participantes | tipo: array<string> | obrigatorio | validacao: menções/JIDs válidos | default: []
+- participantes | tipo: array | obrigatorio | validacao: menções/JIDs válidos | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -778,6 +1258,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -786,27 +1269,74 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_ban
+- event_name: command.executed
+- analytics_event: whatsapp_command_ban
 - tags_log: whatsapp, command, adminModule, ban
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Remove participantes do grupo atual.
+- usage_examples: <prefix>banir @participante
+- usage_variants.missing_targets: <prefix>banir @participante1 @participante2 ..., Também é possível responder à mensagem do participante desejado.
+- behavior:
+- type: action_target
+- target_type: participant
+- action: banir
+- requires_targets: true
+- limits:
+- usage_description: depende de permissoes do WhatsApp
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: banir, admin, grupo
+- faq_queries: como usar banir, o que faz banir, comando banir
+- user_phrasings: quero usar banir, me ajuda com banir, remove participantes do grupo
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: ban
 
 ### promover
-
+- id: admin.promover
 - aliases: up
 - enabled: true
 - categoria: admin
 - descricao: Promove participantes a administradores do grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: depende de permissoes do WhatsApp
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: high
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -818,7 +1348,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - subcomandos:
 - (nenhum)
 - argumentos:
-- participantes | tipo: array<string> | obrigatorio | validacao: menções/JIDs válidos | default: []
+- participantes | tipo: array | obrigatorio | validacao: menções/JIDs válidos | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -850,6 +1380,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -858,27 +1391,74 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_up
+- event_name: command.executed
+- analytics_event: whatsapp_command_up
 - tags_log: whatsapp, command, adminModule, up
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Promove participantes a administradores do grupo.
+- usage_examples: <prefix>promover @participante
+- usage_variants.missing_targets: <prefix>promover @participante1 @participante2 ..., Também é possível informar os JIDs dos participantes.
+- behavior:
+- type: action_target
+- target_type: participant
+- action: promover
+- requires_targets: true
+- limits:
+- usage_description: depende de permissoes do WhatsApp
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: promover, admin, grupo
+- faq_queries: como usar promover, o que faz promover, comando promover
+- user_phrasings: quero usar promover, me ajuda com promover, promove participantes a administradores
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: up
 
 ### rebaixar
-
+- id: admin.rebaixar
 - aliases: down
 - enabled: true
 - categoria: admin
 - descricao: Rebaixa administradores para membros comuns.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: depende de permissoes do WhatsApp
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: high
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -890,7 +1470,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - subcomandos:
 - (nenhum)
 - argumentos:
-- participantes | tipo: array<string> | obrigatorio | validacao: menções/JIDs válidos | default: []
+- participantes | tipo: array | obrigatorio | validacao: menções/JIDs válidos | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -922,6 +1502,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -930,27 +1513,74 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_down
+- event_name: command.executed
+- analytics_event: whatsapp_command_down
 - tags_log: whatsapp, command, adminModule, down
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Rebaixa administradores para membros comuns.
+- usage_examples: <prefix>rebaixar @participante
+- usage_variants.missing_targets: <prefix>rebaixar @participante1 @participante2 ..., Também é possível informar os JIDs dos participantes.
+- behavior:
+- type: action_target
+- target_type: participant
+- action: rebaixar
+- requires_targets: true
+- limits:
+- usage_description: depende de permissoes do WhatsApp
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: rebaixar, admin, grupo
+- faq_queries: como usar rebaixar, o que faz rebaixar, comando rebaixar
+- user_phrasings: quero usar rebaixar, me ajuda com rebaixar, rebaixa administradores para membros
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: down
 
 ### assunto
-
+- id: admin.assunto
 - aliases: setsubject
 - enabled: true
 - categoria: admin
 - descricao: Altera assunto do grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: texto sujeito a limite do WhatsApp
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -961,7 +1591,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - subcomandos:
 - (nenhum)
 - argumentos:
-- assunto | tipo: string | obrigatorio | validacao: texto não vazio | default: null
+- assunto | tipo: string | obrigatorio | validacao: texto não vazio | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -993,6 +1623,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1001,27 +1634,72 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_setsubject
+- event_name: command.executed
+- analytics_event: whatsapp_command_setsubject
 - tags_log: whatsapp, command, adminModule, setsubject
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Altera assunto do grupo.
+- usage_examples: <prefix>assunto novo assunto
+- usage_variants.default: <prefix>assunto <novo_assunto>
+- behavior:
+- type: argument_driven
+- argument_count: 1
+- limits:
+- usage_description: texto sujeito a limite do WhatsApp
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: assunto, admin, grupo
+- faq_queries: como usar assunto, o que faz assunto, comando assunto
+- user_phrasings: quero usar assunto, me ajuda com assunto, altera assunto do grupo.
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: setsubject
 
 ### descricao
-
+- id: admin.descricao
 - aliases: setdesc
 - enabled: true
 - categoria: admin
 - descricao: Altera descricao do grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: texto sujeito a limite do WhatsApp
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -1032,7 +1710,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - subcomandos:
 - (nenhum)
 - argumentos:
-- descricao | tipo: string | obrigatorio | validacao: texto não vazio | default: null
+- descricao | tipo: string | obrigatorio | validacao: texto não vazio | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -1064,6 +1742,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1072,27 +1753,72 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_setdesc
+- event_name: command.executed
+- analytics_event: whatsapp_command_setdesc
 - tags_log: whatsapp, command, adminModule, setdesc
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Altera descricao do grupo.
+- usage_examples: <prefix>descricao nova descricao
+- usage_variants.default: <prefix>descricao <nova_descricao>
+- behavior:
+- type: argument_driven
+- argument_count: 1
+- limits:
+- usage_description: texto sujeito a limite do WhatsApp
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: descricao, admin, grupo
+- faq_queries: como usar descricao, o que faz descricao, comando descricao
+- user_phrasings: quero usar descricao, me ajuda com descricao, altera descricao do grupo.
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: setdesc
 
 ### configgrupo
-
+- id: admin.configgrupo
 - aliases: setgroup
 - enabled: true
 - categoria: admin
 - descricao: Define estado do grupo (anuncio/aberto/locked/unlocked).
 - permissao_necessaria: admin do grupo
-- limite_de_uso: apenas modos suportados
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: high
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -1109,7 +1835,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - locked
 - unlocked
 - argumentos:
-- modo | tipo: string | obrigatorio | validacao: announcement|not_announcement|locked|unlocked | default: null
+- modo | tipo: string | obrigatorio | validacao: announcement|not_announcement|locked|unlocked | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -1141,6 +1867,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1149,31 +1878,79 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_setgroup
+- event_name: command.executed
+- analytics_event: whatsapp_command_setgroup
 - tags_log: whatsapp, command, adminModule, setgroup
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Define estado do grupo (anuncio/aberto/locked/unlocked).
+- usage_examples: <prefix>configgrupo announcement, <prefix>configgrupo not_announcement, <prefix>configgrupo locked, <prefix>configgrupo unlocked
+- usage_variants.default: <prefix>configgrupo <announcement|not_announcement|locked|unlocked>
+- behavior:
+- type: subcommand
+- allowed_actions: announcement, not_announcement, locked, unlocked
+- action_argument: acao
+- limits:
+- usage_description: apenas modos suportados
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: configgrupo, admin, grupo
+- faq_queries: como usar configgrupo, o que faz configgrupo, comando configgrupo
+- user_phrasings: quero usar configgrupo, me ajuda com configgrupo, define estado do grupo
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: setgroup
 
 ### sair
-
+- id: admin.sair
 - aliases: leave
 - enabled: true
 - categoria: admin
 - descricao: Faz o bot sair do grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: sem limite especifico
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: high
 - local_de_uso:
 - grupo
 - metodos_de_uso:
 - <prefix>sair
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -1209,6 +1986,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1217,31 +1997,77 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_leave
+- event_name: command.executed
+- analytics_event: whatsapp_command_leave
 - tags_log: whatsapp, command, adminModule, leave
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Faz o bot sair do grupo.
+- usage_examples: <prefix>sair
+- behavior:
+- type: single_action
+- argument_count: 0
+- limits:
+- usage_description: sem limite especifico
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: sair, admin, grupo
+- faq_queries: como usar sair, o que faz sair, comando sair
+- user_phrasings: quero usar sair, me ajuda com sair, faz o bot sair
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: leave
 
 ### convite
-
+- id: admin.convite
 - aliases: invite
 - enabled: true
 - categoria: admin
 - descricao: Mostra codigo de convite atual do grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: sem limite especifico
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - grupo
 - metodos_de_uso:
 - <prefix>convite
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -1277,6 +2103,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1285,31 +2114,77 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_invite
+- event_name: command.executed
+- analytics_event: whatsapp_command_invite
 - tags_log: whatsapp, command, adminModule, invite
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Mostra codigo de convite atual do grupo.
+- usage_examples: <prefix>convite
+- behavior:
+- type: single_action
+- argument_count: 0
+- limits:
+- usage_description: sem limite especifico
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: convite, admin, grupo
+- faq_queries: como usar convite, o que faz convite, comando convite
+- user_phrasings: quero usar convite, me ajuda com convite, mostra codigo de convite
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: invite
 
 ### revogarconvite
-
+- id: admin.revogarconvite
 - aliases: revoke
 - enabled: true
 - categoria: admin
 - descricao: Revoga o codigo de convite e gera novo codigo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: sem limite especifico
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: high
 - local_de_uso:
 - grupo
 - metodos_de_uso:
 - <prefix>revogarconvite
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -1345,6 +2220,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1353,36 +2231,82 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_revoke
+- event_name: command.executed
+- analytics_event: whatsapp_command_revoke
 - tags_log: whatsapp, command, adminModule, revoke
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Revoga o codigo de convite e gera novo codigo.
+- usage_examples: <prefix>revogarconvite
+- behavior:
+- type: single_action
+- argument_count: 0
+- limits:
+- usage_description: sem limite especifico
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: revogarconvite, admin, grupo
+- faq_queries: como usar revogarconvite, o que faz revogarconvite, comando revogarconvite
+- user_phrasings: quero usar revogarconvite, me ajuda com revogarconvite, revoga o codigo de
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: revoke
 
 ### entrar
-
+- id: admin.entrar
 - aliases: join
 - enabled: true
 - categoria: admin
 - descricao: Faz o bot entrar em grupo por codigo de convite.
 - permissao_necessaria: usuario comum
-- limite_de_uso: codigo valido obrigatorio
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - privado
 - grupo
 - metodos_de_uso:
 - <prefix>entrar <codigo_de_convite>
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - (nenhum)
 - argumentos:
-- codigo_convite | tipo: string | obrigatorio | validacao: token de convite válido | default: null
+- codigo_convite | tipo: string | obrigatorio | validacao: token de convite válido | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: nao
 - requer_admin: nao
@@ -1414,6 +2338,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1422,36 +2349,82 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_join
+- event_name: command.executed
+- analytics_event: whatsapp_command_join
 - tags_log: whatsapp, command, adminModule, join
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Faz o bot entrar em grupo por codigo de convite.
+- usage_examples: <prefix>entrar <codigo_de_convite>
+- behavior:
+- type: argument_driven
+- argument_count: 1
+- limits:
+- usage_description: codigo valido obrigatorio
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: entrar, admin, privado, grupo
+- faq_queries: como usar entrar, o que faz entrar, comando entrar
+- user_phrasings: quero usar entrar, me ajuda com entrar, faz o bot entrar
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: join
 
 ### infoconvite
-
+- id: admin.infoconvite
 - aliases: infofrominvite
 - enabled: true
 - categoria: admin
 - descricao: Consulta dados de um grupo usando codigo de convite.
 - permissao_necessaria: usuario comum
-- limite_de_uso: codigo valido obrigatorio
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - privado
 - grupo
 - metodos_de_uso:
 - <prefix>infoconvite <codigo_de_convite>
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - (nenhum)
 - argumentos:
-- codigo_convite | tipo: string | obrigatorio | validacao: token de convite válido | default: null
+- codigo_convite | tipo: string | obrigatorio | validacao: token de convite válido | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: nao
 - requer_admin: nao
@@ -1483,6 +2456,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1491,37 +2467,83 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_infofrominvite
+- event_name: command.executed
+- analytics_event: whatsapp_command_infofrominvite
 - tags_log: whatsapp, command, adminModule, infofrominvite
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Consulta dados de um grupo usando codigo de convite.
+- usage_examples: <prefix>infoconvite <codigo_de_convite>
+- behavior:
+- type: argument_driven
+- argument_count: 1
+- limits:
+- usage_description: codigo valido obrigatorio
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: infoconvite, admin, privado, grupo
+- faq_queries: como usar infoconvite, o que faz infoconvite, comando infoconvite
+- user_phrasings: quero usar infoconvite, me ajuda com infoconvite, consulta dados de um
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: infofrominvite
 
 ### metadados
-
+- id: admin.metadados
 - aliases: metadata
 - enabled: true
 - categoria: admin
 - descricao: Retorna metadados de um grupo informado ou do grupo atual.
 - permissao_necessaria: admin do grupo alvo
-- limite_de_uso: acesso restrito por permissao
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - privado
 - grupo
 - metodos_de_uso:
 - <prefix>metadados
 - <prefix>metadados <group_jid>
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - (nenhum)
 - argumentos:
-- group_id | tipo: string | opcional | validacao: JID de grupo válido | default: "grupo atual"
+- group_id | tipo: string | opcional | validacao: JID de grupo válido | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: nao
 - requer_admin: sim
@@ -1554,6 +2576,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1562,31 +2587,77 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_metadata
+- event_name: command.executed
+- analytics_event: whatsapp_command_metadata
 - tags_log: whatsapp, command, adminModule, metadata
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Retorna metadados de um grupo informado ou do grupo atual.
+- usage_examples: <prefix>metadados, <prefix>metadados <group_jid>
+- behavior:
+- type: argument_driven
+- argument_count: 1
+- limits:
+- usage_description: acesso restrito por permissao
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: metadados, admin, privado, grupo
+- faq_queries: como usar metadados, o que faz metadados, comando metadados
+- user_phrasings: quero usar metadados, me ajuda com metadados, retorna metadados de um
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: metadata
 
 ### solicitacoes
-
+- id: admin.solicitacoes
 - aliases: requests
 - enabled: true
 - categoria: admin
 - descricao: Lista solicitacoes pendentes para entrar no grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: sem limite especifico
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - grupo
 - metodos_de_uso:
 - <prefix>solicitacoes
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -1622,6 +2693,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1630,27 +2704,71 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_requests
+- event_name: command.executed
+- analytics_event: whatsapp_command_requests
 - tags_log: whatsapp, command, adminModule, requests
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Lista solicitacoes pendentes para entrar no grupo.
+- usage_examples: <prefix>solicitacoes
+- behavior:
+- type: single_action
+- argument_count: 0
+- limits:
+- usage_description: sem limite especifico
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: solicitacoes, admin, grupo
+- faq_queries: como usar solicitacoes, o que faz solicitacoes, comando solicitacoes
+- user_phrasings: quero usar solicitacoes, me ajuda com solicitacoes, lista solicitacoes pendentes para
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: requests
 
 ### atualizarsolicitacoes
-
+- id: admin.atualizarsolicitacoes
 - aliases: updaterequests
 - enabled: true
 - categoria: admin
 - descricao: Aprova ou rejeita solicitacoes de entrada no grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: acao valida + mencao obrigatoria
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: high
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -1666,8 +2784,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - approve
 - reject
 - argumentos:
-- acao | tipo: string | obrigatorio | validacao: approve|reject | default: null
-- participantes | tipo: array<string> | obrigatorio | validacao: menções/JIDs válidos | default: []
+- acao | tipo: string | obrigatorio | validacao: approve|reject | default: null | posicao: 0
+- participantes | tipo: array | obrigatorio | validacao: menções/JIDs válidos | default: null | posicao: 1
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -1700,6 +2818,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1708,39 +2829,89 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_updaterequests
+- event_name: command.executed
+- analytics_event: whatsapp_command_updaterequests
 - tags_log: whatsapp, command, adminModule, updaterequests
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Aprova ou rejeita solicitacoes de entrada no grupo.
+- usage_examples: <prefix>atualizarsolicitacoes approve @participante, <prefix>atualizarsolicitacoes reject @participante
+- usage_variants.invalid_action: <prefix>atualizarsolicitacoes <approve|reject> @participante1 ...
+- usage_variants.missing_targets: <prefix>atualizarsolicitacoes <approve|reject> @participante1 ..., Mencione os usuários que devem ser aprovados ou rejeitados.
+- behavior:
+- type: moderation_decision
+- allowed_actions: approve, reject
+- action_argument: acao
+- requires_targets: true
+- limits:
+- usage_description: acao valida + mencao obrigatoria
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: atualizarsolicitacoes, admin, grupo
+- faq_queries: como usar atualizarsolicitacoes, o que faz atualizarsolicitacoes, comando atualizarsolicitacoes
+- user_phrasings: quero usar atualizarsolicitacoes, me ajuda com atualizarsolicitacoes, aprova ou rejeita solicitacoes
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: updaterequests
 
 ### autosolicitacoes
-
+- id: admin.autosolicitacoes
 - aliases: autorequests
 - enabled: true
 - categoria: admin
 - descricao: Ativa/desativa auto aprovacao de solicitacoes no grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: sem limite especifico
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: medium
 - local_de_uso:
 - grupo
 - metodos_de_uso:
 - <prefix>autosolicitacoes on
 - <prefix>autosolicitacoes off
 - <prefix>autosolicitacoes status
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - on
 - off
 - status
 - argumentos:
-- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -1773,6 +2944,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1781,35 +2955,82 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_autorequests
+- event_name: command.executed
+- analytics_event: whatsapp_command_autorequests
 - tags_log: whatsapp, command, adminModule, autorequests
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Ativa/desativa auto aprovacao de solicitacoes no grupo.
+- usage_examples: <prefix>autosolicitacoes on, <prefix>autosolicitacoes off, <prefix>autosolicitacoes status
+- behavior:
+- type: toggle
+- allowed_actions: on, off, status
+- action_argument: acao
+- limits:
+- usage_description: sem limite especifico
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: autosolicitacoes, admin, grupo
+- faq_queries: como usar autosolicitacoes, o que faz autosolicitacoes, comando autosolicitacoes
+- user_phrasings: quero usar autosolicitacoes, me ajuda com autosolicitacoes, ativa/desativa auto aprovacao de
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: autorequests
 
 ### temporarias
-
+- id: admin.temporarias
 - aliases: temp
 - enabled: true
 - categoria: admin
 - descricao: Define tempo de mensagens temporarias (ephemeral) no grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: duracao em segundos obrigatoria
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - grupo
 - metodos_de_uso:
 - <prefix>temporarias <duracao_em_segundos>
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - (nenhum)
 - argumentos:
-- duracao_segundos | tipo: integer | obrigatorio | validacao: inteiro positivo | default: null
+- duracao_segundos | tipo: integer | obrigatorio | validacao: inteiro positivo | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -1841,6 +3062,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1849,36 +3073,82 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_temp
+- event_name: command.executed
+- analytics_event: whatsapp_command_temp
 - tags_log: whatsapp, command, adminModule, temp
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Define tempo de mensagens temporarias (ephemeral) no grupo.
+- usage_examples: <prefix>temporarias <duracao_em_segundos>
+- behavior:
+- type: argument_driven
+- argument_count: 1
+- limits:
+- usage_description: duracao em segundos obrigatoria
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: temporarias, admin, grupo
+- faq_queries: como usar temporarias, o que faz temporarias, comando temporarias
+- user_phrasings: quero usar temporarias, me ajuda com temporarias, define tempo de mensagens
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: temp
 
 ### modoadicao
-
+- id: admin.modoadicao
 - aliases: addmode
 - enabled: true
 - categoria: admin
 - descricao: Define quem pode adicionar participantes no grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: apenas modos validos
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - grupo
 - metodos_de_uso:
 - <prefix>modoadicao all_member_add
 - <prefix>modoadicao admin_add
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - (nenhum)
 - argumentos:
-- modo | tipo: string | obrigatorio | validacao: all_member_add|admin_add | default: null
+- modo | tipo: string | obrigatorio | validacao: all_member_add|admin_add | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -1910,6 +3180,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1918,39 +3191,85 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_addmode
+- event_name: command.executed
+- analytics_event: whatsapp_command_addmode
 - tags_log: whatsapp, command, adminModule, addmode
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Define quem pode adicionar participantes no grupo.
+- usage_examples: <prefix>modoadicao all_member_add, <prefix>modoadicao admin_add
+- behavior:
+- type: argument_driven
+- argument_count: 1
+- limits:
+- usage_description: apenas modos validos
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: modoadicao, admin, grupo
+- faq_queries: como usar modoadicao, o que faz modoadicao, comando modoadicao
+- user_phrasings: quero usar modoadicao, me ajuda com modoadicao, define quem pode adicionar
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: addmode
 
 ### prefixo
-
+- id: admin.prefixo
 - aliases: prefix
 - enabled: true
 - categoria: admin
 - descricao: Define prefixo personalizado de comandos para o grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: prefixo unico validado pelo modulo
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: medium
 - local_de_uso:
 - grupo
 - metodos_de_uso:
 - <prefixo>prefixo <novo_prefixo>
 - <prefixo>prefixo status
 - <prefixo>prefixo reset
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - <novo_prefixo>
 - status
 - reset
 - argumentos:
-- valor | tipo: string | obrigatorio | validacao: novo prefixo|status|reset | default: null
+- valor | tipo: string | obrigatorio | validacao: novo prefixo|status|reset | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -1983,6 +3302,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -1991,27 +3313,72 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_prefix
+- event_name: command.executed
+- analytics_event: whatsapp_command_prefix
 - tags_log: whatsapp, command, adminModule, prefix
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Define prefixo personalizado de comandos para o grupo.
+- usage_examples: <prefixo>prefixo <novo_prefixo>, <prefixo>prefixo status, <prefixo>prefixo reset
+- behavior:
+- type: subcommand
+- allowed_actions: set, status, reset
+- action_argument: valor
+- limits:
+- usage_description: prefixo unico validado pelo modulo
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: prefixo, admin, grupo
+- faq_queries: como usar prefixo, o que faz prefixo, comando prefixo
+- user_phrasings: quero usar prefixo, me ajuda com prefixo, define prefixo personalizado de
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: prefix
 
 ### boasvindas
-
+- id: admin.boasvindas
 - aliases: welcome
 - enabled: true
 - categoria: admin
 - descricao: Configura mensagens/midia de boas-vindas no grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: set exige mensagem ou midia
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: medium
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -2027,8 +3394,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - off
 - set
 - argumentos:
-- acao | tipo: string | obrigatorio | validacao: on|off|set | default: null
-- mensagem_ou_midia | tipo: string | opcional | validacao: texto, caminho local ou mídia anexada | default: null
+- acao | tipo: string | obrigatorio | validacao: on|off|set | default: null | posicao: 0
+- mensagem_ou_midia | tipo: string | opcional | validacao: texto, caminho local ou mídia anexada | default: null | posicao: 1
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -2062,6 +3429,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -2070,27 +3440,74 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_welcome
+- event_name: command.executed
+- analytics_event: whatsapp_command_welcome
 - tags_log: whatsapp, command, adminModule, welcome
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Configura mensagens/midia de boas-vindas no grupo.
+- usage_examples: <prefix>boasvindas on, <prefix>boasvindas off, <prefix>boasvindas set <mensagem_ou_midia>
+- usage_variants.missing_content: <prefix>boasvindas set <mensagem ou caminho da midia>, Também é possível enviar uma mídia junto ao comando.
+- behavior:
+- type: subcommand
+- allowed_actions: on, off, set
+- action_argument: acao
+- supports_media_or_text: true
+- limits:
+- usage_description: set exige mensagem ou midia
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: boasvindas, admin, grupo
+- faq_queries: como usar boasvindas, o que faz boasvindas, comando boasvindas
+- user_phrasings: quero usar boasvindas, me ajuda com boasvindas, configura mensagens/midia de boas-vindas
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: welcome
 
 ### despedida
-
+- id: admin.despedida
 - aliases: farewell
 - enabled: true
 - categoria: admin
 - descricao: Configura mensagens/midia de despedida no grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: set exige mensagem ou midia
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: medium
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -2106,8 +3523,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - off
 - set
 - argumentos:
-- acao | tipo: string | obrigatorio | validacao: on|off|set | default: null
-- mensagem_ou_midia | tipo: string | opcional | validacao: texto, caminho local ou mídia anexada | default: null
+- acao | tipo: string | obrigatorio | validacao: on|off|set | default: null | posicao: 0
+- mensagem_ou_midia | tipo: string | opcional | validacao: texto, caminho local ou mídia anexada | default: null | posicao: 1
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -2141,6 +3558,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -2149,39 +3569,88 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_farewell
+- event_name: command.executed
+- analytics_event: whatsapp_command_farewell
 - tags_log: whatsapp, command, adminModule, farewell
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Configura mensagens/midia de despedida no grupo.
+- usage_examples: <prefix>despedida on, <prefix>despedida off, <prefix>despedida set <mensagem_ou_midia>
+- usage_variants.missing_content: <prefix>despedida set <mensagem ou caminho da midia>, Também é possível enviar uma mídia junto ao comando.
+- behavior:
+- type: subcommand
+- allowed_actions: on, off, set
+- action_argument: acao
+- supports_media_or_text: true
+- limits:
+- usage_description: set exige mensagem ou midia
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: despedida, admin, grupo
+- faq_queries: como usar despedida, o que faz despedida, comando despedida
+- user_phrasings: quero usar despedida, me ajuda com despedida, configura mensagens/midia de despedida
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: farewell
 
 ### captcha
-
+- id: admin.captcha
 - aliases: (nenhum)
 - enabled: true
 - categoria: admin
 - descricao: Ativa/desativa captcha para novos membros no grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: sem limite especifico
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: medium
 - local_de_uso:
 - grupo
 - metodos_de_uso:
 - <prefix>captcha on
 - <prefix>captcha off
 - <prefix>captcha status
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - on
 - off
 - status
 - argumentos:
-- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -2214,6 +3683,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -2222,27 +3694,72 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_captcha
+- event_name: command.executed
+- analytics_event: whatsapp_command_captcha
 - tags_log: whatsapp, command, adminModule, captcha
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Ativa/desativa captcha para novos membros no grupo.
+- usage_examples: <prefix>captcha on, <prefix>captcha off, <prefix>captcha status
+- behavior:
+- type: toggle
+- allowed_actions: on, off, status
+- action_argument: acao
+- limits:
+- usage_description: sem limite especifico
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: captcha, admin, grupo
+- faq_queries: como usar captcha, o que faz captcha, comando captcha
+- user_phrasings: quero usar captcha, me ajuda com captcha, ativa/desativa captcha para novos
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: captcha
 
 ### antilink
-
+- id: admin.antilink
 - aliases: (nenhum)
 - enabled: true
 - categoria: admin
 - descricao: Gerencia bloqueio de links permitidos no grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: subcomandos e argumentos validados
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -2271,8 +3788,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - add
 - remove
 - argumentos:
-- subcomando | tipo: string | obrigatorio | validacao: on|off|list|allow|disallow|add|remove | default: null
-- alvos | tipo: array<string> | opcional | validacao: redes ou domínios | default: []
+- subcomando | tipo: string | obrigatorio | validacao: on|off|list|allow|disallow|add|remove | default: null | posicao: 0
+- alvos | tipo: array | opcional | validacao: redes ou domínios | default: null | posicao: 1
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -2305,6 +3822,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -2313,27 +3833,76 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_antilink
+- event_name: command.executed
+- analytics_event: whatsapp_command_antilink
 - tags_log: whatsapp, command, adminModule, antilink
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Gerencia bloqueio de links permitidos no grupo.
+- usage_examples: <prefix>antilink on, <prefix>antilink off, <prefix>antilink list, <prefix>antilink allow <rede>, <prefix>antilink disallow <rede>, <prefix>antilink add <dominio>, <prefix>antilink remove <dominio>
+- usage_variants.allow: <prefix>antilink allow <rede>
+- usage_variants.disallow: <prefix>antilink disallow <rede>
+- usage_variants.add: <prefix>antilink add <dominio>
+- usage_variants.remove: <prefix>antilink remove <dominio>
+- behavior:
+- type: list_management
+- allowed_actions: add, remove, list
+- action_argument: acao
+- limits:
+- usage_description: subcomandos e argumentos validados
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: antilink, admin, grupo
+- faq_queries: como usar antilink, o que faz antilink, comando antilink
+- user_phrasings: quero usar antilink, me ajuda com antilink, gerencia bloqueio de links
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: antilink
 
 ### noticias
-
+- id: admin.noticias
 - aliases: news, noticia
 - enabled: true
 - categoria: admin
 - descricao: Ativa/desativa envio automatico de noticias no grupo.
 - permissao_necessaria: admin do grupo
-- limite_de_uso: sem limite especifico
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: medium
 - local_de_uso:
 - grupo
 - metodos_de_uso:
@@ -2341,12 +3910,14 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - <prefix>noticias off
 - <prefix>noticias status
 - <prefix>news status
+- mensagens_uso (variantes):
+- (nenhum)
 - subcomandos:
 - on
 - off
 - status
 - argumentos:
-- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null
+- acao | tipo: string | obrigatorio | validacao: on|off|status | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: sim
 - requer_admin: sim
@@ -2379,6 +3950,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - altera configurações de grupo e permissões
 - envia mensagens administrativas
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -2387,15 +3961,57 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_noticias
+- event_name: command.executed
+- analytics_event: whatsapp_command_noticias
 - tags_log: whatsapp, command, adminModule, noticias
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Ativa/desativa envio automatico de noticias no grupo.
+- usage_examples: <prefix>noticias on, <prefix>noticias off, <prefix>noticias status, <prefix>news status
+- behavior:
+- type: toggle
+- allowed_actions: on, off, status
+- action_argument: acao
+- limits:
+- usage_description: sem limite especifico
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 25
+- plan_limits.comum.janela_ms: 60000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 120
+- plan_limits.premium.janela_ms: 60000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: noticias, news, admin, grupo
+- faq_queries: como usar noticias, o que faz noticias, comando noticias
+- user_phrasings: quero usar noticias, me ajuda com noticias, ativa/desativa envio automatico de
+- suggestion_priority: 100
+- handler:
+- file: groupCommandHandlers.js
+- method: handleAdminCommand
+- command_case: noticias

@@ -3,14 +3,12 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
-
 - arquivo_base: `app/modules/stickerModule/commandConfig.json`
 - schema_version: `2.0.0`
 - module_enabled: `true`
-- generated_at: `2026-03-08T10:59:41.156Z`
+- generated_at: `2026-03-11T02:35:17.177Z`
 
 ## Escopo do Modulo
-
 - module: `stickerModule`
 - source_files:
 - stickerCommand.js
@@ -19,8 +17,41 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_commands: `5`
 - total_enabled_commands: `5`
 
-## Protocolo de Resposta para IA
+## Defaults Schema v2
+- inheritance_mode: deep_merge_with_command_overrides
+- compatibility_mode: legacy_and_v2_fields
+- legacy_field_aliases:
+- descricao: description
+- metodos_de_uso: usage
+- permissao_necessaria: permission
+- local_de_uso: contexts
+- informacoes_coletadas: collected_data
+- pre_condicoes: requirements
+- dependencias_externas: dependencies
+- efeitos_colaterais: side_effects
+- observabilidade: observability
+- privacidade: privacy
+- limite_uso_por_plano: plan_limits
+- argumentos: arguments
+- acesso: access
+- defaults.command:
+- enabled: true
+- category: figurinhas
+- version: 1.0.0
+- stability: stable
+- deprecated: false
+- replaced_by: null
+- risk_level: medium
+- defaults.requirements (legacy view):
+- requer_grupo: nao
+- requer_admin: nao
+- requer_admin_principal: nao
+- requer_google_login: sim
+- requer_nsfw: nao
+- requer_midia: sim
+- requer_mensagem_respondida: nao
 
+## Protocolo de Resposta para IA
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -29,22 +60,23 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
-
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
-
 ### figurinha
-
+- id: sticker.figurinha
 - aliases: s, sticker
 - enabled: true
 - categoria: figurinhas
 - descricao: Converte imagem/video em figurinha.
 - permissao_necessaria: usuario comum
-- limite_de_uso: midia ate 1 MB
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - privado
 - grupo
@@ -57,7 +89,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - subcomandos:
 - (nenhum)
 - argumentos:
-- texto_extra | tipo: string | opcional | validacao: texto livre opcional | default: null
+- texto_extra | tipo: string | opcional | validacao: texto livre opcional | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: nao
 - requer_admin: nao
@@ -90,6 +122,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - faz download/conversão temporária de mídia
 - envia figurinha
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -98,27 +133,72 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_sticker
+- event_name: command.executed
+- analytics_event: whatsapp_command_sticker
 - tags_log: whatsapp, command, stickerModule, sticker
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Converte imagem/video em figurinha.
+- usage_examples: <prefix>figurinha, <prefix>s
+- usage_variants.default: 📌 Use: <prefix>figurinha (ou <prefix>s) respondendo a uma imagem, vídeo ou figurinha.
+- behavior:
+- type: argument_driven
+- allowed_actions: (nenhum)
+- limits:
+- usage_description: midia ate 1 MB
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 12
+- plan_limits.comum.janela_ms: 300000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 45
+- plan_limits.premium.janela_ms: 300000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: figurinha, s, figurinhas, privado, grupo
+- faq_queries: como usar figurinha, o que faz figurinha, comando figurinha
+- user_phrasings: quero usar figurinha, me ajuda com figurinha, converte imagem/video em figurinha.
+- suggestion_priority: 100
+- handler:
+- file: stickerCommand.js
+- method: processSticker
+- command_case: figurinha
 
 ### paraimagem
-
+- id: sticker.paraimagem
 - aliases: tovideo, tovid, toimg
 - enabled: true
 - categoria: figurinhas
 - descricao: Converte figurinha para imagem ou video quando aplicavel.
 - permissao_necessaria: usuario comum
-- limite_de_uso: figurinha ate 2 MB
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - privado
 - grupo
@@ -165,6 +245,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - faz download/conversão temporária de figurinha
 - envia mídia convertida
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -173,27 +256,72 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_toimg
+- event_name: command.executed
+- analytics_event: whatsapp_command_toimg
 - tags_log: whatsapp, command, stickerModule, toimg
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Converte figurinha para imagem ou video quando aplicavel.
+- usage_examples: <prefix>paraimagem, <prefix>tovideo, <prefix>tovid
+- usage_variants.default: 📌 Use: <prefix>paraimagem (ou <prefix>tovideo / <prefix>tovid) respondendo a uma figurinha.
+- behavior:
+- type: simple_action
+- allowed_actions: (nenhum)
+- limits:
+- usage_description: figurinha ate 2 MB
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 12
+- plan_limits.comum.janela_ms: 300000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 45
+- plan_limits.premium.janela_ms: 300000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: paraimagem, tovideo, tovid, figurinhas, privado, grupo
+- faq_queries: como usar paraimagem, o que faz paraimagem, comando paraimagem
+- user_phrasings: quero usar paraimagem, me ajuda com paraimagem, converte figurinha para imagem
+- suggestion_priority: 100
+- handler:
+- file: stickerConvertCommand.js
+- method: handleStickerConvertCommand
+- command_case: paraimagem
 
 ### figurinhatexto
-
+- id: sticker.figurinhatexto
 - aliases: st, stickertext
 - enabled: true
 - categoria: figurinhas
 - descricao: Gera figurinha com texto (tema escuro).
 - permissao_necessaria: usuario comum
-- limite_de_uso: ate 80 caracteres e 4 linhas
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - privado
 - grupo
@@ -207,7 +335,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - subcomandos:
 - (nenhum)
 - argumentos:
-- texto | tipo: string | obrigatorio | validacao: até 80 caracteres, máximo 4 linhas | default: null
+- texto | tipo: string | obrigatorio | validacao: até 80 caracteres, máximo 4 linhas | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: nao
 - requer_admin: nao
@@ -240,6 +368,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - gera mídia temporária de figurinha com texto
 - envia figurinha
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -248,27 +379,72 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_stickertext
+- event_name: command.executed
+- analytics_event: whatsapp_command_stickertext
 - tags_log: whatsapp, command, stickerModule, stickertext
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Gera figurinha com texto (tema escuro).
+- usage_examples: <prefix>figurinhatexto seu texto, <prefix>st seu texto
+- usage_variants.default: 📌 Use: <prefix>figurinhatexto seu texto, 💡 Exemplo: <prefix>st bom dia seus lindos
+- behavior:
+- type: argument_driven
+- allowed_actions: (nenhum)
+- limits:
+- usage_description: ate 80 caracteres e 4 linhas
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 12
+- plan_limits.comum.janela_ms: 300000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 45
+- plan_limits.premium.janela_ms: 300000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: figurinhatexto, st, figurinhas, privado, grupo
+- faq_queries: como usar figurinhatexto, o que faz figurinhatexto, comando figurinhatexto
+- user_phrasings: quero usar figurinhatexto, me ajuda com figurinhatexto, gera figurinha com texto
+- suggestion_priority: 100
+- handler:
+- file: stickerTextCommand.js
+- method: processTextSticker
+- command_case: figurinhatexto
 
 ### figurinhatextobranco
-
+- id: sticker.figurinhatextobranco
 - aliases: stw, stickertextwhite
 - enabled: true
 - categoria: figurinhas
 - descricao: Gera figurinha com texto (tema claro).
 - permissao_necessaria: usuario comum
-- limite_de_uso: ate 80 caracteres e 4 linhas
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - privado
 - grupo
@@ -282,7 +458,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - subcomandos:
 - (nenhum)
 - argumentos:
-- texto | tipo: string | obrigatorio | validacao: até 80 caracteres, máximo 4 linhas | default: null
+- texto | tipo: string | obrigatorio | validacao: até 80 caracteres, máximo 4 linhas | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: nao
 - requer_admin: nao
@@ -315,6 +491,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - gera mídia temporária de figurinha com texto
 - envia figurinha
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -323,27 +502,72 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_stickertextwhite
+- event_name: command.executed
+- analytics_event: whatsapp_command_stickertextwhite
 - tags_log: whatsapp, command, stickerModule, stickertextwhite
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Gera figurinha com texto (tema claro).
+- usage_examples: <prefix>figurinhatextobranco seu texto, <prefix>stw seu texto
+- usage_variants.default: 📌 Use: <prefix>figurinhatextobranco seu texto, 💡 Exemplo: <prefix>stw bom dia seus lindos
+- behavior:
+- type: argument_driven
+- allowed_actions: (nenhum)
+- limits:
+- usage_description: ate 80 caracteres e 4 linhas
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 12
+- plan_limits.comum.janela_ms: 300000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 45
+- plan_limits.premium.janela_ms: 300000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: figurinhatextobranco, stw, figurinhas, privado, grupo
+- faq_queries: como usar figurinhatextobranco, o que faz figurinhatextobranco, comando figurinhatextobranco
+- user_phrasings: quero usar figurinhatextobranco, me ajuda com figurinhatextobranco, gera figurinha com texto
+- suggestion_priority: 100
+- handler:
+- file: stickerTextCommand.js
+- method: processTextSticker
+- command_case: figurinhatextobranco
 
 ### figurinhatextopisca
-
+- id: sticker.figurinhatextopisca
 - aliases: stb, stickertextblink
 - enabled: true
 - categoria: figurinhas
 - descricao: Gera figurinha animada de texto piscante.
 - permissao_necessaria: usuario comum
-- limite_de_uso: ate 80 caracteres e 4 linhas
+- version: 1.0.0
+- stability: stable
+- deprecated: nao
+- risk_level: low
 - local_de_uso:
 - privado
 - grupo
@@ -357,7 +581,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - subcomandos:
 - (nenhum)
 - argumentos:
-- texto | tipo: string | obrigatorio | validacao: até 80 caracteres, máximo 4 linhas | default: null
+- texto | tipo: string | obrigatorio | validacao: até 80 caracteres, máximo 4 linhas | default: null | posicao: 0
 - pre_condicoes:
 - requer_grupo: nao
 - requer_admin: nao
@@ -390,6 +614,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - gera mídia temporária animada
 - envia figurinha
 - respostas_padrao:
+- success: Comando executado com sucesso.
+- usage_error: Formato de uso inválido. Consulte metodos_de_uso.
+- permission_error: Permissão insuficiente para executar este comando.
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
@@ -398,15 +625,57 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - limites_operacionais:
 - (nao informado)
 - opcoes:
-- (nao informado)
+- toggle_on_off_status.type: toggle
+- toggle_on_off_status.allowed_actions: on, off, status
+- toggle_on_off_status.action_argument: acao
+- add_remove_list.type: list_management
+- add_remove_list.allowed_actions: add, remove, list
+- add_remove_list.action_argument: acao
+- approve_reject.type: moderation_decision
+- approve_reject.allowed_actions: approve, reject
+- approve_reject.action_argument: acao
+- approve_reject.requires_targets: true
+- set_status_reset.type: configuration_window
+- set_status_reset.allowed_actions: set, status, reset
+- set_status_reset.action_argument: valor
 - observabilidade:
-- evento_analytics: whatsapp_command_stickertextblink
+- event_name: command.executed
+- analytics_event: whatsapp_command_stickertextblink
 - tags_log: whatsapp, command, stickerModule, stickertextblink
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-- identificador do chat
-- identificador do remetente
-- conteudo textual do comando
-- retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
-- base_legal: execução do serviço solicitado e legítimo interesse operacional
+- chat_identifier
+- sender_identifier
+- command_content
+- retencao: standard_app_logs
+- base_legal: service_execution_and_legitimate_interest
+- docs:
+- summary: Gera figurinha animada de texto piscante.
+- usage_examples: <prefix>figurinhatextopisca seu texto, <prefix>stb seu texto
+- usage_variants.default: 📌 Use: <prefix>figurinhatextopisca seu texto, 💡 Exemplo: <prefix>stb bom dia seus lindos -verde
+- behavior:
+- type: argument_driven
+- allowed_actions: (nenhum)
+- limits:
+- usage_description: ate 80 caracteres e 4 linhas
+- rate_limit.max: null
+- rate_limit.janela_ms: null
+- rate_limit.escopo: sem_rate_limit_explicito
+- access.somente_premium: false
+- access.planos_permitidos: comum, premium
+- plan_limits.comum.max: 12
+- plan_limits.comum.janela_ms: 300000
+- plan_limits.comum.escopo: usuario
+- plan_limits.premium.max: 45
+- plan_limits.premium.janela_ms: 300000
+- plan_limits.premium.escopo: usuario
+- discovery:
+- keywords: figurinhatextopisca, stb, figurinhas, privado, grupo
+- faq_queries: como usar figurinhatextopisca, o que faz figurinhatextopisca, comando figurinhatextopisca
+- user_phrasings: quero usar figurinhatextopisca, me ajuda com figurinhatextopisca, gera figurinha animada de
+- suggestion_priority: 100
+- handler:
+- file: stickerTextCommand.js
+- method: processBlinkingTextSticker
+- command_case: figurinhatextopisca
