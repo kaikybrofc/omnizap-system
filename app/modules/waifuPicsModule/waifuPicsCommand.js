@@ -1,8 +1,9 @@
 import axios from 'axios';
 
 import logger from '#logger';
-import { isGroupJid } from '../../config/index.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
+import premiumUserStore from '../../store/premiumUserStore.js';
+import { getAdminJid, isGroupJid, isSameJidUser, normalizeJid, resolveAdminJid } from '../../config/index.js';
 import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { getWaifuPicsCommandEntry, getWaifuPicsTextConfig, getWaifuPicsUsageText as getWaifuPicsRuntimeUsageText, resolveWaifuPicsCommandName } from './waifuPicsConfigRuntime.js';
 
@@ -29,6 +30,7 @@ const WAIFU_PICS_TIMEOUT_MS = Number.parseInt(process.env.WAIFU_PICS_TIMEOUT_MS 
  * @type {boolean}
  */
 const WAIFU_PICS_ALLOW_NSFW = process.env.WAIFU_PICS_ALLOW_NSFW === 'true';
+const OWNER_JID = getAdminJid();
 
 /**
  * Categorias SFW (Safe For Work) disponíveis na Waifu.pics.
@@ -61,6 +63,12 @@ const FALLBACK_CATEGORIES_BY_TYPE = Object.freeze({
 });
 
 const DEFAULT_FALLBACK_CATEGORY = 'waifu';
+const DEFAULT_USER_PLAN = 'comum';
+const PREMIUM_USER_PLAN = 'premium';
+const USER_RATE_LIMIT_MAP_MAX_SIZE = 2500;
+
+const userPlanRateMap = globalThis.__omnizapWaifuPicsUserPlanRateMap instanceof Map ? globalThis.__omnizapWaifuPicsUserPlanRateMap : new Map();
+globalThis.__omnizapWaifuPicsUserPlanRateMap = userPlanRateMap;
 
 const normalizeType = (value) =>
   String(value || '')
@@ -204,6 +212,177 @@ const toUsageCommandLine = (value, fallback) => {
   return line || fallback;
 };
 
+const parsePositiveInt = (value) => {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const normalizePlanName = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase() === PREMIUM_USER_PLAN
+    ? PREMIUM_USER_PLAN
+    : DEFAULT_USER_PLAN;
+
+const normalizePlansList = (values = []) => normalizeTokenList(values).filter((plan) => plan === DEFAULT_USER_PLAN || plan === PREMIUM_USER_PLAN);
+
+const resolveAccessPolicy = (entry) => {
+  const access = entry?.access && typeof entry.access === 'object' ? entry.access : {};
+  const legacyAccess = entry?.acesso && typeof entry.acesso === 'object' ? entry.acesso : {};
+  const limitsAccess = entry?.limits?.access && typeof entry.limits.access === 'object' ? entry.limits.access : {};
+  const limitsLegacyAccess = limitsAccess?.legacy && typeof limitsAccess.legacy === 'object' ? limitsAccess.legacy : {};
+
+  const premiumOnly = Boolean(access.premium_only ?? limitsAccess.premium_only ?? legacyAccess.somente_premium ?? limitsLegacyAccess.somente_premium ?? false);
+  const allowedPlans = normalizePlansList([...(Array.isArray(access.allowed_plans) ? access.allowed_plans : []), ...(Array.isArray(limitsAccess.allowed_plans) ? limitsAccess.allowed_plans : []), ...(Array.isArray(legacyAccess.planos_permitidos) ? legacyAccess.planos_permitidos : []), ...(Array.isArray(limitsLegacyAccess.planos_permitidos) ? limitsLegacyAccess.planos_permitidos : [])]);
+
+  return {
+    premiumOnly,
+    allowedPlans: allowedPlans.length ? allowedPlans : [DEFAULT_USER_PLAN, PREMIUM_USER_PLAN],
+  };
+};
+
+const resolvePlanLimitConfig = (entry, userPlan = DEFAULT_USER_PLAN) => {
+  const planLimits = entry?.plan_limits && typeof entry.plan_limits === 'object' ? entry.plan_limits : {};
+  const legacyPlanLimits = entry?.limite_uso_por_plano && typeof entry.limite_uso_por_plano === 'object' ? entry.limite_uso_por_plano : {};
+  const nestedPlanLimits = entry?.limits?.plan_limits && typeof entry.limits.plan_limits === 'object' ? entry.limits.plan_limits : {};
+  const mergedLimits = {
+    ...legacyPlanLimits,
+    ...nestedPlanLimits,
+    ...planLimits,
+  };
+
+  const normalizedPlan = normalizePlanName(userPlan);
+  const selected = (mergedLimits[normalizedPlan] && typeof mergedLimits[normalizedPlan] === 'object' ? mergedLimits[normalizedPlan] : null) || (mergedLimits[DEFAULT_USER_PLAN] && typeof mergedLimits[DEFAULT_USER_PLAN] === 'object' ? mergedLimits[DEFAULT_USER_PLAN] : null);
+
+  if (!selected) return null;
+
+  const max = parsePositiveInt(selected.max);
+  const windowMs = parsePositiveInt(selected.janela_ms);
+  if (!max || !windowMs) return null;
+
+  const rawScope = String(selected.escopo || '')
+    .trim()
+    .toLowerCase();
+  const scope = rawScope === 'grupo' || rawScope === 'group' ? 'grupo' : rawScope === 'global' ? 'global' : 'usuario';
+
+  return {
+    max,
+    windowMs,
+    scope,
+  };
+};
+
+const buildRateScopeKey = ({ scope, senderKey, remoteJid }) => {
+  if (scope === 'grupo') return `group:${String(remoteJid || '').trim() || 'unknown'}`;
+  if (scope === 'global') return 'global:all';
+  return `user:${String(senderKey || '').trim() || 'unknown'}`;
+};
+
+const pruneRateMapIfNeeded = (now = Date.now()) => {
+  if (userPlanRateMap.size <= USER_RATE_LIMIT_MAP_MAX_SIZE) return;
+
+  for (const [key, value] of userPlanRateMap.entries()) {
+    if (!value || Number(value.resetAt) <= now) {
+      userPlanRateMap.delete(key);
+    }
+    if (userPlanRateMap.size <= USER_RATE_LIMIT_MAP_MAX_SIZE) return;
+  }
+
+  const overflow = userPlanRateMap.size - USER_RATE_LIMIT_MAP_MAX_SIZE;
+  if (overflow <= 0) return;
+
+  let removed = 0;
+  for (const key of userPlanRateMap.keys()) {
+    userPlanRateMap.delete(key);
+    removed += 1;
+    if (removed >= overflow) break;
+  }
+};
+
+const checkPlanUsageRateLimit = ({ commandKey, userPlan, scope, max, windowMs, senderKey, remoteJid }) => {
+  if (!max || !windowMs) return { limited: false, remainingMs: 0 };
+
+  const now = Date.now();
+  const scopeKey = buildRateScopeKey({ scope, senderKey, remoteJid });
+  const cacheKey = `${String(commandKey || 'waifu')}:${normalizePlanName(userPlan)}:${scopeKey}`;
+  const current = userPlanRateMap.get(cacheKey);
+
+  if (!current || Number(current.resetAt) <= now) {
+    userPlanRateMap.set(cacheKey, {
+      count: 1,
+      resetAt: now + windowMs,
+    });
+    pruneRateMapIfNeeded(now);
+    return { limited: false, remainingMs: 0 };
+  }
+
+  if (Number(current.count) >= max) {
+    return {
+      limited: true,
+      remainingMs: Math.max(0, Number(current.resetAt) - now),
+    };
+  }
+
+  current.count += 1;
+  userPlanRateMap.set(cacheKey, current);
+  return { limited: false, remainingMs: 0 };
+};
+
+const formatDuration = (ms) => {
+  const totalSeconds = Math.max(1, Math.ceil((Number(ms) || 0) / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes > 0 && seconds > 0) return `${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m`;
+  return `${seconds}s`;
+};
+
+const formatWindowDuration = (windowMs) => {
+  const safeWindowMs = Math.max(1000, Number(windowMs) || 1000);
+  if (safeWindowMs % 60000 === 0) {
+    const minutes = Math.max(1, Math.round(safeWindowMs / 60000));
+    return `${minutes} min`;
+  }
+  if (safeWindowMs % 1000 === 0) {
+    const seconds = Math.max(1, Math.round(safeWindowMs / 1000));
+    return `${seconds}s`;
+  }
+  return `${safeWindowMs}ms`;
+};
+
+const resolveSenderCandidates = (senderJid) => {
+  const normalized = normalizeJid(senderJid || '');
+  const raw = String(senderJid || '').trim();
+  return [...new Set([normalized, raw].filter(Boolean))];
+};
+
+const isPremiumSender = async (senderJid) => {
+  const senderCandidates = resolveSenderCandidates(senderJid);
+  if (!senderCandidates.length) return false;
+
+  const adminJid = (await resolveAdminJid().catch(() => null)) || OWNER_JID;
+  const normalizedAdmin = normalizeJid(adminJid || '');
+  if (normalizedAdmin && senderCandidates.some((sender) => sender === normalizedAdmin || isSameJidUser(sender, normalizedAdmin))) {
+    return true;
+  }
+
+  try {
+    const premiumUsers = await premiumUserStore.getPremiumUsers();
+    const premiumCandidates = Array.from(new Set((Array.isArray(premiumUsers) ? premiumUsers : []).map((jid) => normalizeJid(jid || '')).filter(Boolean)));
+    if (!premiumCandidates.length) return false;
+    return senderCandidates.some((sender) => premiumCandidates.some((premiumJid) => premiumJid === sender || isSameJidUser(premiumJid, sender)));
+  } catch (error) {
+    logger.warn('handleWaifuPicsCommand: falha ao consultar premiumUserStore.', { error: error?.message });
+    return false;
+  }
+};
+
+const resolveSenderPlan = async (senderJid) => {
+  if (!senderJid) return DEFAULT_USER_PLAN;
+  return (await isPremiumSender(senderJid)) ? PREMIUM_USER_PLAN : DEFAULT_USER_PLAN;
+};
+
 /**
  * Envia uma mensagem detalhada com as instruções de uso e as categorias disponíveis para o usuário.
  *
@@ -260,16 +439,19 @@ const fetchWaifuPics = async (type, category) => {
  * @param {import('@whiskeysockets/baileys').proto.IWebMessageInfo} params.messageInfo - Objeto da mensagem original recebida.
  * @param {number|undefined} params.expirationMessage - Tempo de expiração configurado para mensagens no chat.
  * @param {string} params.text - Texto bruto enviado pelo usuário após o comando.
+ * @param {string|undefined} params.senderJid - JID do remetente para aplicar plano e limites de uso.
  * @param {'sfw'|'nsfw'} [params.type='sfw'] - Tipo de busca (padrão é 'sfw').
  * @param {string} [params.commandPrefix] - Prefixo utilizado para disparar o comando.
  * @returns {Promise<void>}
  */
-export async function handleWaifuPicsCommand({ sock, remoteJid, messageInfo, expirationMessage, text, type = 'sfw', commandPrefix = DEFAULT_COMMAND_PREFIX }) {
+export async function handleWaifuPicsCommand({ sock, remoteJid, messageInfo, expirationMessage, text, senderJid, type = 'sfw', commandPrefix = DEFAULT_COMMAND_PREFIX }) {
   const definition = resolveCommandDefinition(type);
   const categoryList = resolveCommandCategories(definition);
   const fallbackCategory = resolveDefaultCategory(definition, categoryList);
   const category = (text || '').trim().toLowerCase() || fallbackCategory;
   const isGroupMessage = isGroupJid(remoteJid);
+  const userPlan = await resolveSenderPlan(senderJid);
+  const accessPolicy = resolveAccessPolicy(definition.entry);
 
   // Verifica se o recurso NSFW está habilitado globalmente via variáveis de ambiente.
   if (definition.type === 'nsfw' && !WAIFU_PICS_ALLOW_NSFW) {
@@ -302,10 +484,53 @@ export async function handleWaifuPicsCommand({ sock, remoteJid, messageInfo, exp
     }
   }
 
+  const userPlanAllowed = !accessPolicy.allowedPlans.length || accessPolicy.allowedPlans.includes(userPlan);
+  const premiumOnlyBlocked = accessPolicy.premiumOnly && userPlan !== PREMIUM_USER_PLAN;
+  if (!userPlanAllowed || premiumOnlyBlocked) {
+    const permissionText = applyCommandPrefix(resolveResponseText(definition.entry, 'permission_error', ''), commandPrefix);
+    const allowedPlansLabel = accessPolicy.allowedPlans.length ? accessPolicy.allowedPlans.join(', ') : `${DEFAULT_USER_PLAN}, ${PREMIUM_USER_PLAN}`;
+    const defaultText = premiumOnlyBlocked ? '⭐ Este comando é exclusivo para usuários premium.' : `🔒 Seu plano atual (*${userPlan}*) não tem acesso a este comando.`;
+    await sendAndStore(
+      sock,
+      remoteJid,
+      {
+        text: [defaultText, `Planos permitidos: *${allowedPlansLabel}*.`, permissionText].filter(Boolean).join('\n'),
+      },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+    return;
+  }
+
   // Valida se a categoria informada é suportada pela API para o tipo escolhido.
   if (!categoryList.includes(category)) {
     await sendUsage(sock, remoteJid, messageInfo, expirationMessage, definition.type, commandPrefix);
     return;
+  }
+
+  const planLimit = resolvePlanLimitConfig(definition.entry, userPlan);
+  if (planLimit) {
+    const senderKey = normalizeJid(senderJid || '') || String(senderJid || remoteJid || '').trim() || 'unknown';
+    const limitState = checkPlanUsageRateLimit({
+      commandKey: definition.canonicalName || definition.fallbackAlias || definition.type,
+      userPlan,
+      scope: planLimit.scope,
+      max: planLimit.max,
+      windowMs: planLimit.windowMs,
+      senderKey,
+      remoteJid,
+    });
+
+    if (limitState.limited) {
+      await sendAndStore(
+        sock,
+        remoteJid,
+        {
+          text: `⏳ Limite de uso do plano *${userPlan}* atingido: *${planLimit.max}* uso(s) a cada *${formatWindowDuration(planLimit.windowMs)}*.\nTente novamente em *${formatDuration(limitState.remainingMs)}*.`,
+        },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+      return;
+    }
   }
 
   try {
