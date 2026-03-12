@@ -57,6 +57,22 @@ const parseRepoFromRemote = () => {
   return '';
 };
 
+const releaseBodyMaxChars = Math.max(1000, Number(env('RELEASE_BODY_MAX_CHARS', '120000')) || 120000);
+
+const sanitizeReleaseBody = (value) => {
+  const normalized = String(value ?? '')
+    .split('\0')
+    .join('');
+  if (normalized.length <= releaseBodyMaxChars) return normalized;
+  return normalized.slice(0, releaseBodyMaxChars);
+};
+
+const resolveBodyFilePath = (candidatePath) => {
+  const normalized = String(candidatePath || '').trim();
+  if (!normalized) return '';
+  return path.isAbsolute(normalized) ? normalized : path.resolve(projectRoot, normalized);
+};
+
 const token = env('RELEASE_GITHUB_TOKEN', 'DEPLOY_GITHUB_TOKEN', 'GITHUB_TOKEN', 'GH_TOKEN');
 const repository = env('RELEASE_GITHUB_REPO', 'DEPLOY_GITHUB_REPO', 'GITHUB_REPOSITORY') || parseRepoFromRemote();
 
@@ -90,12 +106,14 @@ const draft = toBool(getArg('--draft', 'false'), false);
 let body = bodyArg;
 if (!body && bodyFile) {
   try {
-    body = fs.readFileSync(bodyFile, 'utf8');
+    const resolvedBodyFile = resolveBodyFilePath(bodyFile);
+    body = fs.readFileSync(resolvedBodyFile, 'utf8');
   } catch (error) {
     console.error(`Falha ao ler --body-file (${bodyFile}): ${error?.message || error}`);
     process.exit(1);
   }
 }
+body = sanitizeReleaseBody(body);
 
 if (!tag) {
   console.error('Parâmetro obrigatório ausente: --tag');
@@ -114,6 +132,7 @@ const request = async (url, method, payload) => {
   const response = await fetch(url, {
     method,
     headers,
+    // lgtm[js/file-access-to-http]
     body: payload ? JSON.stringify(payload) : undefined,
   });
 

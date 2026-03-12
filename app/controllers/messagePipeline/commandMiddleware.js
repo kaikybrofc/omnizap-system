@@ -1,27 +1,4 @@
-export const createCommandMiddleware = ({
-  isAdminCommand,
-  isKnownNonAdminCommand,
-  isDuplicateCommandExecution,
-  markCommandExecution,
-  MESSAGE_COMMAND_DEDUPE_TTL_MS,
-  stopMessagePipeline,
-  WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN,
-  resolveCanonicalSenderJidForContext,
-  ensureUserHasGoogleWebLoginForCommand,
-  SITE_LOGIN_URL,
-  COMMAND_REACT_EMOJI,
-  sendAndStore,
-  executeMessageCommandRoute,
-  runCommand,
-  sendReply,
-  registerGlobalHelpCommandExecution,
-  logger,
-  normalizeAnalysisErrorCode,
-  resolveSenderAdminForContext,
-  isUserAdmin,
-  buildCommandErrorHelpText,
-  mergeAnalysisMetadata,
-}) => {
+export const createCommandMiddleware = ({ isAdminCommand, isKnownNonAdminCommand, isDuplicateCommandExecution, markCommandExecution, MESSAGE_COMMAND_DEDUPE_TTL_MS, stopMessagePipeline, WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN, resolveCanonicalSenderJidForContext, ensureUserHasGoogleWebLoginForCommand, SITE_LOGIN_URL, COMMAND_REACT_EMOJI, sendAndStore, executeMessageCommandRoute, runCommand, sendReply, registerGlobalHelpCommandExecution, logger, normalizeAnalysisErrorCode, resolveSenderAdminForContext, isUserAdmin, buildCommandErrorHelpText, mergeAnalysisMetadata }) => {
   return async (ctx) => {
     if (!ctx.isCommandMessage) return null;
 
@@ -155,9 +132,7 @@ export const createCommandMiddleware = ({
         isSenderAdmin: senderIsAdminForHelp,
       });
 
-      const fallbackErrorText = commandErrorHelpText
-        ? `❌ Houve um erro ao processar *${ctx.commandPrefix}${command}*.\n\n${commandErrorHelpText}`
-        : `❌ Houve um erro ao processar *${ctx.commandPrefix}${command}*.\n\nTente novamente ou use *${ctx.commandPrefix}menu* para validar o formato de uso.`;
+      const fallbackErrorText = commandErrorHelpText ? `❌ Houve um erro ao processar *${ctx.commandPrefix}${command}*.\n\n${commandErrorHelpText}` : `❌ Houve um erro ao processar *${ctx.commandPrefix}${command}*.\n\nTente novamente ou use *${ctx.commandPrefix}menu* para validar o formato de uso.`;
 
       await runCommand('command-error-help', () =>
         sendReply(ctx.sock, ctx.remoteJid, ctx.messageInfo, ctx.expirationMessage, {

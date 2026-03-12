@@ -1,21 +1,4 @@
-export const createConversationMiddleware = ({
-  logger,
-  resolveSenderAdminForContext,
-  resolveSenderOwnerForContext,
-  resolveHasGoogleLoginForContext,
-  isUserAdmin,
-  isAdminSenderAsync,
-  resolveCanonicalSenderJidForContext,
-  isWhatsAppUserLinkedToGoogleWebAccount,
-  WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN,
-  ensureUserHasGoogleWebLoginForCommand,
-  executeMessageCommandRoute,
-  isAdminCommand,
-  runCommand,
-  sendReply,
-  routeConversationMessage,
-  stopMessagePipeline,
-}) => {
+export const createConversationMiddleware = ({ logger, resolveSenderAdminForContext, resolveSenderOwnerForContext, resolveHasGoogleLoginForContext, isUserAdmin, isAdminSenderAsync, resolveCanonicalSenderJidForContext, isWhatsAppUserLinkedToGoogleWebAccount, WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN, ensureUserHasGoogleWebLoginForCommand, executeMessageCommandRoute, isAdminCommand, runCommand, sendReply, routeConversationMessage, stopMessagePipeline }) => {
   const resolveToolSecurityContextForConversation = async (ctx) => {
     if (ctx.memo.toolSecurityContext) return ctx.memo.toolSecurityContext;
 

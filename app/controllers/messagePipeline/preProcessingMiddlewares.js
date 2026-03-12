@@ -1,26 +1,4 @@
-export const createPreProcessingMiddlewares = ({
-  executeQuery,
-  TABLES,
-  isStatusJid,
-  stopMessagePipeline,
-  handleAntiLink,
-  ensureCommandPrefixForContext,
-  resolveCaptchaByMessage,
-  maybeHandleStartLoginMessage,
-  mergeAnalysisMetadata,
-  ensureGroupConfigForContext,
-  resolveStickerFocusState,
-  resolveStickerFocusMessageClassification,
-  resolveSenderAdminForContext,
-  isUserAdmin,
-  canSendMessageInStickerFocus,
-  registerMessageUsageInStickerFocus,
-  shouldSendStickerFocusWarning,
-  sendReply,
-  formatStickerFocusRuleLabel,
-  formatRemainingMinutesLabel,
-  logger,
-}) => {
+export const createPreProcessingMiddlewares = ({ executeQuery, TABLES, isStatusJid, stopMessagePipeline, handleAntiLink, ensureCommandPrefixForContext, resolveCaptchaByMessage, maybeHandleStartLoginMessage, mergeAnalysisMetadata, ensureGroupConfigForContext, resolveStickerFocusState, resolveStickerFocusMessageClassification, resolveSenderAdminForContext, isUserAdmin, canSendMessageInStickerFocus, registerMessageUsageInStickerFocus, shouldSendStickerFocusWarning, sendReply, formatStickerFocusRuleLabel, formatRemainingMinutesLabel, logger }) => {
   const touchSenderLastSeenMiddleware = async (ctx) => {
     if (!ctx.senderJid || isStatusJid(ctx.remoteJid)) return;
 
@@ -151,11 +129,7 @@ export const createPreProcessingMiddlewares = ({
       if (shouldSendStickerFocusWarning({ groupId: ctx.remoteJid, senderJid: ctx.senderJid })) {
         try {
           await sendReply(ctx.sock, ctx.remoteJid, ctx.messageInfo, ctx.expirationMessage, {
-            text:
-              '🖼️ Este chat está com *foco em sticker* ativo.\n' +
-              'Siga o padrão: envie apenas *imagens* ou *vídeos* para criação automática, ou compartilhe seus *stickers*.\n' +
-              `Mensagens como texto e áudio seguem uma janela de tempo: *${formatStickerFocusRuleLabel(stickerFocusState)}*.\n` +
-              `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${ctx.commandPrefix}chatwindow on*.`,
+            text: '🖼️ Este chat está com *foco em sticker* ativo.\n' + 'Siga o padrão: envie apenas *imagens* ou *vídeos* para criação automática, ou compartilhe seus *stickers*.\n' + `Mensagens como texto e áudio seguem uma janela de tempo: *${formatStickerFocusRuleLabel(stickerFocusState)}*.\n` + `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${ctx.commandPrefix}chatwindow on*.`,
           });
         } catch (error) {
           logger.warn('Falha ao enviar aviso de sticker focus.', {

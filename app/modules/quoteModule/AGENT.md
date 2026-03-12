@@ -3,12 +3,14 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
+
 - arquivo_base: `app/modules/quoteModule/commandConfig.json`
 - schema_version: `2.0.0`
 - module_enabled: `true`
 - generated_at: `2026-03-11T02:35:17.177Z`
 
 ## Escopo do Modulo
+
 - module: `quoteModule`
 - source_files:
 - quoteCommand.js
@@ -16,6 +18,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_enabled_commands: `1`
 
 ## Defaults Schema v2
+
 - inheritance_mode: deep_merge_with_command_overrides
 - compatibility_mode: legacy_and_v2_fields
 - legacy_field_aliases:
@@ -50,6 +53,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - requer_mensagem_respondida: nao
 
 ## Protocolo de Resposta para IA
+
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -58,13 +62,16 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
+
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
+
 ### citar
+
 - id: quote.citar
 - aliases: qc, quote
 - enabled: true
@@ -83,11 +90,11 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - <prefix>qc @usuario texto
 - mensagens_uso (variantes):
 - default:
-- 🖼️ *Citar*
+- 🖼️ _Citar_
 - Use assim:
-- *<prefix>citar* sua mensagem
+- _<prefix>citar_ sua mensagem
 - Ou responda uma mensagem com:
-- *<prefix>citar*
+- _<prefix>citar_
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -164,7 +171,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - docs:
 - summary: Transforma texto em figurinha estilo quote.
 - usage_examples: <prefix>citar seu texto, <prefix>qc @usuario texto
-- usage_variants.default: 🖼️ *Citar*, , Use assim:, *<prefix>citar* sua mensagem, , Ou responda uma mensagem com:, *<prefix>citar*
+- usage*variants.default: 🖼️ \_Citar*, , Use assim:, _<prefix>citar_ sua mensagem, , Ou responda uma mensagem com:, _<prefix>citar_
 - behavior:
 - type: argument_driven
 - allowed_actions: (nenhum)

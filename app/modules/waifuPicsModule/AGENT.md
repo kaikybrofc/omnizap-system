@@ -3,12 +3,14 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
+
 - arquivo_base: `app/modules/waifuPicsModule/commandConfig.json`
 - schema_version: `2.0.0`
 - module_enabled: `true`
 - generated_at: `2026-03-11T02:35:17.177Z`
 
 ## Escopo do Modulo
+
 - module: `waifuPicsModule`
 - source_files:
 - waifuPicsCommand.js
@@ -16,6 +18,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_enabled_commands: `3`
 
 ## Defaults Schema v2
+
 - inheritance_mode: deep_merge_with_command_overrides
 - compatibility_mode: legacy_and_v2_fields
 - legacy_field_aliases:
@@ -50,6 +53,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - requer_mensagem_respondida: nao
 
 ## Protocolo de Resposta para IA
+
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -58,13 +62,16 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
+
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
+
 ### waifu
+
 - id: waifupics.waifu
 - aliases: waifupics, wp
 - enabled: true
@@ -83,8 +90,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - <prefix>wp neko
 - mensagens_uso (variantes):
 - default:
-- 💡 *Uso:* <prefix>waifu <categoria>
-Exemplo: <prefix>waifu neko
+- 💡 _Uso:_ <prefix>waifu <categoria>
+  Exemplo: <prefix>waifu neko
 - Dica: Use <prefix>waifuajuda para ver todas as categorias! 🎨
 - subcomandos:
 - (nenhum)
@@ -185,6 +192,7 @@ Exemplo: <prefix>waifu neko
 - command_case: waifu
 
 ### waifunsfw
+
 - id: waifupics.waifunsfw
 - aliases: waifupicsnsfw, wpnsfw
 - enabled: true
@@ -203,8 +211,8 @@ Exemplo: <prefix>waifu neko
 - <prefix>wpnsfw waifu
 - mensagens_uso (variantes):
 - default:
-- 🔞 *Uso:* <prefix>waifunsfw <categoria>
-Exemplo: <prefix>wpnsfw blowjob
+- 🔞 _Uso:_ <prefix>waifunsfw <categoria>
+  Exemplo: <prefix>wpnsfw blowjob
 - Atenção: O grupo deve estar com NSFW ligado!
 - subcomandos:
 - (nenhum)
@@ -306,6 +314,7 @@ Exemplo: <prefix>wpnsfw blowjob
 - command_case: waifunsfw
 
 ### waifuajuda
+
 - id: waifupics.waifuajuda
 - aliases: wppicshelp
 - enabled: true
@@ -323,7 +332,7 @@ Exemplo: <prefix>wpnsfw blowjob
 - <prefix>waifuajuda
 - mensagens_uso (variantes):
 - default:
-- 📖 *Guia Rápido:* Digite <prefix>waifuajuda para ver as categorias SFW e NSFW disponíveis.
+- 📖 _Guia Rápido:_ Digite <prefix>waifuajuda para ver as categorias SFW e NSFW disponíveis.
 - Use <prefix>waifu <categoria> para receber uma imagem!
 - subcomandos:
 - (nenhum)

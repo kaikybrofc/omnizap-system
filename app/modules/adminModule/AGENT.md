@@ -3,12 +3,14 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
+
 - arquivo_base: `app/modules/adminModule/commandConfig.json`
 - schema_version: `2.0.0`
 - module_enabled: `true`
 - generated_at: `2026-03-11T02:35:17.177Z`
 
 ## Escopo do Modulo
+
 - module: `adminModule`
 - source_files:
 - groupCommandHandlers.js
@@ -18,6 +20,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_enabled_commands: `32`
 
 ## Defaults Schema v2
+
 - inheritance_mode: deep_merge_with_command_overrides
 - compatibility_mode: legacy_and_v2_fields
 - legacy_field_aliases:
@@ -52,6 +55,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - requer_mensagem_respondida: nao
 
 ## Configuracao AI Help
+
 - enabled: true
 - mode: hybrid_rag
 - rag_sources:
@@ -67,6 +71,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - llm.timeout_ms: 25000
 
 ## Protocolo de Resposta para IA
+
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -75,13 +80,16 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
+
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
+
 ### menuadmin
+
 - id: admin.menuadmin
 - aliases: adm, menuadm
 - enabled: true
@@ -216,6 +224,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: menuadm
 
 ### premium
+
 - id: admin.premium
 - aliases: vip
 - enabled: true
@@ -346,6 +355,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: premium
 
 ### nsfw
+
 - id: admin.nsfw
 - aliases: (nenhum)
 - enabled: true
@@ -469,6 +479,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: nsfw
 
 ### autofigurinha
+
 - id: admin.autofigurinha
 - aliases: autosticker
 - enabled: true
@@ -592,6 +603,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: autosticker
 
 ### modofigurinha
+
 - id: admin.modofigurinha
 - aliases: smode, stickermode
 - enabled: true
@@ -715,6 +727,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: stickermode
 
 ### janelachat
+
 - id: admin.janelachat
 - aliases: chat, chatwindow
 - enabled: true
@@ -840,6 +853,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: chatwindow
 
 ### limitefigurinha
+
 - id: admin.limitefigurinha
 - aliases: smsglimit, stickertextlimit, stextlimit, stickermsglimit
 - enabled: true
@@ -963,6 +977,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: stickermsglimit
 
 ### novogrupo
+
 - id: admin.novogrupo
 - aliases: newgroup
 - enabled: true
@@ -1083,6 +1098,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: newgroup
 
 ### adicionar
+
 - id: admin.adicionar
 - aliases: add
 - enabled: true
@@ -1205,6 +1221,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: add
 
 ### banir
+
 - id: admin.banir
 - aliases: remover, ban
 - enabled: true
@@ -1327,6 +1344,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: ban
 
 ### promover
+
 - id: admin.promover
 - aliases: up
 - enabled: true
@@ -1449,6 +1467,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: up
 
 ### rebaixar
+
 - id: admin.rebaixar
 - aliases: down
 - enabled: true
@@ -1571,6 +1590,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: down
 
 ### assunto
+
 - id: admin.assunto
 - aliases: setsubject
 - enabled: true
@@ -1690,6 +1710,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: setsubject
 
 ### descricao
+
 - id: admin.descricao
 - aliases: setdesc
 - enabled: true
@@ -1809,6 +1830,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: setdesc
 
 ### configgrupo
+
 - id: admin.configgrupo
 - aliases: setgroup
 - enabled: true
@@ -1935,6 +1957,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: setgroup
 
 ### sair
+
 - id: admin.sair
 - aliases: leave
 - enabled: true
@@ -2052,6 +2075,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: leave
 
 ### convite
+
 - id: admin.convite
 - aliases: invite
 - enabled: true
@@ -2169,6 +2193,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: invite
 
 ### revogarconvite
+
 - id: admin.revogarconvite
 - aliases: revoke
 - enabled: true
@@ -2286,6 +2311,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: revoke
 
 ### entrar
+
 - id: admin.entrar
 - aliases: join
 - enabled: true
@@ -2404,6 +2430,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: join
 
 ### infoconvite
+
 - id: admin.infoconvite
 - aliases: infofrominvite
 - enabled: true
@@ -2522,6 +2549,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: infofrominvite
 
 ### metadados
+
 - id: admin.metadados
 - aliases: metadata
 - enabled: true
@@ -2642,6 +2670,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: metadata
 
 ### solicitacoes
+
 - id: admin.solicitacoes
 - aliases: requests
 - enabled: true
@@ -2759,6 +2788,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: requests
 
 ### atualizarsolicitacoes
+
 - id: admin.atualizarsolicitacoes
 - aliases: updaterequests
 - enabled: true
@@ -2888,6 +2918,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: updaterequests
 
 ### autosolicitacoes
+
 - id: admin.autosolicitacoes
 - aliases: autorequests
 - enabled: true
@@ -3011,6 +3042,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: autorequests
 
 ### temporarias
+
 - id: admin.temporarias
 - aliases: temp
 - enabled: true
@@ -3128,6 +3160,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: temp
 
 ### modoadicao
+
 - id: admin.modoadicao
 - aliases: addmode
 - enabled: true
@@ -3246,6 +3279,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: addmode
 
 ### prefixo
+
 - id: admin.prefixo
 - aliases: prefix
 - enabled: true
@@ -3369,6 +3403,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: prefix
 
 ### boasvindas
+
 - id: admin.boasvindas
 - aliases: welcome
 - enabled: true
@@ -3498,6 +3533,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: welcome
 
 ### despedida
+
 - id: admin.despedida
 - aliases: farewell
 - enabled: true
@@ -3627,6 +3663,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: farewell
 
 ### captcha
+
 - id: admin.captcha
 - aliases: (nenhum)
 - enabled: true
@@ -3750,6 +3787,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: captcha
 
 ### antilink
+
 - id: admin.antilink
 - aliases: (nenhum)
 - enabled: true
@@ -3893,6 +3931,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - command_case: antilink
 
 ### noticias
+
 - id: admin.noticias
 - aliases: news, noticia
 - enabled: true

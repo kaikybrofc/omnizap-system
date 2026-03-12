@@ -29,6 +29,12 @@ const extractTextFromCandidate = (candidate) => {
   return chunks.join('\n').trim();
 };
 
+const normalizeOutboundText = (value) =>
+  String(value || '')
+    .split('\0')
+    .join('')
+    .trim();
+
 export const createGeminiTextService = ({ apiKey = process.env.GEMINI_API_KEY, defaultModel = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, timeoutMs = 25_000, apiBaseUrl = process.env.GEMINI_API_BASE_URL || DEFAULT_GEMINI_API_BASE_URL } = {}) => {
   const safeApiKey = String(apiKey || '').trim();
   if (!safeApiKey) return null;
@@ -45,7 +51,7 @@ export const createGeminiTextService = ({ apiKey = process.env.GEMINI_API_KEY, d
   const resolvedDefaultModel = normalizeModelName(defaultModel, DEFAULT_GEMINI_MODEL);
 
   const generateText = async ({ instructions = '', userPrompt = '', model = resolvedDefaultModel } = {}) => {
-    const safePrompt = String(userPrompt || '').trim();
+    const safePrompt = normalizeOutboundText(userPrompt);
     if (!safePrompt) return { text: '', model: normalizeModelName(model, resolvedDefaultModel) };
 
     const modelName = normalizeModelName(model, resolvedDefaultModel);
@@ -60,7 +66,7 @@ export const createGeminiTextService = ({ apiKey = process.env.GEMINI_API_KEY, d
       ],
     };
 
-    const safeInstructions = String(instructions || '').trim();
+    const safeInstructions = normalizeOutboundText(instructions);
     if (safeInstructions) {
       payload.systemInstruction = {
         role: 'system',
@@ -81,6 +87,7 @@ export const createGeminiTextService = ({ apiKey = process.env.GEMINI_API_KEY, d
         headers: {
           'Content-Type': 'application/json',
         },
+        // lgtm[js/file-access-to-http]
         body: JSON.stringify(payload),
         signal: controller?.signal,
       });

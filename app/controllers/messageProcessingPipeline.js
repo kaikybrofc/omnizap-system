@@ -437,7 +437,12 @@ const resolveCanonicalSenderJidForContext = async (ctx) => {
 const resolveSenderAdminForContext = async (ctx, { mode = 'identity' } = {}) => {
   if (!ctx.isGroupMessage) return false;
 
-  const normalizedMode = String(mode || '').trim().toLowerCase() === 'jid' ? 'jid' : 'identity';
+  const normalizedMode =
+    String(mode || '')
+      .trim()
+      .toLowerCase() === 'jid'
+      ? 'jid'
+      : 'identity';
   const memoKey = normalizedMode === 'jid' ? 'senderAdminByJidPromise' : 'senderAdminByIdentityPromise';
   if (!ctx.memo[memoKey]) {
     const adminTarget = normalizedMode === 'jid' ? ctx.senderJid : ctx.senderIdentity;
@@ -558,15 +563,7 @@ const createMessagePipelineContext = async ({ messageInfo, upsertType, isNotifyU
   };
 };
 
-const {
-  touchSenderLastSeenMiddleware,
-  ignoreUnprocessableMessageMiddleware,
-  applyGroupPolicyMiddleware,
-  resolveCaptchaMiddleware,
-  handleStartLoginTriggerMiddleware,
-  detectCommandIntentMiddleware,
-  applyStickerFocusMiddleware,
-} = createPreProcessingMiddlewares({
+const { touchSenderLastSeenMiddleware, ignoreUnprocessableMessageMiddleware, applyGroupPolicyMiddleware, resolveCaptchaMiddleware, handleStartLoginTriggerMiddleware, detectCommandIntentMiddleware, applyStickerFocusMiddleware } = createPreProcessingMiddlewares({
   executeQuery,
   TABLES,
   isStatusJid,
@@ -644,18 +641,7 @@ const runPostProcessingMiddleware = createPostProcessingMiddleware({
   normalizeAnalysisErrorCode,
 });
 
-const MESSAGE_PIPELINE_MIDDLEWARES = [
-  touchSenderLastSeenMiddleware,
-  ignoreUnprocessableMessageMiddleware,
-  applyGroupPolicyMiddleware,
-  resolveCaptchaMiddleware,
-  handleStartLoginTriggerMiddleware,
-  detectCommandIntentMiddleware,
-  applyStickerFocusMiddleware,
-  routeConversationMiddleware,
-  executeCommandMiddleware,
-  runPostProcessingMiddleware,
-];
+const MESSAGE_PIPELINE_MIDDLEWARES = [touchSenderLastSeenMiddleware, ignoreUnprocessableMessageMiddleware, applyGroupPolicyMiddleware, resolveCaptchaMiddleware, handleStartLoginTriggerMiddleware, detectCommandIntentMiddleware, applyStickerFocusMiddleware, routeConversationMiddleware, executeCommandMiddleware, runPostProcessingMiddleware];
 
 const runMessagePipeline = async (ctx) => {
   for (const middleware of MESSAGE_PIPELINE_MIDDLEWARES) {

@@ -1,12 +1,4 @@
-export const createPostProcessingMiddleware = ({
-  runCommand,
-  maybeCaptureIncomingSticker,
-  extractSupportedStickerMediaDetails,
-  ensureGroupConfigForContext,
-  mergeAnalysisMetadata,
-  processSticker,
-  normalizeAnalysisErrorCode,
-}) => {
+export const createPostProcessingMiddleware = ({ runCommand, maybeCaptureIncomingSticker, extractSupportedStickerMediaDetails, ensureGroupConfigForContext, mergeAnalysisMetadata, processSticker, normalizeAnalysisErrorCode }) => {
   return async (ctx) => {
     if (!ctx.isMessageFromBot) {
       await runCommand('pack-capture', () =>

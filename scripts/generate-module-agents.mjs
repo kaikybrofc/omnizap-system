@@ -224,7 +224,9 @@ const normalizeCommand = (command = {}, moduleDefaults = {}) => {
   };
 
   const argsRaw = ensureArray(mergedCommand.arguments).length ? mergedCommand.arguments : mergedCommand.argumentos;
-  const normalizedArguments = ensureArray(argsRaw).map((entry) => normalizeArgument(entry)).filter(Boolean);
+  const normalizedArguments = ensureArray(argsRaw)
+    .map((entry) => normalizeArgument(entry))
+    .filter(Boolean);
 
   const usage = unique(ensureArray(pickFirst(mergedCommand.usage, mergedCommand.metodos_de_uso, docs.usage_examples)));
   const usageVariants = deepMerge(docs.usage_variants, mergedCommand.mensagens_uso);
@@ -596,13 +598,18 @@ const main = async () => {
     if (onlyModule && normalizeToken(moduleDirName) !== onlyModule) continue;
 
     const configPath = path.join(modulesRoot, moduleDirName, 'commandConfig.json');
+    let raw = '';
     try {
-      await fs.access(configPath);
-    } catch {
+      raw = await fs.readFile(configPath, 'utf8');
+    } catch (error) {
+      if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') {
+        continue;
+      }
+      throw error;
+    }
+    if (!raw) {
       continue;
     }
-
-    const raw = await fs.readFile(configPath, 'utf8');
     const config = JSON.parse(raw);
     const markdown = buildAgentMarkdown({ moduleDirName, config });
     const targetPath = path.join(modulesRoot, moduleDirName, 'AGENT.md');

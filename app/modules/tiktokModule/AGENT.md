@@ -3,12 +3,14 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
+
 - arquivo_base: `app/modules/tiktokModule/commandConfig.json`
 - schema_version: `2.0.0`
 - module_enabled: `true`
 - generated_at: `2026-03-11T02:35:17.177Z`
 
 ## Escopo do Modulo
+
 - module: `tiktokModule`
 - source_files:
 - tiktokCommand.js
@@ -16,6 +18,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_enabled_commands: `1`
 
 ## Defaults Schema v2
+
 - inheritance_mode: deep_merge_with_command_overrides
 - compatibility_mode: legacy_and_v2_fields
 - legacy_field_aliases:
@@ -50,6 +53,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - requer_mensagem_respondida: nao
 
 ## Protocolo de Resposta para IA
+
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -58,13 +62,16 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
+
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
+
 ### baixartiktok
+
 - id: tiktok.baixartiktok
 - aliases: tt, tiktok
 - enabled: true
@@ -83,9 +90,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - <prefix>tt <url1> <url2>
 - mensagens_uso (variantes):
 - default:
-- 🎬 *Baixartiktok Downloader*
-- Uso: *<prefix>baixartiktok <link1> [link2 ...]*
-- Exemplo: *<prefix>baixartiktok https://www.baixartiktok.com/@usuario/video/123*
+- 🎬 _Baixartiktok Downloader_
+- Uso: _<prefix>baixartiktok <link1> [link2 ...]_
+- Exemplo: _<prefix>baixartiktok https://www.baixartiktok.com/@usuario/video/123_
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -161,7 +168,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - docs:
 - summary: Baixa midia do TikTok sem marca d'agua.
 - usage_examples: <prefix>baixartiktok <url>, <prefix>tt <url1> <url2>
-- usage_variants.default: 🎬 *Baixartiktok Downloader*, , Uso: *<prefix>baixartiktok <link1> [link2 ...]*, , Exemplo: *<prefix>baixartiktok https://www.baixartiktok.com/@usuario/video/123*
+- usage*variants.default: 🎬 \_Baixartiktok Downloader*, , Uso: _<prefix>baixartiktok <link1> [link2 ...]_, , Exemplo: _<prefix>baixartiktok https://www.baixartiktok.com/@usuario/video/123_
 - behavior:
 - type: argument_driven
 - allowed_actions: (nenhum)
