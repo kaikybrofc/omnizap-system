@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 import logger from '#logger';
+import { isGroupJid } from '../../config/index.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { getWaifuPicsCommandEntry, getWaifuPicsTextConfig, getWaifuPicsUsageText as getWaifuPicsRuntimeUsageText, resolveWaifuPicsCommandName } from './waifuPicsConfigRuntime.js';
@@ -268,6 +269,7 @@ export async function handleWaifuPicsCommand({ sock, remoteJid, messageInfo, exp
   const categoryList = resolveCommandCategories(definition);
   const fallbackCategory = resolveDefaultCategory(definition, categoryList);
   const category = (text || '').trim().toLowerCase() || fallbackCategory;
+  const isGroupMessage = isGroupJid(remoteJid);
 
   // Verifica se o recurso NSFW está habilitado globalmente via variáveis de ambiente.
   if (definition.type === 'nsfw' && !WAIFU_PICS_ALLOW_NSFW) {
@@ -283,8 +285,8 @@ export async function handleWaifuPicsCommand({ sock, remoteJid, messageInfo, exp
     return;
   }
 
-  // Verifica se o recurso NSFW está habilitado especificamente para o grupo atual.
-  if (definition.type === 'nsfw') {
+  // Em grupo, exige NSFW ativo na configuração local; no privado, essa trava não se aplica.
+  if (definition.type === 'nsfw' && isGroupMessage) {
     const config = await groupConfigStore.getGroupConfig(remoteJid);
     if (!config?.nsfwEnabled) {
       const permissionText = applyCommandPrefix(resolveResponseText(definition.entry, 'permission_error', ''), commandPrefix);
