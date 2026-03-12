@@ -65,14 +65,14 @@
     "dependencies": ["Waifu.pics API"],
     "dependencias_externas": ["Waifu.pics API"],
     "responses": {
-      "success": "Prontinho! Aqui está sua imagem. ✨",
-      "usage_error": "Ops! Parece que você esqueceu a categoria. Use <prefix>waifuajuda para ver as opções disponíveis. 🧐",
-      "permission_error": "Eita! Você não tem permissão para usar este comando. Entre em contato com um administrador. 🔐"
+      "success": "✅ Pedido recebido! Aqui vai sua imagem.\nDica: você pode pedir outra categoria no próximo comando (ex.: <prefix>waifu neko).",
+      "usage_error": "❗ Não entendi o formato do comando.\nExemplos:\n• <prefix>waifu neko\n• <prefix>waifunsfw waifu\nPara ver todas as categorias: <prefix>waifuajuda",
+      "permission_error": "🔒 Este comando não está liberado para você neste contexto.\nSe for NSFW em grupo, peça para um admin usar <prefix>nsfw on."
     },
     "respostas_padrao": {
-      "sucesso": "Prontinho! Aqui está sua imagem. ✨",
-      "erro_uso": "Ops! Parece que você esqueceu a categoria. Use <prefix>waifuajuda para ver as opções disponíveis. 🧐",
-      "erro_permissao": "Eita! Você não tem permissão para usar este comando. Entre em contato com um administrador. 🔐"
+      "sucesso": "✅ Pedido recebido! Aqui vai sua imagem.\nDica: você pode pedir outra categoria no próximo comando (ex.: <prefix>waifu neko).",
+      "erro_uso": "❗ Não entendi o formato do comando.\nExemplos:\n• <prefix>waifu neko\n• <prefix>waifunsfw waifu\nPara ver todas as categorias: <prefix>waifuajuda",
+      "erro_permissao": "🔒 Este comando não está liberado para você neste contexto.\nSe for NSFW em grupo, peça para um admin usar <prefix>nsfw on."
     },
     "observability": {
       "event_name": "command.executed",
@@ -179,9 +179,9 @@
       "dependencias_externas": ["Waifu.pics API"],
       "efeitos_colaterais": ["consulta API externa", "envia imagem no chat"],
       "respostas_padrao": {
-        "sucesso": "Comando executado com sucesso.",
-        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
-        "erro_permissao": "Permissão insuficiente para executar este comando."
+        "sucesso": "✅ Imagem enviada com sucesso!\nExemplo de próximo pedido: <prefix>waifu hug",
+        "erro_uso": "❗ Categoria inválida ou ausente.\nExemplos: <prefix>waifu neko | <prefix>wp waifu\nVeja a lista completa em <prefix>waifuajuda.",
+        "erro_permissao": "🔒 Não consegui liberar este pedido para seu perfil.\nSe achar que é engano, verifique seu plano e tente novamente."
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_wp",
@@ -214,7 +214,7 @@
         }
       },
       "mensagens_uso": {
-        "default": ["💡 *Uso:* <prefix>waifu <categoria>\nExemplo: <prefix>waifu neko", "Dica: Use <prefix>waifuajuda para ver todas as categorias! 🎨"]
+        "default": ["🖼️ *Como usar:* <prefix>waifu <categoria>", "Exemplos rápidos: <prefix>waifu neko | <prefix>wp hug", "Quer ver todas as categorias disponíveis? Use <prefix>waifuajuda."]
       },
       "id": "waifupics.waifu",
       "description": "Receba uma imagem incrível de anime (SFW)! Escolha uma categoria como 'neko' ou 'waifu'. ✨",
@@ -397,9 +397,9 @@
       "dependencias_externas": ["Waifu.pics API", "configuração de NSFW por grupo"],
       "efeitos_colaterais": ["consulta API externa", "envia imagem NSFW no chat"],
       "respostas_padrao": {
-        "sucesso": "Comando executado com sucesso.",
-        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
-        "erro_permissao": "Permissão insuficiente para executar este comando."
+        "sucesso": "🔞 Imagem NSFW enviada.\nExemplo de próximo pedido: <prefix>waifunsfw neko",
+        "erro_uso": "❗ Categoria NSFW inválida ou ausente.\nExemplos: <prefix>waifunsfw waifu | <prefix>wpnsfw neko\nVeja opções em <prefix>waifuajuda.",
+        "erro_permissao": "🔒 Este comando NSFW exige acesso Premium.\nEm grupos, também é preciso NSFW ativo com <prefix>nsfw on."
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_wpnsfw",
@@ -432,7 +432,7 @@
         }
       },
       "mensagens_uso": {
-        "default": ["🔞 *Uso:* <prefix>waifunsfw <categoria>\nExemplo: <prefix>wpnsfw blowjob", "Atenção: O grupo deve estar com NSFW ligado!"]
+        "default": ["🔞 *Como usar:* <prefix>waifunsfw <categoria>", "Exemplos rápidos: <prefix>waifunsfw waifu | <prefix>wpnsfw neko", "Pré-requisitos: plano Premium; em grupo, NSFW ativo com <prefix>nsfw on."]
       },
       "id": "waifupics.waifunsfw",
       "description": "Mande aquela imagem picante (NSFW). Exige que o grupo autorize! 🔞",
@@ -607,9 +607,9 @@
       "dependencias_externas": ["Waifu.pics API"],
       "efeitos_colaterais": ["envia mensagem de ajuda"],
       "respostas_padrao": {
-        "sucesso": "Comando executado com sucesso.",
-        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
-        "erro_permissao": "Permissão insuficiente para executar este comando."
+        "sucesso": "📚 Guia enviado com sucesso.\nAgora experimente: <prefix>waifu neko",
+        "erro_uso": "ℹ️ Este comando não precisa de argumentos.\nUse apenas: <prefix>waifuajuda",
+        "erro_permissao": "🔒 Não consegui mostrar o guia neste contexto.\nTente novamente no privado ou em um grupo permitido."
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_wppicshelp",
@@ -642,7 +642,7 @@
         }
       },
       "mensagens_uso": {
-        "default": ["📖 *Guia Rápido:* Digite <prefix>waifuajuda para ver as categorias SFW e NSFW disponíveis.", "Use <prefix>waifu <categoria> para receber uma imagem!"]
+        "default": ["📖 *Como usar:* <prefix>waifuajuda", "Depois do guia, teste: <prefix>waifu neko", "Para NSFW: <prefix>waifunsfw waifu (Premium; em grupo exige <prefix>nsfw on)."]
       },
       "id": "waifupics.waifuajuda",
       "description": "Veja todas as categorias de fotos anime que eu posso te enviar! 📖",
