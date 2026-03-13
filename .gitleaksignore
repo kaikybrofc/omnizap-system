@@ -1,0 +1,9 @@
+# Known false positives for migration identifiers and sanitized message fixtures.
+# Fingerprints are stable by commit:path:rule:line.
+7f8d845f120ccb0edb82a8b2f8f813aadb48a180:database/migrations/20260307_d0_hardening_down.sql:generic-api-key:5
+7f8d845f120ccb0edb82a8b2f8f813aadb48a180:database/migrations/20260307_d0_hardening_up.sql:generic-api-key:6
+7f8d845f120ccb0edb82a8b2f8f813aadb48a180:docs/database/production-db-evolution-runbook-2026q1.md:generic-api-key:55
+698dcd6f1c07af00cd91871128e1ed99f36ed9ff:temp/messages.json:generic-api-key:16
+698dcd6f1c07af00cd91871128e1ed99f36ed9ff:temp/messages.json:generic-api-key:24
+698dcd6f1c07af00cd91871128e1ed99f36ed9ff:temp/messages.json:generic-api-key:43
+698dcd6f1c07af00cd91871128e1ed99f36ed9ff:temp/messages.json:generic-api-key:79
