@@ -462,14 +462,14 @@ const App = () => {
             <div className="flex items-center gap-2 sm:gap-4">
               ${session?.user
                 ? html`
-                    <a href="/user/" className="group relative flex items-center gap-3 pl-1 pr-4 py-1.5 rounded-2xl bg-white/5 border border-white/10 hover:border-primary/40 transition-all duration-300">
-                      <div className="relative">
+                    <a href="/user/" className="group relative flex items-center h-10 gap-3 px-1.5 sm:pr-4 rounded-2xl bg-white/5 border border-white/10 hover:border-primary/40 transition-all duration-300">
+                      <div className="relative flex-shrink-0">
                         <img src=${authInfo.image} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover border border-white/10 group-hover:border-primary/50 transition-colors" />
                         <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-success border-2 border-[#020617] rounded-full"></div>
                       </div>
-                      <div className="hidden sm:flex flex-col items-start -gap-1">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-white/40 group-hover:text-primary transition-colors">${authInfo.label}</span>
-                        <span className="text-[8px] font-bold text-white/20 uppercase tracking-tighter">Painel de Controle</span>
+                      <div className="hidden sm:flex flex-col items-start gap-0">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-white/40 group-hover:text-primary transition-colors leading-tight">${authInfo.label}</span>
+                        <span className="text-[8px] font-bold text-white/20 uppercase tracking-tighter leading-tight">Painel de Controle</span>
                       </div>
                     </a>
                   `
