@@ -422,7 +422,6 @@ const processLearningBatch = async ({ reason = 'scheduler' } = {}) => {
     }
 
     if (!events.length) {
-
       logger.info('Nenhum evento pendente para aprendizado IA.', {
         action: 'ai_learning_batch_processed',
         reason,
