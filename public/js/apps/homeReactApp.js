@@ -4,7 +4,7 @@ import htm from 'htm';
 
 const html = htm.bind(React.createElement);
 
-const FALLBACK_THUMB_URL = '/assets/images/brand-logo-128.webp';
+const FALLBACK_THUMB_URL = '/apple-touch-icon.png';
 const HOME_BOOTSTRAP_ENDPOINT = '/api/home-bootstrap';
 const COMMANDS_CATALOG_ENDPOINT = '/comandos/commands-catalog.json';
 const SOCIAL_PROOF_REFRESH_MS = 15_000;
@@ -441,7 +441,7 @@ const App = () => {
           <div className="flex h-16 items-center justify-between gap-4">
             <div className="flex-1">
               <a href="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <img src="/assets/images/brand-logo-128.webp" className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl shadow-sm" alt="Logo" />
+                <img src="/apple-touch-icon.png" className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl shadow-sm" alt="Logo" />
                 <span className="text-base sm:text-lg font-black tracking-tight">OmniZap<span className="text-primary">.</span></span>
               </a>
             </div>
@@ -879,7 +879,7 @@ const App = () => {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-12 mb-12 text-center lg:text-left">
             <div className="col-span-2 lg:col-span-1 space-y-4">
               <div className="flex items-center justify-center lg:justify-start gap-2">
-                <img src="/assets/images/brand-logo-128.webp" className="w-8 h-8 rounded-lg" />
+                <img src="/apple-touch-icon.png" className="w-8 h-8 rounded-lg" />
                 <span className="text-xl font-black tracking-tighter">OmniZap<span className="text-primary">.</span></span>
               </div>
               <p className="text-xs text-white/30 leading-relaxed font-medium">
