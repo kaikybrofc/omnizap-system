@@ -49,6 +49,8 @@ let cachedClient = null;
 let lastConfigSeedSignature = '';
 let nextConfigSeedAt = 0;
 
+const hasOpenAiApiKey = () => Boolean(String(process.env.OPENAI_API_KEY || '').trim());
+
 const normalizeText = (value) =>
   String(value || '')
     .trim()
@@ -191,7 +193,8 @@ const getOpenAIClient = () => {
 
 const isWorkerReady = () => {
   if (!AI_LEARNING_WORKER_ENABLED) return false;
-  if (!process.env.OPENAI_API_KEY) return false;
+  if (AI_LEARNING_WORKER_CONFIG_SEED_ENABLED) return true;
+  if (!hasOpenAiApiKey()) return false;
   return true;
 };
 
@@ -401,23 +404,24 @@ const processLearningBatch = async ({ reason = 'scheduler' } = {}) => {
       return;
     }
 
+    let configSeedResult = {
+      executed: false,
+      skipped: 'disabled',
+      insertedPatterns: 0,
+      insertedKeywords: 0,
+      toolCount: 0,
+    };
+    try {
+      configSeedResult = await seedLearningFromCommandConfig({ reason });
+    } catch (error) {
+      logger.warn('Falha ao executar seed de aprendizado IA por commandConfig.', {
+        action: 'ai_learning_config_seed_failed',
+        reason,
+        error: error?.message,
+      });
+    }
+
     if (!events.length) {
-      let configSeedResult = {
-        executed: false,
-        skipped: 'disabled',
-        insertedPatterns: 0,
-        insertedKeywords: 0,
-        toolCount: 0,
-      };
-      try {
-        configSeedResult = await seedLearningFromCommandConfig({ reason });
-      } catch (error) {
-        logger.warn('Falha ao executar seed de aprendizado IA por commandConfig.', {
-          action: 'ai_learning_config_seed_failed',
-          reason,
-          error: error?.message,
-        });
-      }
 
       logger.info('Nenhum evento pendente para aprendizado IA.', {
         action: 'ai_learning_batch_processed',
@@ -426,6 +430,30 @@ const processLearningBatch = async ({ reason = 'scheduler' } = {}) => {
         processed_events: 0,
         generated_patterns: configSeedResult.insertedPatterns,
         generated_keywords: configSeedResult.insertedKeywords,
+        config_seed_enabled: AI_LEARNING_WORKER_CONFIG_SEED_ENABLED,
+        config_seed_executed: configSeedResult.executed,
+        config_seed_skipped: configSeedResult.skipped,
+        config_seed_tool_count: configSeedResult.toolCount,
+        duration_ms: Date.now() - startedAt,
+      });
+      return;
+    }
+
+    if (!hasOpenAiApiKey()) {
+      logger.warn('Eventos pendentes de aprendizado IA foram ignorados por ausencia de OPENAI_API_KEY.', {
+        action: 'ai_learning_pending_events_skipped_no_api_key',
+        reason,
+        pending_events: events.length,
+      });
+      logger.info('Batch de aprendizado IA processado com seed de commandConfig e sem processamento LLM.', {
+        action: 'ai_learning_batch_processed',
+        reason,
+        fetched_events: events.length,
+        processed_events: 0,
+        successful_events: 0,
+        generated_patterns: configSeedResult.insertedPatterns,
+        generated_keywords: configSeedResult.insertedKeywords,
+        skipped_events_no_api_key: events.length,
         config_seed_enabled: AI_LEARNING_WORKER_CONFIG_SEED_ENABLED,
         config_seed_executed: configSeedResult.executed,
         config_seed_skipped: configSeedResult.skipped,
@@ -500,8 +528,16 @@ const processLearningBatch = async ({ reason = 'scheduler' } = {}) => {
       fetched_events: events.length,
       processed_events: processedEventIds.length,
       successful_events: successfulEvents,
-      generated_patterns: generatedPatterns,
-      generated_keywords: generatedKeywords,
+      generated_patterns: generatedPatterns + configSeedResult.insertedPatterns,
+      generated_keywords: generatedKeywords + configSeedResult.insertedKeywords,
+      generated_patterns_from_events: generatedPatterns,
+      generated_keywords_from_events: generatedKeywords,
+      generated_patterns_from_config_seed: configSeedResult.insertedPatterns,
+      generated_keywords_from_config_seed: configSeedResult.insertedKeywords,
+      config_seed_enabled: AI_LEARNING_WORKER_CONFIG_SEED_ENABLED,
+      config_seed_executed: configSeedResult.executed,
+      config_seed_skipped: configSeedResult.skipped,
+      config_seed_tool_count: configSeedResult.toolCount,
       duration_ms: Date.now() - startedAt,
     });
   } finally {
@@ -513,9 +549,11 @@ export const startAiLearningWorker = () => {
   if (schedulerStarted) return;
 
   if (!isWorkerReady()) {
-    logger.info('Worker de aprendizado IA desativado ou sem API key.', {
+    logger.info('Worker de aprendizado IA desativado ou sem condicao minima de execucao.', {
       action: 'ai_learning_worker_disabled',
       enabled: AI_LEARNING_WORKER_ENABLED,
+      has_openai_api_key: hasOpenAiApiKey(),
+      config_seed_enabled: AI_LEARNING_WORKER_CONFIG_SEED_ENABLED,
     });
     return;
   }
