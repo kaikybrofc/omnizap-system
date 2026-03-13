@@ -886,7 +886,7 @@ const App = () => {
           </div>
 
           <div className="border-t border-white/5 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-[10px] font-bold uppercase tracking-[0.2em] text-white/20">
-            <span>© 2026 OMNIZAP SYSTEM</span>
+            <span>© 2026 OMNIZAP</span>
             <div className="flex items-center gap-4">
               <span>STATUS: <span className="text-success">${metrics.status}</span></span>
               <span className="text-white/10">•</span>

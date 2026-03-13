@@ -482,7 +482,7 @@ const LoginApp = ({ config }) => {
 
       <footer className="py-12 border-t border-base-200">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-base-content/20">© 2026 OMNIZAP SYSTEM · SECURE LOGIN V2</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-base-content/20">© 2026 OMNIZAP · SECURE LOGIN V2</p>
         </div>
       </footer>
     </div>

@@ -1,6 +1,6 @@
 # OmniZap Wiki
 
-Bem-vindo à wiki oficial do **OmniZap System**.
+Bem-vindo à wiki oficial do **Omnizap**.
 
 Esta página é o ponto de entrada para entender o projeto, subir o ambiente local e navegar pelos principais fluxos técnicos e operacionais.
 

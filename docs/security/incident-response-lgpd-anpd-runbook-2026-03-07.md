@@ -1,7 +1,7 @@
 # Runbook de Resposta a Incidentes (LGPD/ANPD)
 
 Data: 2026-03-07  
-Escopo: segurança, privacidade e continuidade operacional do OmniZap System.
+Escopo: segurança, privacidade e continuidade operacional do Omnizap.
 
 ## 1) Objetivo
 

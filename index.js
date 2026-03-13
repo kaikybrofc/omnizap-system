@@ -1,5 +1,5 @@
 /**
- * Entry-point (bootstrap) do OmniZap System.
+ * Entry-point (bootstrap) do Omnizap.
  *
  * Responsabilidades principais:
  * - Inicializar o banco (garantindo DB e tabelas).
@@ -186,7 +186,7 @@ async function closeDatabasePool() {
  */
 async function startApp() {
   try {
-    logger.info('Iniciando OmniZap System...');
+    logger.info('Iniciando Omnizap...');
 
     const shouldValidateCommandConfigs = process.env.COMMAND_CONFIG_VALIDATE_ON_BOOT !== 'false';
     if (shouldValidateCommandConfigs) {
@@ -250,14 +250,14 @@ async function startApp() {
     await initializeNewsBroadcastService();
     logger.info('Servico de noticias pronto.');
 
-    logger.info('OmniZap System iniciado com sucesso.');
+    logger.info('Omnizap iniciado com sucesso.');
 
     // Compatível com gerenciadores que esperam "ready" via IPC.
     if (process.send) {
       process.send('ready');
     }
   } catch (err) {
-    logger.error('Falha ao iniciar o OmniZap System:', { error: err.message, stack: err.stack });
+    logger.error('Falha ao iniciar o Omnizap:', { error: err.message, stack: err.stack });
     process.exitCode = 1;
     await shutdown('STARTUP_ERROR', err);
   }
@@ -414,7 +414,7 @@ async function shutdown(signal, error) {
     // 5) Encerrar MySQL pool
     await closeDatabasePool();
 
-    logger.info('OmniZap System desligado.');
+    logger.info('Omnizap desligado.');
 
     const exitCode = Number(process.exitCode ?? (error ? 1 : 0));
     logger.info('Encerrando processo Node.', { exitCode, signal });

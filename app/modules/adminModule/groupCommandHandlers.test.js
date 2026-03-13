@@ -26,7 +26,7 @@ for (const [key, value] of Object.entries(ENV_OVERRIDES)) {
 }
 
 const originalArgv1 = process.argv[1];
-process.argv[1] = '/root/omnizap-system/database/init.js';
+process.argv[1] = new URL('../../../database/init.js', import.meta.url).pathname;
 
 let pool;
 let handleAdminCommand;

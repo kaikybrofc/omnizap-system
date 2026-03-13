@@ -158,7 +158,7 @@ export async function addStickerMetadata(stickerPath, packName, packAuthor, repl
   const pad = (n) => n.toString().padStart(2, '0');
   const dataAtual = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
   const horaAtual = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  const baseSenderName = normalizeMetadataText(senderName, 'OmniZap System');
+  const baseSenderName = normalizeMetadataText(senderName, 'Omnizap');
   const resolvedUserId = String(getJidUser(userId) || userId || '').trim();
 
   function doReplaces(str) {
@@ -169,7 +169,7 @@ export async function addStickerMetadata(stickerPath, packName, packAuthor, repl
       .replace(/#id/gi, resolvedUserId);
   }
 
-  const finalPackName = normalizeMetadataText(doReplaces(packName), 'OmniZap System');
+  const finalPackName = normalizeMetadataText(doReplaces(packName), 'Omnizap');
   const finalPackAuthor = normalizeMetadataText(doReplaces(packAuthor), baseSenderName);
 
   logger.info(`addStickerMetadata Adicionando metadados ao sticker. Nome: "${finalPackName}", Autor: "${finalPackAuthor}"`);

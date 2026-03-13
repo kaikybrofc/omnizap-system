@@ -377,7 +377,7 @@ export const executeMessageCommandRoute = async ({ command, args = [], text = ''
       });
       commandResult = await runCommand('unknown', () =>
         sendReply(sock, remoteJid, messageInfo, expirationMessage, {
-          text: globalSuggestion ? `❌ *Comando não reconhecido*\n\nO comando *${normalizedCommand}* não está configurado ou ainda não existe.\n\n${globalSuggestion}\n\nℹ️ *Dica:*  \nDigite *${commandPrefix}menu* para ver a lista geral de comandos.\n\n🚧 *Fase Beta*  \nO omnizap-system ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.` : `❌ *Comando não reconhecido*\n\nO comando *${normalizedCommand}* não está configurado ou ainda não existe.\n\nℹ️ *Dica:*  \nDigite *${commandPrefix}menu* para ver a lista de comandos disponíveis.\n\n🚧 *Fase Beta*  \nO omnizap-system ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.`,
+          text: globalSuggestion ? `❌ *Comando não reconhecido*\n\nO comando *${normalizedCommand}* não está configurado ou ainda não existe.\n\n${globalSuggestion}\n\nℹ️ *Dica:*  \nDigite *${commandPrefix}menu* para ver a lista geral de comandos.\n\n🚧 *Fase Beta*  \nO omnizap ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.` : `❌ *Comando não reconhecido*\n\nO comando *${normalizedCommand}* não está configurado ou ainda não existe.\n\nℹ️ *Dica:*  \nDigite *${commandPrefix}menu* para ver a lista de comandos disponíveis.\n\n🚧 *Fase Beta*  \nO omnizap ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.`,
         }),
       );
       break;

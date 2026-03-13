@@ -185,7 +185,7 @@ function checkMediaSize(mediaKey, mediaType, maxFileSize = MAX_FILE_SIZE) {
  */
 function parseStickerMetaText(text, senderName) {
   let packName = DEFAULT_STICKER_PACK_NAME;
-  let packAuthor = senderName || 'OmniZap System';
+  let packAuthor = senderName || 'Omnizap';
   if (text) {
     const idx = text.indexOf('/');
     if (idx !== -1) {

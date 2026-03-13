@@ -33,7 +33,7 @@ const githubFetchJson = async (url) => {
 
   const headers = {
     Accept: 'application/vnd.github+json',
-    'User-Agent': 'omnizap-system/2.1',
+    'User-Agent': 'omnizap/2.1',
   };
 
   if (GITHUB_TOKEN) {

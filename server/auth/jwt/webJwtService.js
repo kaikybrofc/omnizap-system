@@ -15,7 +15,7 @@ const clampInt = (value, fallback, min, max) => {
 };
 
 const WEB_AUTH_JWT_SECRET = String(process.env.WEB_AUTH_JWT_SECRET || '').trim();
-const WEB_AUTH_JWT_ISSUER = String(process.env.WEB_AUTH_JWT_ISSUER || 'omnizap-system').trim() || 'omnizap-system';
+const WEB_AUTH_JWT_ISSUER = String(process.env.WEB_AUTH_JWT_ISSUER || 'omnizap').trim() || 'omnizap';
 const WEB_AUTH_JWT_AUDIENCE = String(process.env.WEB_AUTH_JWT_AUDIENCE || 'omnizap-web').trim() || 'omnizap-web';
 const WEB_AUTH_JWT_EXPIRES_IN = String(process.env.WEB_AUTH_JWT_EXPIRES_IN || '7d').trim() || '7d';
 const WEB_AUTH_JWT_DISABLED = parseEnvBool(process.env.WEB_AUTH_JWT_DISABLED, false);

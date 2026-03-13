@@ -515,7 +515,7 @@ const App = () => {
 
       <footer className="mt-20 py-16 border-t border-base-200 bg-base-200/20">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-base-content/20">© 2026 OMNIZAP SYSTEM · COMMANDS LIBRARY V3.5</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-base-content/20">© 2026 OMNIZAP · COMMANDS LIBRARY V3.5</p>
         </div>
       </footer>
     </div>

@@ -1,6 +1,8 @@
-<img width="1318" height="352" alt="OmniZap banner" src="https://github.com/user-attachments/assets/d44835e7-021a-4c67-a0e7-5b858d51eb91" />
+<img width="1318" height="352" alt="OmniZap banner" src="https://iili.io/qlAYvSf.png" />
 
-# OmniZap System
+# Omnizap
+
+Projeto principal da organizacao **Omnizap**, focado em automacao para WhatsApp com bot, painel web, catalogo de figurinhas e operacao em producao.
 
 [![CI](https://github.com/Omnizap-System/omnizap/actions/workflows/ci.yml/badge.svg)](https://github.com/Omnizap-System/omnizap/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/Omnizap-System/omnizap/actions/workflows/codeql.yml/badge.svg)](https://github.com/Omnizap-System/omnizap/actions/workflows/codeql.yml)
@@ -8,103 +10,79 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 
-Plataforma open source de automação para WhatsApp com foco em figurinhas, catálogo web, painel de usuário e operação profissional em produção.
+## Organizacao e Projeto
 
----
+- Organizacao: [Omnizap](https://github.com/Omnizap-System)
+- Perfil da organizacao: [Omnizap-System/.github](https://github.com/Omnizap-System/.github)
+- Projeto principal: [Omnizap](https://github.com/Omnizap-System/omnizap)
+- Pacote atual: `omnizap`
 
-## 🚀 Links Rápidos
+## Links Oficiais
 
-- **Site Oficial:** [omnizap.shop](https://omnizap.shop/)
-- **Documentação da API:** [/api-docs/](https://omnizap.shop/api-docs/)
-- **Painel do Usuário:** [/user/](https://omnizap.shop/user/)
-- **Catálogo de Figurinha:** [/stickers/](https://omnizap.shop/stickers/)
-- **Wiki do Projeto:** [GitHub Wiki](https://github.com/Omnizap-System/omnizap/wiki)
+- Site: https://omnizap.shop/
+- Documentacao da API: https://omnizap.shop/api-docs/
+- Painel do usuario: https://omnizap.shop/user/
+- Catalogo de figurinhas: https://omnizap.shop/stickers/
+- Wiki: https://github.com/Omnizap-System/omnizap/wiki
 
----
+## Quick Start
 
-## 🛠️ Quick Start (Local)
+1. Instale dependencias:
 
-1. **Instalar dependências:**
+```bash
+npm install
+```
 
-   ```bash
-   npm install
-   ```
+2. Configure ambiente:
 
-2. **Configurar Ambiente:**
+```bash
+cp .env.example .env
+```
 
-   ```bash
-   cp .env.example .env
-   # Edite o .env com suas credenciais MySQL e segredos JWT
-   ```
+3. Inicialize banco e frontend:
 
-3. **Inicializar Banco e Frontend:**
+```bash
+npm run db:init
+npm run build:frontend
+```
 
-   ```bash
-   npm run db:init
-   npm run build:frontend
-   ```
+4. Rode localmente:
 
-4. **Rodar:**
-   ```bash
-   npm run dev
-   ```
+```bash
+npm run dev
+```
 
----
+## Stack
 
-## 🏗️ Arquitetura & Stack
+- Bot engine: `@whiskeysockets/baileys`
+- Backend HTTP: Node.js
+- Frontend: React + TailwindCSS + DaisyUI
+- Banco de dados: MySQL
+- Observabilidade: Prometheus + logs estruturados
 
-O sistema é dividido em 3 camadas integradas:
-
-- **Bot Engine:** Baseado em `@whiskeysockets/baileys` (WhatsApp multi-device).
-- **Web Server:** Node.js puro (`node:http`) com roteamento customizado e alta performance.
-- **Frontend:** React com TailwindCSS e DaisyUI (Vite bundle).
-- **Dados:** MySQL para persistência de mensagens, usuários e metadados de grupos.
-
----
-
-## ✨ Funcionalidades Principais
-
-- **Automação de Stickers:** Criação instantânea via comandos (`/s`, `/st`, etc.).
-- **Gestão de Packs:** Criação, edição e publicação de pacotes de figurinhas via bot ou web.
-- **Painel Web:** Autenticação segura, recuperação de senha e gestão de perfil.
-- **Marketplace:** Catálogo público com SEO otimizado e busca dinâmica.
-- **Observabilidade:** Métricas nativas para Prometheus e logs estruturados com Pino.
-
----
-
-## 📊 Snapshot do Sistema
+## Snapshot do Sistema
 
 <!-- README_SNAPSHOT:START -->
 
-> Os dados abaixo são atualizados automaticamente via script.
+> Os dados abaixo sao atualizados automaticamente via script.
 
 <!-- README_SNAPSHOT:END -->
 
----
+## Estrutura do Repositorio
 
-## 📁 Estrutura do Projeto
+- `app/`: modulos do bot e servicos de dominio
+- `server/`: rotas, middlewares e controladores HTTP
+- `database/`: schema, init e evolucao de banco
+- `public/`: frontend React e assets estaticos
+- `scripts/`: automacoes de build, release e operacao
+- `docs/`: runbooks de seguranca, compliance e SEO
 
-- `app/`: Core do bot, módulos de comandos e serviços de domínio.
-- `server/`: Rotas HTTP, middlewares de segurança e controladores web.
-- `database/`: Schemas, migrações e inicialização do MySQL.
-- `public/`: Código-fonte do frontend (React) e assets estáticos.
-- `scripts/`: Utilitários de deploy, release e workers de background.
-- `docs/`: Runbooks de segurança, conformidade (LGPD) e playbooks de SEO.
+## Seguranca
 
----
+- Politica e processo de reporte em [SECURITY.md](./SECURITY.md)
+- Fluxo de seguranca com CodeQL, Gitleaks e hardening de workflows
+- Materiais de conformidade em `docs/compliance` e `docs/security`
 
-## 🛡️ Segurança e Compliance
+## Licenca
 
-Projeto desenvolvido com foco em conformidade e boas práticas:
-
-- **LGPD:** Runbooks prontos para DSAR e Incidentes ANPD em `docs/`.
-- **Hardening:** Esteira de segurança com SAST, Gitleaks e ZAP Scan.
-- **AUP:** Política de Uso Aceitável rigorosa para evitar spam e abusos.
-
-Para reportar vulnerabilidades, consulte [SECURITY.md](./SECURITY.md).
-
----
-
-## 📄 Licença
-
-Distribuído sob a licença **MIT**. Veja `LICENSE` para mais detalhes.
+Distribuido sob a licenca MIT. Consulte [LICENSE](./LICENSE).

@@ -173,7 +173,7 @@ const renderPageHtml = (page, generatedAt, { slugSet, prefix }) => {
     url: canonicalUrl,
     isPartOf: {
       '@type': 'WebSite',
-      name: 'OmniZap System',
+      name: 'Omnizap',
       url: SITE_ORIGIN,
     },
   };
@@ -205,7 +205,7 @@ const renderPageHtml = (page, generatedAt, { slugSet, prefix }) => {
 
   <meta property="og:type" content="article" />
   <meta property="og:locale" content="pt_BR" />
-  <meta property="og:site_name" content="OmniZap System" />
+  <meta property="og:site_name" content="Omnizap" />
   <meta property="og:title" content="${escapeHtml(page.title)}" />
   <meta property="og:description" content="${escapeHtml(page.description)}" />
   <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
@@ -349,7 +349,7 @@ const renderPageHtml = (page, generatedAt, { slugSet, prefix }) => {
     </main>
 
     <footer class="footer-meta">
-      © 2026 OMNIZAP SYSTEM · SEO SATELLITE V2 · ATUALIZADO EM ${escapeHtml(generatedAt)}
+      © 2026 OMNIZAP · SEO SATELLITE V2 · ATUALIZADO EM ${escapeHtml(generatedAt)}
     </footer>
   </div>
 </body>

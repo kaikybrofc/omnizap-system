@@ -1,11 +1,11 @@
 # Política de Privacidade (Documento Separado dos Termos)
 
 Data da versão: 2026-03-07  
-Escopo: site, login web, painel, API e operação de automação do OmniZap System.
+Escopo: site, login web, painel, API e operação de automação do Omnizap.
 
 ## 0) Escopo desta política (serviço oficial)
 
-- Esta política se aplica ao serviço oficial operado pelos canais do OmniZap System (incluindo domínio omnizap.shop e endpoints oficiais).
+- Esta política se aplica ao serviço oficial operado pelos canais do Omnizap (incluindo domínio omnizap.shop e endpoints oficiais).
 - Forks, redistribuições e instâncias auto-hospedadas por terceiros não se vinculam automaticamente a este documento.
 - Em instância derivada/self-host, o operador da instância atua como controlador independente e deve publicar sua própria política de privacidade.
 

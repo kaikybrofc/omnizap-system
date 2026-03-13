@@ -2,7 +2,7 @@
 
 ## Nosso compromisso
 
-Nós, contribuidores e mantenedores do OmniZap System, assumimos o compromisso de manter a participação na comunidade livre de assédio para todas as pessoas, independentemente de idade, tipo corporal, deficiência (visível ou não), etnia, características sexuais, identidade e expressão de gênero, nível de experiência, escolaridade, condição socioeconômica, nacionalidade, aparência pessoal, religião ou identidade/orientação sexual.
+Nós, contribuidores e mantenedores do Omnizap, assumimos o compromisso de manter a participação na comunidade livre de assédio para todas as pessoas, independentemente de idade, tipo corporal, deficiência (visível ou não), etnia, características sexuais, identidade e expressão de gênero, nível de experiência, escolaridade, condição socioeconômica, nacionalidade, aparência pessoal, religião ou identidade/orientação sexual.
 
 Nós nos comprometemos a agir e interagir de forma a promover uma comunidade aberta, acolhedora, diversa, inclusiva e saudável.
 
@@ -51,7 +51,7 @@ Este Código de Conduta se aplica a todos os espaços oficiais do projeto, inclu
 - Canais de comunicação relacionados ao projeto.
 - Interações em nome do projeto em espaços públicos.
 
-Também se aplica quando uma pessoa representa oficialmente o projeto, por exemplo, ao usar conta oficial, atuar como mantenedor(a) ou participar de eventos em nome do OmniZap System.
+Também se aplica quando uma pessoa representa oficialmente o projeto, por exemplo, ao usar conta oficial, atuar como mantenedor(a) ou participar de eventos em nome do Omnizap.
 
 ## Responsabilidade de aplicação
 

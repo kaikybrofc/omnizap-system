@@ -243,7 +243,7 @@ export const createStickerCatalogSeoContext = ({ executeQuery, tables, listStick
 
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="pt_BR" />
-  <meta property="og:site_name" content="OmniZap System" />
+  <meta property="og:site_name" content="Omnizap" />
   <meta property="og:title" content="${escapeHtmlAttribute(packName)}" />
   <meta property="og:description" content="${escapeHtmlAttribute(packDescription)}" />
   <meta property="og:url" content="${escapeHtmlAttribute(canonicalUrl)}" />

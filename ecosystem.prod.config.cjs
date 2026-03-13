@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const appName = process.env.PM2_APP_NAME || 'omnizap-system';
+const appName = process.env.PM2_APP_NAME || 'omnizap';
 
 const baseEnv = {
   NODE_ENV: 'production',

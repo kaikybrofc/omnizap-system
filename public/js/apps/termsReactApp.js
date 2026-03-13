@@ -8,7 +8,7 @@ const TERMS_CONTENT_HTML = String.raw`
       <section class="terms-card" style="border-bottom: 4px solid hsla(142, 71%, 45%, 0.3)">
         <h1>Termos de Uso</h1>
         <span class="updated">Última atualização: 07/03/2026</span>
-        <p>Este instrumento regula o acesso e uso do site, API, painel e funcionalidades de automação disponibilizadas pelo OmniZap System.</p>
+        <p>Este instrumento regula o acesso e uso do site, API, painel e funcionalidades de automação disponibilizadas pelo Omnizap.</p>
         <div class="flex flex-wrap gap-3 mt-6">
           <a class="contact-btn wa" href="https://wa.me/559591122954" target="_blank">WhatsApp Oficial</a>
           <a class="contact-btn ig" href="https://www.instagram.com/kaikybrofc/" target="_blank">Instagram</a>
@@ -39,8 +39,8 @@ const TERMS_CONTENT_HTML = String.raw`
       <section class="terms-card">
         <h2>3. Definições contratuais</h2>
         <ul>
-          <li><strong>Plataforma:</strong> ambiente digital OmniZap System (site, API, integrações e painel).</li>
-          <li><strong>Serviço oficial:</strong> operação hospedada e controlada pelos canais oficiais do OmniZap System (incluindo domínio omnizap.shop e endpoints oficiais).</li>
+          <li><strong>Plataforma:</strong> ambiente digital Omnizap (site, API, integrações e painel).</li>
+          <li><strong>Serviço oficial:</strong> operação hospedada e controlada pelos canais oficiais do Omnizap (incluindo domínio omnizap.shop e endpoints oficiais).</li>
           <li><strong>Instância derivada/self-host:</strong> fork, redistribuição ou implantação independente feita por terceiro a partir do código-fonte open source.</li>
           <li><strong>Usuário:</strong> pessoa natural ou jurídica que acessa ou utiliza a plataforma.</li>
           <li><strong>Conta:</strong> credencial de acesso vinculada a usuário, e-mail e/ou identificadores técnicos.</li>
@@ -52,7 +52,7 @@ const TERMS_CONTENT_HTML = String.raw`
       <section class="terms-card">
         <h2>4. Objeto e escopo de uso</h2>
         <ul>
-          <li>Estes Termos se aplicam ao uso do serviço oficial do OmniZap System (site, API, painel administrativo e módulos de automação operados pelos canais oficiais).</li>
+          <li>Estes Termos se aplicam ao uso do serviço oficial do Omnizap (site, API, painel administrativo e módulos de automação operados pelos canais oficiais).</li>
           <li>Forks, redistribuições e instâncias auto-hospedadas por terceiros não se vinculam automaticamente a estes Termos.</li>
           <li>Em instância derivada/self-host, o operador dessa instância é responsável por publicar seus próprios termos, política de privacidade e instrumentos de conformidade.</li>
           <li>A plataforma possui finalidade técnica e educacional, sem prejuízo de usos operacionais legítimos pelo usuário.</li>
@@ -124,7 +124,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
         <h3>8.2 Compromisso de sigilo e confidencialidade</h3>
         <ul>
-          <li>O OmniZap System compromete-se a observar o sigilo e a confidencialidade das informações tratadas, nos limites legais e técnicos aplicáveis.</li>
+          <li>O Omnizap compromete-se a observar o sigilo e a confidencialidade das informações tratadas, nos limites legais e técnicos aplicáveis.</li>
           <li>O acesso interno ao conteúdo é restrito por necessidade operacional (need-to-know), com controles de acesso e trilha de auditoria.</li>
           <li>Operadores e fornecedores contratados para apoiar o serviço devem observar obrigações contratuais de confidencialidade e proteção de dados.</li>
           <li>A divulgação de conteúdo a terceiros somente ocorrerá mediante obrigação legal, ordem judicial/requisição válida de autoridade competente ou autorização do usuário, quando cabível.</li>
@@ -197,7 +197,7 @@ const TERMS_CONTENT_HTML = String.raw`
         <ul>
           <li>O usuário declara possuir direitos, licenças e autorizações necessárias sobre os conteúdos submetidos à plataforma.</li>
           <li>Conteúdo que infrinja direitos autorais, marca, imagem, privacidade ou legislação poderá ser removido, sem aviso prévio, para mitigação de risco jurídico.</li>
-          <li>O software, documentação, layout, sinais distintivos e demais ativos do OmniZap System permanecem protegidos pela legislação aplicável, sem prejuízo dos direitos concedidos pela licença MIT sobre o código-fonte publicado no repositório oficial.</li>
+          <li>O software, documentação, layout, sinais distintivos e demais ativos do Omnizap permanecem protegidos pela legislação aplicável, sem prejuízo dos direitos concedidos pela licença MIT sobre o código-fonte publicado no repositório oficial.</li>
           <li>Pedidos de remoção por violação de direitos poderão ser enviados aos canais oficiais, com documentação mínima comprobatória.</li>
         </ul>
       </section>
@@ -223,7 +223,7 @@ const TERMS_CONTENT_HTML = String.raw`
       <section class="terms-card">
         <h2>16. Responsabilidade do usuário e indenização regressiva</h2>
         <ul>
-          <li>O usuário compromete-se a indenizar regressivamente o OmniZap System por danos, custos e despesas decorrentes de uso ilícito ou violação destes Termos.</li>
+          <li>O usuário compromete-se a indenizar regressivamente o Omnizap por danos, custos e despesas decorrentes de uso ilícito ou violação destes Termos.</li>
           <li>Incluem-se, quando aplicável, custos de defesa, perícia, cumprimento de ordem judicial e sanções atribuíveis à conduta do usuário.</li>
           <li>Esta cláusula não afasta direitos inderrogáveis previstos em lei.</li>
         </ul>
@@ -231,7 +231,7 @@ const TERMS_CONTENT_HTML = String.raw`
 
       <section class="terms-card">
         <h2>17. Limitação de responsabilidade</h2>
-        <p>Na extensão máxima permitida pela legislação aplicável, o OmniZap System não será responsável por danos indiretos, lucros cessantes, perdas de oportunidade, indisponibilidade de terceiros, bloqueios externos de conta, força maior, caso fortuito, atos de terceiros ou uso indevido da plataforma pelo usuário.</p>
+        <p>Na extensão máxima permitida pela legislação aplicável, o Omnizap não será responsável por danos indiretos, lucros cessantes, perdas de oportunidade, indisponibilidade de terceiros, bloqueios externos de conta, força maior, caso fortuito, atos de terceiros ou uso indevido da plataforma pelo usuário.</p>
         <p class="note"><strong>Nota:</strong> nada neste instrumento regula responsabilidade nos casos em que a legislação brasileira expressamente proíba limitação ou exclusão.</p>
       </section>
 
@@ -303,7 +303,7 @@ const TERMS_CONTENT_HTML = String.raw`
         <h2>23. Cláusulas adicionais de proteção jurídica</h2>
         <h3>23.1 Papéis LGPD entre as partes</h3>
         <ul>
-          <li>Conforme o fluxo operacional, o OmniZap System poderá atuar como controlador ou operador de dados pessoais, nos termos da LGPD.</li>
+          <li>Conforme o fluxo operacional, o Omnizap poderá atuar como controlador ou operador de dados pessoais, nos termos da LGPD.</li>
           <li>Quando o tratamento decorrer de instruções do cliente/usuário, este permanecerá responsável pela legalidade da instrução e pela definição de finalidade.</li>
         </ul>
         <h3>23.2 Declaração de base legal pelo usuário/cliente</h3>
@@ -329,7 +329,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
         <h3>23.6 Limite global de responsabilidade financeira</h3>
         <ul>
-          <li>Ressalvadas hipóteses de dolo, violação de sigilo, danos morais, danos à personalidade e demais limites legais inderrogáveis, a responsabilidade total do OmniZap System, por evento ou série de eventos relacionados, fica limitada ao montante efetivamente pago pelo usuário nos 12 (doze) meses anteriores ao fato gerador.</li>
+          <li>Ressalvadas hipóteses de dolo, violação de sigilo, danos morais, danos à personalidade e demais limites legais inderrogáveis, a responsabilidade total do Omnizap, por evento ou série de eventos relacionados, fica limitada ao montante efetivamente pago pelo usuário nos 12 (doze) meses anteriores ao fato gerador.</li>
         </ul>
         <h3>23.7 Cláusula penal calibrada e revisão judicial</h3>
         <ul>
@@ -338,7 +338,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
         <h3>23.8 Suspensão imediata por risco jurídico ou técnico</h3>
         <ul>
-          <li>O OmniZap System poderá suspender imediatamente contas, tokens, integrações ou endpoints em caso de risco iminente à segurança, fraude, abuso, decisão de autoridade ou potencial dano relevante a terceiros.</li>
+          <li>O Omnizap poderá suspender imediatamente contas, tokens, integrações ou endpoints em caso de risco iminente à segurança, fraude, abuso, decisão de autoridade ou potencial dano relevante a terceiros.</li>
         </ul>
         <h3>23.9 Procedimento de notice-and-takedown</h3>
         <ul>
@@ -357,7 +357,7 @@ const TERMS_CONTENT_HTML = String.raw`
         <ul>
           <li>A não exigência imediata de direito contratual não implicará renúncia.</li>
           <li>Se qualquer cláusula for considerada inválida, as demais permanecerão eficazes.</li>
-          <li>É vedada a cessão de posição contratual pelo usuário sem anuência prévia e expressa do OmniZap System, ressalvadas hipóteses legais obrigatórias.</li>
+          <li>É vedada a cessão de posição contratual pelo usuário sem anuência prévia e expressa do Omnizap, ressalvadas hipóteses legais obrigatórias.</li>
         </ul>
       </section>
 
@@ -372,13 +372,13 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
         <h3>24.2 Branding e uso de marcas de terceiros</h3>
         <ul>
-          <li>É vedado apresentar o OmniZap System como serviço oficial, parceiro certificado, afiliado ou endossado pela Meta/WhatsApp sem autorização formal e verificável.</li>
+          <li>É vedado apresentar o Omnizap como serviço oficial, parceiro certificado, afiliado ou endossado pela Meta/WhatsApp sem autorização formal e verificável.</li>
           <li>É vedado utilizar logotipos, nomes comerciais, ícones ou identidade visual de terceiros fora das diretrizes oficiais de marca e sem o licenciamento pertinente.</li>
           <li>Quando houver referência nominativa a marcas de terceiros, ela deverá ser estritamente descritiva, sem sugerir patrocínio, apoio institucional ou vínculo societário inexistente.</li>
         </ul>
         <h3>24.3 Contratação corporativa, DPA e alocação de risco</h3>
         <ul>
-          <li>Para operação corporativa em escala do serviço oficial, o OmniZap System poderá exigir contrato específico com cláusulas de proteção de dados, incluindo DPA (Data Processing Addendum).</li>
+          <li>Para operação corporativa em escala do serviço oficial, o Omnizap poderá exigir contrato específico com cláusulas de proteção de dados, incluindo DPA (Data Processing Addendum).</li>
           <li>O contrato poderá prever garantias expressas de base legal, dever de cooperação regulatória, indenização regressiva e limitação de responsabilidade em parâmetros economicamente proporcionais.</li>
           <li>A recusa em firmar os instrumentos jurídicos mínimos poderá ensejar suspensão de funcionalidades de alto risco até regularização contratual.</li>
         </ul>
@@ -390,7 +390,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
         <h3>24.5 Plano formal de incidentes e gatilho ANPD/titulares</h3>
         <ul>
-          <li>O OmniZap System manterá plano formal de resposta a incidentes com etapas de detecção, contenção, erradicação, recuperação e lições aprendidas.</li>
+          <li>O Omnizap manterá plano formal de resposta a incidentes com etapas de detecção, contenção, erradicação, recuperação e lições aprendidas.</li>
           <li>Quando houver incidente com risco ou dano relevante aos titulares, será acionado fluxo formal de comunicação à ANPD e aos titulares potencialmente afetados, nos termos da legislação vigente.</li>
           <li>Quando aplicável ao controlador, a comunicação regulatória observará os prazos legais vigentes, incluindo o prazo de 3 (três) dias úteis previsto no regulamento da ANPD, ressalvada legislação específica superveniente.</li>
           <li>As comunicações incluirão, quando exigido, descrição do incidente, dados afetados, medidas técnicas/administrativas adotadas, riscos envolvidos, justificativa para eventual atraso e medidas para mitigar efeitos.</li>
@@ -456,7 +456,7 @@ const TermsReactApp = () => html`
     </main>
 
     <footer className="py-12 border-t border-base-200 mt-auto text-center">
-      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-base-content/20">© 2026 OMNIZAP SYSTEM · TERMS OF SERVICE V2</p>
+      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-base-content/20">© 2026 OMNIZAP · TERMS OF SERVICE V2</p>
     </footer>
   </div>
 `;

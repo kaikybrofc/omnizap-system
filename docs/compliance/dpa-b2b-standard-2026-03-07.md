@@ -1,7 +1,7 @@
 # DPA Padrao (B2B) - Data Processing Addendum
 
 Versao: 2026-03-07  
-Partes: Cliente (Controlador) e OmniZap System (Operador, quando atuar sob instrucao do Cliente).
+Partes: Cliente (Controlador) e Omnizap (Operador, quando atuar sob instrucao do Cliente).
 
 ## 1) Objeto
 

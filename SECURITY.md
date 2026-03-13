@@ -2,7 +2,7 @@
 
 Este documento estabelece:
 
-- as diretrizes formais para tratamento de vulnerabilidades no OmniZap System;
+- as diretrizes formais para tratamento de vulnerabilidades no Omnizap;
 - o fluxo operacional (runbook) utilizado para triagem, correção e divulgação responsável.
 
 ## Objetivo e Aplicabilidade
