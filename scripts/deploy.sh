@@ -196,7 +196,12 @@ publish_package_to_registry() {
       expected_owner="$(resolve_github_owner)"
     fi
 
-    if [ -n "$expected_owner" ] && [ -n "$scope_owner" ] && [ "$scope_owner" != "$expected_owner" ]; then
+    local expected_owner_normalized=""
+    local scope_owner_normalized=""
+    expected_owner_normalized="$(printf '%s' "$expected_owner" | tr '[:upper:]' '[:lower:]')"
+    scope_owner_normalized="$(printf '%s' "$scope_owner" | tr '[:upper:]' '[:lower:]')"
+
+    if [ -n "$expected_owner" ] && [ -n "$scope_owner" ] && [ "$scope_owner_normalized" != "$expected_owner_normalized" ]; then
       printf '[deploy] Scope do pacote (%s) difere do owner GitHub esperado (%s).\n' "$scope_owner" "$expected_owner" >&2
       printf '[deploy] Ajuste com: npm pkg set name=\"@%s/%s\"\n' "$expected_owner" "$pkg_base_name" >&2
       printf '[deploy] Ou defina DEPLOY_PACKAGE_SCOPE_OWNER para publicar em outro owner.\n' >&2
@@ -354,10 +359,12 @@ run_package_stage() {
     log "Gerando artefato npm pack"
     mkdir -p "$PACKAGE_ARTIFACTS_DIR"
     local pack_name=""
-    pack_name="$(cd "$PROJECT_ROOT" && npm pack --silent)"
+    pack_name="$(cd "$PROJECT_ROOT" && npm pack --silent | tail -n 1)"
     if [ -n "$pack_name" ] && [ -f "$PROJECT_ROOT/$pack_name" ]; then
       mv "$PROJECT_ROOT/$pack_name" "$PACKAGE_ARTIFACTS_DIR/$pack_name"
       log "Artefato salvo em $PACKAGE_ARTIFACTS_DIR/$pack_name"
+    else
+      log "Aviso: npm pack não retornou artefato válido para mover."
     fi
   fi
 

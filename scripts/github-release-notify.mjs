@@ -77,7 +77,7 @@ const token = env('RELEASE_GITHUB_TOKEN', 'DEPLOY_GITHUB_TOKEN', 'GITHUB_TOKEN',
 const repository = env('RELEASE_GITHUB_REPO', 'DEPLOY_GITHUB_REPO', 'GITHUB_REPOSITORY') || parseRepoFromRemote();
 
 if (!action || !['upsert', 'get'].includes(action)) {
-  console.error('Uso: node scripts/github-release-notify.mjs <upsert|get> --tag vX.Y.Z [opções]');
+  console.error('Uso: node scripts/github-release-notify.mjs <upsert|get> --tag vX.Y.Z [opções, ex: --latest true]');
   process.exit(1);
 }
 
@@ -102,6 +102,17 @@ const bodyFile = getArg('--body-file', '');
 const generateNotes = toBool(getArg('--generate-notes', 'true'), true);
 const prerelease = toBool(getArg('--prerelease', 'false'), false);
 const draft = toBool(getArg('--draft', 'false'), false);
+const latestArg = getArg('--latest', '');
+
+const parseMakeLatest = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return 'true';
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return 'false';
+  if (normalized === 'legacy') return 'legacy';
+  return '';
+};
+const makeLatest = parseMakeLatest(latestArg);
 
 let body = bodyArg;
 if (!body && bodyFile) {
@@ -183,6 +194,7 @@ const run = async () => {
     name: name || tag,
     draft,
     prerelease,
+    make_latest: makeLatest || undefined,
   };
 
   if (body) {

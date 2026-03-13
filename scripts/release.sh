@@ -23,6 +23,7 @@ RELEASE_GITHUB_NAME_PREFIX="${RELEASE_GITHUB_NAME_PREFIX:-v}"
 RELEASE_GITHUB_GENERATE_NOTES="${RELEASE_GITHUB_GENERATE_NOTES:-1}"
 RELEASE_GITHUB_PRERELEASE="${RELEASE_GITHUB_PRERELEASE:-}"
 RELEASE_GITHUB_DRAFT="${RELEASE_GITHUB_DRAFT:-0}"
+RELEASE_GITHUB_LATEST="${RELEASE_GITHUB_LATEST:-1}"
 RELEASE_GITHUB_TARGET="${RELEASE_GITHUB_TARGET:-}"
 RELEASE_GITHUB_RELEASE_INCLUDE_CHANGED_FILES="${RELEASE_GITHUB_RELEASE_INCLUDE_CHANGED_FILES:-1}"
 RELEASE_GITHUB_RELEASE_MAX_FILES="${RELEASE_GITHUB_RELEASE_MAX_FILES:-300}"
@@ -38,6 +39,8 @@ RELEASE_VERIFY_PRIMARY_REGISTRY="${RELEASE_VERIFY_PRIMARY_REGISTRY:-${DEPLOY_PAC
 RELEASE_VERIFY_SECONDARY_REGISTRY="${RELEASE_VERIFY_SECONDARY_REGISTRY:-${DEPLOY_PACKAGE_SECONDARY_REGISTRY:-https://registry.npmjs.org}}"
 RELEASE_VERIFY_PRIMARY_TOKEN_KEYS="${RELEASE_VERIFY_PRIMARY_TOKEN_KEYS:-DEPLOY_PACKAGE_TOKEN,DEPLOY_GITHUB_TOKEN,GITHUB_TOKEN,GH_TOKEN,NPM_TOKEN,NODE_AUTH_TOKEN}"
 RELEASE_VERIFY_SECONDARY_TOKEN_KEYS="${RELEASE_VERIFY_SECONDARY_TOKEN_KEYS:-DEPLOY_PACKAGE_SECONDARY_TOKEN,NPM_TOKEN,NODE_AUTH_TOKEN}"
+RELEASE_VERIFY_MAX_ATTEMPTS="${RELEASE_VERIFY_MAX_ATTEMPTS:-12}"
+RELEASE_VERIFY_RETRY_DELAY_SECONDS="${RELEASE_VERIFY_RETRY_DELAY_SECONDS:-10}"
 TMP_NPMRC_FILES=()
 TMP_MISC_FILES=()
 
@@ -178,35 +181,67 @@ verify_registry_version() {
   local npmrc_tmp=""
   npmrc_tmp="$(create_npmrc_for_registry "$registry" "$token" "$scope_owner")"
 
-  local version_raw=""
-  if ! version_raw="$(
-    cd "$PROJECT_ROOT" &&
-    npm_config_userconfig="$npmrc_tmp" npm view "${pkg_name}@${pkg_version}" version --registry "$registry" --userconfig "$npmrc_tmp" 2>/dev/null
-  )"; then
-    printf '[release] Falha ao validar versão %s em %s.\n' "$pkg_version" "$registry" >&2
-    exit 1
+  local max_attempts="$RELEASE_VERIFY_MAX_ATTEMPTS"
+  if ! [[ "$max_attempts" =~ ^[0-9]+$ ]] || [ "$max_attempts" -lt 1 ]; then
+    max_attempts=1
   fi
-  local version_value=""
-  version_value="$(sanitize_npm_output "$version_raw")"
-  if [ "$version_value" != "$pkg_version" ]; then
-    printf '[release] Versão divergente em %s: esperado=%s encontrado=%s\n' "$registry" "$pkg_version" "${version_value:-vazio}" >&2
-    exit 1
+  local retry_delay="$RELEASE_VERIFY_RETRY_DELAY_SECONDS"
+  if ! [[ "$retry_delay" =~ ^[0-9]+$ ]] || [ "$retry_delay" -lt 1 ]; then
+    retry_delay=10
   fi
 
+  local version_raw=""
+  local version_value=""
+  local attempt=1
+  while [ "$attempt" -le "$max_attempts" ]; do
+    if version_raw="$(
+      cd "$PROJECT_ROOT" &&
+      npm_config_userconfig="$npmrc_tmp" npm view "${pkg_name}@${pkg_version}" version --registry "$registry" --userconfig "$npmrc_tmp" 2>/dev/null
+    )"; then
+      version_value="$(sanitize_npm_output "$version_raw")"
+      if [ "$version_value" = "$pkg_version" ]; then
+        break
+      fi
+    else
+      version_value=""
+    fi
+
+    if [ "$attempt" -ge "$max_attempts" ]; then
+      printf '[release] Falha ao validar versão %s em %s após %s tentativa(s).\n' "$pkg_version" "$registry" "$max_attempts" >&2
+      printf '[release] Último valor encontrado: %s\n' "${version_value:-vazio}" >&2
+      exit 1
+    fi
+
+    log "Aguardando propagação da versão ${pkg_version} em ${registry} (tentativa ${attempt}/${max_attempts})"
+    sleep "$retry_delay"
+    attempt=$((attempt + 1))
+  done
+
   local latest_raw=""
-  if ! latest_raw="$(
-    cd "$PROJECT_ROOT" &&
-    npm_config_userconfig="$npmrc_tmp" npm view "$pkg_name" dist-tags.latest --registry "$registry" --userconfig "$npmrc_tmp" 2>/dev/null
-  )"; then
-    printf '[release] Falha ao validar dist-tag latest em %s.\n' "$registry" >&2
-    exit 1
-  fi
   local latest_value=""
-  latest_value="$(sanitize_npm_output "$latest_raw")"
-  if [ "$latest_value" != "$pkg_version" ]; then
-    printf '[release] Dist-tag latest divergente em %s: esperado=%s latest=%s\n' "$registry" "$pkg_version" "${latest_value:-vazio}" >&2
-    exit 1
-  fi
+  attempt=1
+  while [ "$attempt" -le "$max_attempts" ]; do
+    if latest_raw="$(
+      cd "$PROJECT_ROOT" &&
+      npm_config_userconfig="$npmrc_tmp" npm view "$pkg_name" dist-tags.latest --registry "$registry" --userconfig "$npmrc_tmp" 2>/dev/null
+    )"; then
+      latest_value="$(sanitize_npm_output "$latest_raw")"
+      if [ "$latest_value" = "$pkg_version" ]; then
+        break
+      fi
+    else
+      latest_value=""
+    fi
+
+    if [ "$attempt" -ge "$max_attempts" ]; then
+      printf '[release] Dist-tag latest divergente em %s após %s tentativa(s): esperado=%s latest=%s\n' "$registry" "$max_attempts" "$pkg_version" "${latest_value:-vazio}" >&2
+      exit 1
+    fi
+
+    log "Aguardando atualização da dist-tag latest em ${registry} (tentativa ${attempt}/${max_attempts})"
+    sleep "$retry_delay"
+    attempt=$((attempt + 1))
+  done
 
   log "Verificado em $registry: versão=$pkg_version latest=$latest_value"
 }
@@ -514,6 +549,8 @@ if [ "$RELEASE_GITHUB_RELEASE" = "1" ]; then
   prerelease_bool="$(to_bool "$local_prerelease")"
   draft_bool=""
   draft_bool="$(to_bool "$RELEASE_GITHUB_DRAFT")"
+  latest_bool=""
+  latest_bool="$(to_bool "$RELEASE_GITHUB_LATEST")"
   release_body_file=""
   if [ "$RELEASE_GITHUB_RELEASE_INCLUDE_CHANGED_FILES" = "1" ]; then
     release_body_file="$(build_release_body_file "$release_tag" "$release_target_ref")"
@@ -529,7 +566,8 @@ if [ "$RELEASE_GITHUB_RELEASE" = "1" ]; then
         --body-file "$release_body_file" \
         --generate-notes "$generate_notes_bool" \
         --prerelease "$prerelease_bool" \
-        --draft "$draft_bool"
+        --draft "$draft_bool" \
+        --latest "$latest_bool"
     )"
   else
     release_output="$(
@@ -539,7 +577,8 @@ if [ "$RELEASE_GITHUB_RELEASE" = "1" ]; then
         --name "$local_name" \
         --generate-notes "$generate_notes_bool" \
         --prerelease "$prerelease_bool" \
-        --draft "$draft_bool"
+        --draft "$draft_bool" \
+        --latest "$latest_bool"
     )"
   fi
   log "GitHub Release atualizado: $release_output"

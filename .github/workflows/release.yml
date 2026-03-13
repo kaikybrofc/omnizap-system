@@ -29,12 +29,12 @@ on:
       publish_secondary:
         description: "Publish to secondary registry (npmjs)"
         required: true
-        default: false
+        default: true
         type: boolean
       require_dual_publish:
         description: "Fail if both registries are not published"
         required: true
-        default: false
+        default: true
         type: boolean
       skip_wiki_sync:
         description: "Skip docs/wiki sync during release"
