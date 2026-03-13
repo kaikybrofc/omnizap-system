@@ -29,9 +29,6 @@ RELEASE_GITHUB_RELEASE_INCLUDE_CHANGED_FILES="${RELEASE_GITHUB_RELEASE_INCLUDE_C
 RELEASE_GITHUB_RELEASE_MAX_FILES="${RELEASE_GITHUB_RELEASE_MAX_FILES:-300}"
 RELEASE_REQUIRE_DUAL_PUBLISH="${RELEASE_REQUIRE_DUAL_PUBLISH:-1}"
 RELEASE_VERIFY_UNIFIED_VERSION="${RELEASE_VERIFY_UNIFIED_VERSION:-1}"
-RELEASE_README_SYNC="${RELEASE_README_SYNC:-1}"
-RELEASE_README_SYNC_REQUIRED="${RELEASE_README_SYNC_REQUIRED:-0}"
-RELEASE_README_SYNC_COMMAND="${RELEASE_README_SYNC_COMMAND:-npm run readme:sync-snapshot}"
 RELEASE_WIKI_SYNC="${RELEASE_WIKI_SYNC:-1}"
 RELEASE_WIKI_SYNC_REQUIRED="${RELEASE_WIKI_SYNC_REQUIRED:-0}"
 RELEASE_WIKI_SYNC_COMMAND="${RELEASE_WIKI_SYNC_COMMAND:-bash ./scripts/wiki-sync.sh}"
@@ -478,20 +475,6 @@ if ! (
   log "Deploy/release falhou. Revertendo versão para $current_version"
   (cd "$PROJECT_ROOT" && npm version "$current_version" --no-git-tag-version >/dev/null)
   exit 1
-fi
-
-if [ "$RELEASE_README_SYNC" = "1" ]; then
-  log "Sincronizando bloco dinâmico do README"
-  if ! (
-    cd "$PROJECT_ROOT" &&
-    bash -lc "$RELEASE_README_SYNC_COMMAND"
-  ); then
-    if [ "$RELEASE_README_SYNC_REQUIRED" = "1" ]; then
-      printf '[release] Falha ao sincronizar README e RELEASE_README_SYNC_REQUIRED=1.\n' >&2
-      exit 1
-    fi
-    log "Falha ao sincronizar README. Continuando release (RELEASE_README_SYNC_REQUIRED=0)."
-  fi
 fi
 
 if [ "$RELEASE_WIKI_SYNC" = "1" ]; then

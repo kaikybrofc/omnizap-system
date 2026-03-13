@@ -60,14 +60,6 @@ npm run dev
 - Banco de dados: MySQL
 - Observabilidade: Prometheus + logs estruturados
 
-## Snapshot do Sistema
-
-<!-- README_SNAPSHOT:START -->
-
-> Os dados abaixo sao atualizados automaticamente via script.
-
-<!-- README_SNAPSHOT:END -->
-
 ## Estrutura do Repositorio
 
 - `app/`: modulos do bot e servicos de dominio
