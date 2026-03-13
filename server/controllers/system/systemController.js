@@ -115,7 +115,7 @@ export const systemHandlers = createStickerCatalogNonCatalogHandlers({
   getMarketplaceGlobalStatsCached,
   marketplaceGlobalStatsCacheSeconds: MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS,
   marketplaceGlobalStatsCache: MARKETPLACE_GLOBAL_STATS_CACHE,
-  githubRepoInfo: { fullName: process.env.GITHUB_REPOSITORY || 'Omnizap-System/bot-de-omnizap' },
+  githubRepoInfo: { fullName: process.env.GITHUB_REPOSITORY || 'Omnizap-System/omnizap' },
   githubProjectCacheSeconds: GITHUB_PROJECT_CACHE_SECONDS,
   fetchGitHubProjectSummary,
   buildSupportInfo,

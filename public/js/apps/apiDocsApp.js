@@ -91,7 +91,7 @@ function ApiDocsApp() {
       h(
         'a',
         {
-          href: 'https://github.com/Omnizap-System/bot-de-omnizap',
+          href: 'https://github.com/Omnizap-System/omnizap',
           target: '_blank',
           rel: 'noreferrer noopener',
         },

@@ -54,7 +54,7 @@ Sistema em evolução (beta)
 ━━━━━━━━━━━━━━━━━━━━
 
 GitHub:  
-https://github.com/Omnizap-System/bot-de-omnizap  
+https://github.com/Omnizap-System/omnizap  
 
 Site oficial:  
 https://omnizap.shop/

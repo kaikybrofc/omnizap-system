@@ -2,9 +2,9 @@
 
 # OmniZap System
 
-[![CI](https://github.com/Omnizap-System/bot-de-omnizap/actions/workflows/ci.yml/badge.svg)](https://github.com/Omnizap-System/bot-de-omnizap/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/Omnizap-System/bot-de-omnizap/actions/workflows/codeql.yml/badge.svg)](https://github.com/Omnizap-System/bot-de-omnizap/actions/workflows/codeql.yml)
-[![Gitleaks](https://github.com/Omnizap-System/bot-de-omnizap/actions/workflows/security-gitleaks.yml/badge.svg)](https://github.com/Omnizap-System/bot-de-omnizap/actions/workflows/security-gitleaks.yml)
+[![CI](https://github.com/Omnizap-System/omnizap/actions/workflows/ci.yml/badge.svg)](https://github.com/Omnizap-System/omnizap/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Omnizap-System/omnizap/actions/workflows/codeql.yml/badge.svg)](https://github.com/Omnizap-System/omnizap/actions/workflows/codeql.yml)
+[![Gitleaks](https://github.com/Omnizap-System/omnizap/actions/workflows/security-gitleaks.yml/badge.svg)](https://github.com/Omnizap-System/omnizap/actions/workflows/security-gitleaks.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 
@@ -18,7 +18,7 @@ Plataforma open source de automação para WhatsApp com foco em figurinhas, cat�
 - **Documentação da API:** [/api-docs/](https://omnizap.shop/api-docs/)
 - **Painel do Usuário:** [/user/](https://omnizap.shop/user/)
 - **Catálogo de Figurinha:** [/stickers/](https://omnizap.shop/stickers/)
-- **Wiki do Projeto:** [GitHub Wiki](https://github.com/Omnizap-System/bot-de-omnizap/wiki)
+- **Wiki do Projeto:** [GitHub Wiki](https://github.com/Omnizap-System/omnizap/wiki)
 
 ---
 

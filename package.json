@@ -135,10 +135,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Omnizap-System/bot-de-omnizap.git"
+    "url": "https://github.com/Omnizap-System/omnizap.git"
   },
   "bugs": {
-    "url": "https://github.com/Omnizap-System/bot-de-omnizap/issues"
+    "url": "https://github.com/Omnizap-System/omnizap/issues"
   },
-  "homepage": "https://github.com/Omnizap-System/bot-de-omnizap#readme"
+  "homepage": "https://github.com/Omnizap-System/omnizap#readme"
 }

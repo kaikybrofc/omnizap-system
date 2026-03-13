@@ -9,7 +9,7 @@ const REQUEST_TIMEOUT_MS = Math.max(3_000, Number(process.env.POKEAPI_TIMEOUT_MS
 const REQUEST_RETRY_ATTEMPTS = Math.max(0, Number(process.env.POKEAPI_RETRY_ATTEMPTS) || 2);
 const REQUEST_RETRY_BASE_DELAY_MS = Math.max(120, Number(process.env.POKEAPI_RETRY_BASE_DELAY_MS) || 350);
 const DNS_FAMILY = [0, 4, 6].includes(Number(process.env.POKEAPI_DNS_FAMILY)) ? Number(process.env.POKEAPI_DNS_FAMILY) : 4;
-const REQUEST_USER_AGENT = String(process.env.POKEAPI_USER_AGENT || 'omnizap-system/2.1 (+https://github.com/Omnizap-System/bot-de-omnizap)').trim();
+const REQUEST_USER_AGENT = String(process.env.POKEAPI_USER_AGENT || 'omnizap-system/2.1 (+https://github.com/Omnizap-System/omnizap)').trim();
 const DEFAULT_LORE_LANGUAGES = String(process.env.POKEAPI_LORE_LANGS || 'pt-br,pt,en')
   .split(',')
   .map((entry) =>
