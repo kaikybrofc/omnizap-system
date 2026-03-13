@@ -21,6 +21,9 @@ jobs:
     name: Secret Leak Scan
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -28,15 +31,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install Gitleaks CLI
-        run: |
-          mkdir -p "$RUNNER_TEMP/bin"
-          curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/v8.25.1/install.sh | sh -s -- -b "$RUNNER_TEMP/bin" v8.25.1
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-
       - name: Run Gitleaks
         run: |
-          gitleaks git --config .gitleaks.toml --redact --verbose --report-format sarif --report-path gitleaks.sarif --exit-code 0
+          docker run --rm -v "$PWD":/repo -w /repo zricethezav/gitleaks:v8.25.1 \
+            git --config .gitleaks.toml --redact --verbose --report-format sarif --report-path gitleaks.sarif --exit-code 0
 
       - name: Upload SARIF
         if: always()
