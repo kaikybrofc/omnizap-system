@@ -3,6 +3,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import prettier from 'prettier';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -297,7 +298,14 @@ const buildCatalog = async () => {
 const writeCatalog = async () => {
   const payload = await buildCatalog();
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  await fs.writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  const serialized = `${JSON.stringify(payload, null, 2)}\n`;
+  const prettierConfig = (await prettier.resolveConfig(outputPath)) || {};
+  const formatted = await prettier.format(serialized, {
+    ...prettierConfig,
+    parser: 'json',
+    filepath: outputPath,
+  });
+  await fs.writeFile(outputPath, formatted, 'utf8');
 
   console.log(`Catalogo de comandos atualizado: ${path.relative(repoRoot, outputPath)} (${payload.totals.commands} comandos)`);
 };

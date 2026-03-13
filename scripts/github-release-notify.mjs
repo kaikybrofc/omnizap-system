@@ -105,7 +105,9 @@ const draft = toBool(getArg('--draft', 'false'), false);
 const latestArg = getArg('--latest', '');
 
 const parseMakeLatest = (value) => {
-  const normalized = String(value || '').trim().toLowerCase();
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
   if (!normalized) return '';
   if (['1', 'true', 'yes', 'on'].includes(normalized)) return 'true';
   if (['0', 'false', 'no', 'off'].includes(normalized)) return 'false';
