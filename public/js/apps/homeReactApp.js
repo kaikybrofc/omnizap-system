@@ -842,7 +842,7 @@ const App = () => {
                 <p className="text-white/40 text-lg font-medium leading-relaxed">Integre o OmniZap com seus sistemas. Use nossa API REST para enviar mensagens, gerenciar grupos e receber eventos via Webhooks em tempo real.</p>
                 <div className="flex gap-4">
                   <a href="/api-docs/" className="btn btn-primary rounded-xl px-8">Documentação</a>
-                  <a href="https://github.com/Omnizap-System/omnizap-system" target="_blank" className="btn btn-ghost border-white/5 rounded-xl px-8 hover:bg-white/5">GitHub</a>
+                  <a href="https://github.com/Omnizap-System/bot-de-omnizap" target="_blank" className="btn btn-ghost border-white/5 rounded-xl px-8 hover:bg-white/5">GitHub</a>
                 </div>
               </div>
               <div data-reveal="fade-left" className="relative">
@@ -909,7 +909,7 @@ const App = () => {
             <div>
               <h4 className="font-bold text-xs uppercase tracking-widest text-white/20 mb-6">Social</h4>
               <ul className="space-y-3 text-sm font-medium text-white/40">
-                <li><a href="https://github.com/Omnizap-System/omnizap-system" target="_blank" className="hover:text-primary transition-colors">GitHub</a></li>
+                <li><a href="https://github.com/Omnizap-System/bot-de-omnizap" target="_blank" className="hover:text-primary transition-colors">GitHub</a></li>
                 <li><a href=${botMenuUrl} className="hover:text-primary transition-colors">WhatsApp</a></li>
               </ul>
             </div>

@@ -12,13 +12,13 @@ Esta página é o ponto de entrada para entender o projeto, subir o ambiente loc
 
 ## Links rápidos
 
-- Repositório: https://github.com/Omnizap-System/omnizap-system
+- Repositório: https://github.com/Omnizap-System/bot-de-omnizap
 - Site: https://omnizap.shop/
 - Login web: https://omnizap.shop/login/
 - API Docs: https://omnizap.shop/api-docs/
 - Termos: https://omnizap.shop/termos-de-uso/
-- Segurança: https://github.com/Omnizap-System/omnizap-system/blob/main/SECURITY.md
-- Código de Conduta: https://github.com/Omnizap-System/omnizap-system/blob/main/CODE_OF_CONDUCT.md
+- Segurança: https://github.com/Omnizap-System/bot-de-omnizap/blob/main/SECURITY.md
+- Código de Conduta: https://github.com/Omnizap-System/bot-de-omnizap/blob/main/CODE_OF_CONDUCT.md
 
 ## O que é o OmniZap
 
