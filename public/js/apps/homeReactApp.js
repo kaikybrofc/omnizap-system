@@ -12,10 +12,15 @@ const COUNTUP_DURATION_MS = 1200;
 const COUNTABLE_METRICS = ['users', 'messages', 'commands', 'packs', 'stickers'];
 const REVEAL_STAGGER_MS = 60;
 const MAX_REVEAL_DELAY_MS = 400;
+const REAL_METRIC_BASELINE = {
+  users: 5700,
+  messages: 534900,
+  commands: 1700,
+};
 
 const DEFAULT_METRICS = {
-  users: '50k+',
-  messages: '100M+',
+  users: '5,7 mil',
+  messages: '534,9 mil',
   commands: '1,7 mil',
   packs: '10k+',
   stickers: '500k+',
@@ -118,6 +123,11 @@ const shortNum = (value) =>
     notation: Number(value) >= 1000 ? 'compact' : 'standard',
     maximumFractionDigits: 1,
   }).format(Math.max(0, Number(value) || 0));
+
+const toPositiveNumber = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : 0;
+};
 
 const normalizeSearchText = (value) =>
   String(value || '')
@@ -279,9 +289,9 @@ const App = () => {
         setBotMenuUrl(contactUrl);
 
         const targetValues = {
-          users: Number(realtime?.total_users || 0),
-          messages: Number(realtime?.total_messages || 0),
-          commands: Number(realtime?.total_commands || 0),
+          users: toPositiveNumber(realtime?.total_users) || REAL_METRIC_BASELINE.users,
+          messages: toPositiveNumber(realtime?.total_messages) || REAL_METRIC_BASELINE.messages,
+          commands: toPositiveNumber(realtime?.total_commands) || REAL_METRIC_BASELINE.commands,
           packs: Number(stats?.packs_total || stats?.total_packs || 0),
           stickers: Number(stats?.stickers_total || stats?.total_stickers || 0),
         };
@@ -515,7 +525,7 @@ const App = () => {
                   </div>
                   <div className="w-px h-12 bg-white/5 hidden lg:block"></div>
                   <div className="relative group col-span-2 sm:col-auto text-center lg:text-left pt-2 sm:pt-0 border-t border-white/5 sm:border-none">
-                    <div className="text-3xl sm:text-5xl font-black text-white/80 group-hover:text-primary transition-colors">1,7 mil</div>
+                    <div className="text-3xl sm:text-5xl font-black text-white/80 group-hover:text-primary transition-colors">${metrics.commands}</div>
                     <div className="text-[9px] sm:text-[10px] uppercase font-black text-white/30 tracking-[0.2em] sm:tracking-[0.3em] mt-1">comandos usados</div>
                   </div>
                 </div>
@@ -558,9 +568,9 @@ const App = () => {
         <!-- Stats Marquee (Social Proof) -->
         <div className="bg-primary/5 border-y border-white/5 overflow-hidden py-5">
           <div className="animate-marquee-infinite gap-12 items-center text-[11px] font-black uppercase tracking-[0.4em] text-primary/50">
-            <span>Usado por +50.000 Grupos</span>
+            <span>5,7 mil usuarios reais</span>
             <span className="text-white/10">•</span>
-            <span>+100M Mensagens Processadas</span>
+            <span>534,9 mil mensagens processadas</span>
             <span className="text-white/10">•</span>
             <span>IA de Última Geração</span>
             <span className="text-white/10">•</span>
@@ -571,9 +581,9 @@ const App = () => {
             <span>Moderação Ativa 24/7</span>
             <span className="text-white/10">•</span>
             {/* Duplicating for seamless loop */}
-            <span>Usado por +50.000 Grupos</span>
+            <span>5,7 mil usuarios reais</span>
             <span className="text-white/10">•</span>
-            <span>+100M Mensagens Processadas</span>
+            <span>534,9 mil mensagens processadas</span>
             <span className="text-white/10">•</span>
             <span>IA de Última Geração</span>
             <span className="text-white/10">•</span>
@@ -666,7 +676,7 @@ const App = () => {
                 </div>
 
                 <div className="hidden lg:block p-6 rounded-2xl bg-primary/5 border border-primary/10">
-                  <div className="text-primary font-black text-xl mb-1">1,7 mil+</div>
+                  <div className="text-primary font-black text-xl mb-1">${metrics.commands}</div>
                   <div className="text-[10px] uppercase font-bold tracking-widest opacity-50">comandos usados</div>
                 </div>
                 <a href="/comandos/" className="btn btn-outline border-white/10 btn-block rounded-xl hidden lg:flex font-black text-[10px] uppercase tracking-widest h-12">Ver Todos os Comandos</a>
@@ -827,46 +837,6 @@ const App = () => {
               <p className="text-base sm:text-lg opacity-80 max-w-2xl mx-auto font-medium">Junte-se a milhares de administradores que já automatizaram suas comunidades com o OmniZap Bot.</p>
               <div className="pt-4">
                 <a href=${botMenuUrl} className="btn btn-lg bg-white border-none text-[#020617] rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-2xl px-8 sm:px-12 h-14 sm:h-16 text-base sm:text-lg font-black uppercase tracking-widest"> Adicionar Agora </a>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Developer Section (API) -->
-        <section className="py-24 relative overflow-hidden">
-          <div className="container mx-auto px-4">
-            <div className="grid lg:grid-cols-2 gap-16 items-center">
-              <div data-reveal="fade-right" className="space-y-6">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[10px] font-black uppercase tracking-widest">Built for Devs</div>
-                <h2 className="text-4xl sm:text-5xl font-black tracking-tight">API & Webhooks</h2>
-                <p className="text-white/40 text-lg font-medium leading-relaxed">Integre o OmniZap com seus sistemas. Use nossa API REST para enviar mensagens, gerenciar grupos e receber eventos via Webhooks em tempo real.</p>
-                <div className="flex gap-4">
-                  <a href="/api-docs/" className="btn btn-primary rounded-xl px-8">Documentação</a>
-                  <a href="https://github.com/Omnizap-System/omnizap" target="_blank" className="btn btn-ghost border-white/5 rounded-xl px-8 hover:bg-white/5">GitHub</a>
-                </div>
-              </div>
-              <div data-reveal="fade-left" className="relative">
-                <div className="absolute -inset-4 bg-emerald-500/10 blur-3xl opacity-50 rounded-full"></div>
-                <div className="relative bg-[#0b0f1a] rounded-2xl border border-white/10 p-1 overflow-hidden shadow-2xl">
-                  <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-white/[0.02]">
-                    <div className="w-2 h-2 rounded-full bg-red-500/50"></div>
-                    <div className="w-2 h-2 rounded-full bg-yellow-500/50"></div>
-                    <div className="w-2 h-2 rounded-full bg-green-500/50"></div>
-                    <span className="text-[10px] font-mono text-white/20 ml-2 uppercase">send-message.js</span>
-                  </div>
-                  <pre className="p-6 font-mono text-xs sm:text-sm leading-relaxed overflow-x-auto no-scrollbar">
-                    <code className="text-white/80">
-                      <span className="text-emerald-400">fetch</span>('<span className="text-secondary">/api/v1/messages/send</span>', {<br/>
-                      ${'  '}method: '<span className="text-secondary">POST</span>',<br/>
-                      ${'  '}headers: { '<span className="text-secondary">Authorization</span>': '<span className="text-emerald-400">Bearer API_KEY</span>' },<br/>
-                      ${'  '}body: <span className="text-emerald-400">JSON</span>.<span className="text-emerald-400">stringify</span>({<br/>
-                      ${'    '}to: '<span className="text-secondary">551199999999@c.us</span>',<br/>
-                      ${'    '}text: '<span className="text-secondary">Hello from OmniZap! 🚀</span>'<br/>
-                      ${'  '})<br/>
-                      });
-                    </code>
-                  </pre>
-                </div>
               </div>
             </div>
           </div>
