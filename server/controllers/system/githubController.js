@@ -1,7 +1,7 @@
 import logger from '#logger';
 import { toIsoOrNull } from '../../http/httpRequestUtils.js';
 
-const GITHUB_REPOSITORY = String(process.env.GITHUB_REPOSITORY || 'Kaikygr/omnizap-system').trim();
+const GITHUB_REPOSITORY = String(process.env.GITHUB_REPOSITORY || 'Omnizap-System/omnizap-system').trim();
 const GITHUB_TOKEN = String(process.env.GITHUB_TOKEN || '').trim();
 const GITHUB_PROJECT_CACHE_SECONDS = Number(process.env.GITHUB_PROJECT_CACHE_SECONDS || 300);
 

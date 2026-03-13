@@ -1,5 +1,5 @@
 {
-  "name": "@kaikybrofc/omnizap-system",
+  "name": "@omnizap-system/omnizap-system",
   "version": "2.5.9",
   "description": "Sistema profissional de automação WhatsApp com tecnologia Baileys",
   "main": "index.js",
@@ -135,10 +135,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/kaikybrofc/omnizap-system.git"
+    "url": "https://github.com/Omnizap-System/omnizap-system.git"
   },
   "bugs": {
-    "url": "https://github.com/kaikybrofc/omnizap-system/issues"
+    "url": "https://github.com/Omnizap-System/omnizap-system/issues"
   },
-  "homepage": "https://github.com/kaikybrofc/omnizap-system#readme"
+  "homepage": "https://github.com/Omnizap-System/omnizap-system#readme"
 }

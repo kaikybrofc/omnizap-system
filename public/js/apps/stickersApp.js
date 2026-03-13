@@ -3537,7 +3537,7 @@ function StickersApp() {
               : null}
             <div className="hidden sm:flex items-center gap-2">
               <a className="text-xs rounded-lg border border-slate-700 px-3 py-2 text-slate-300 hover:bg-slate-800" href="/api-docs/">API</a>
-              <a className="text-xs rounded-lg border border-slate-700 px-3 py-2 text-slate-300 hover:bg-slate-800" href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener">GitHub</a>
+              <a className="text-xs rounded-lg border border-slate-700 px-3 py-2 text-slate-300 hover:bg-slate-800" href="https://github.com/Omnizap-System/omnizap-system" target="_blank" rel="noreferrer noopener">GitHub</a>
             </div>
           </div>
         </div>

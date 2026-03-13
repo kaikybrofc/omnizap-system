@@ -91,7 +91,7 @@ function ApiDocsApp() {
       h(
         'a',
         {
-          href: 'https://github.com/Kaikygr/omnizap-system',
+          href: 'https://github.com/Omnizap-System/omnizap-system',
           target: '_blank',
           rel: 'noreferrer noopener',
         },
