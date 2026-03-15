@@ -944,13 +944,10 @@ const fetchSearchResult = async (query) => {
       });
 
       const parsed = parseJsonOutput(stdout);
-      let firstEntry = extractYtDlpEntry(parsed);
-
-      if (!firstEntry && Array.isArray(parsed?.entries)) {
-        firstEntry = parsed.entries.find((entry) => entry && typeof entry === 'object') || null;
-      }
-
-      const info = normalizeResolvedVideoInfo(firstEntry, isUrlLookup ? normalized : null);
+      const rawEntries = Array.isArray(parsed?.entries) ? parsed.entries.filter((entry) => entry && typeof entry === 'object') : [];
+      const candidateEntries = isUrlLookup ? [extractYtDlpEntry(parsed)].filter(Boolean) : rawEntries;
+      const normalizedEntries = candidateEntries.map((entry) => normalizeResolvedVideoInfo(entry, isUrlLookup ? normalized : null)).filter((entry) => entry?.url);
+      const info = normalizedEntries[0] || null;
 
       if (!info?.url) {
         throw createError(ERROR_CODES.NOT_FOUND, 'Nenhum resultado encontrado para a busca.', { endpoint });
@@ -959,6 +956,7 @@ const fetchSearchResult = async (query) => {
       return {
         sucesso: true,
         resultado: info,
+        resultados: normalizedEntries,
       };
     },
     {
@@ -998,6 +996,54 @@ const resolveYoutubeLink = async (query) => {
   }
 
   return searchResult.resultado.url;
+};
+
+const resolveYoutubeCandidates = async (query) => {
+  const normalized = query ? query.trim() : '';
+
+  if (!normalized) {
+    throw createError(ERROR_CODES.INVALID_INPUT, 'Você precisa informar um link do YouTube ou termo de busca.', { endpoint: YTDLS_ENDPOINTS.search });
+  }
+
+  if (/^https?:\/\//i.test(normalized)) {
+    return [normalized];
+  }
+
+  const searchResult = await fetchSearchResult(normalized);
+  const urls = [];
+  const seen = new Set();
+
+  const pushUrl = (value) => {
+    const url = ensureHttpUrl(value);
+    if (!url) return;
+    if (seen.has(url)) return;
+    seen.add(url);
+    urls.push(url);
+  };
+
+  if (searchResult?.resultado?.url) {
+    pushUrl(searchResult.resultado.url);
+  }
+
+  if (Array.isArray(searchResult?.resultados)) {
+    for (const item of searchResult.resultados) {
+      pushUrl(item?.url);
+    }
+  }
+
+  if (!urls.length) {
+    throw createError(ERROR_CODES.NOT_FOUND, 'Nenhum resultado encontrado para a busca.', {
+      endpoint: YTDLS_ENDPOINTS.search,
+    });
+  }
+
+  return urls;
+};
+
+const isYouTubeBotCheckCause = (error) => {
+  const cause = String(error?.meta?.cause || '').toLowerCase();
+  const message = String(error?.message || '').toLowerCase();
+  return cause.includes('sign in to confirm') || message.includes('sign in to confirm');
 };
 
 const fetchVideoInfo = async (query, fallback) => {
@@ -1289,6 +1335,7 @@ const fetchThumbnailBuffer = async (url) =>
 
 const ytdlsClient = {
   resolveYoutubeLink,
+  resolveYoutubeCandidates,
   fetchVideoInfo,
   fetchQueueStatus,
   requestDownloadToFile,
@@ -1353,10 +1400,47 @@ const processPlayRequest = async ({ sock, remoteJid, messageInfo, expirationMess
   let filePath = null;
 
   try {
-    const link = await ytdlsClient.resolveYoutubeLink(text);
+    const candidateLinks = await ytdlsClient.resolveYoutubeCandidates(text);
     await sendAndStore(sock, remoteJid, { text: config.waitText }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
 
-    const [downloadResult, videoInfo] = await Promise.all([ytdlsClient.requestDownloadToFile(link, type, requestId), ytdlsClient.fetchVideoInfo(text, link)]);
+    let downloadResult = null;
+    let videoInfo = null;
+    let selectedLink = null;
+    let lastDownloadError = null;
+
+    for (let index = 0; index < candidateLinks.length; index += 1) {
+      const candidateLink = candidateLinks[index];
+      selectedLink = candidateLink;
+      try {
+        [downloadResult, videoInfo] = await Promise.all([ytdlsClient.requestDownloadToFile(candidateLink, type, requestId), ytdlsClient.fetchVideoInfo(candidateLink, text)]);
+        lastDownloadError = null;
+        break;
+      } catch (error) {
+        lastDownloadError = error;
+        const hasNextCandidate = index < candidateLinks.length - 1;
+        if (!hasNextCandidate || !isYouTubeBotCheckCause(error)) {
+          throw error;
+        }
+
+        logger.warn('Play download: vídeo bloqueado por anti-bot, tentando próximo resultado.', {
+          requestId,
+          remoteJid,
+          type,
+          endpoint: error?.meta?.endpoint || YTDLS_ENDPOINTS.download,
+          attempt: index + 1,
+          nextAttempt: index + 2,
+          candidateLink,
+          cause: truncateText(error?.meta?.cause || error?.message || ''),
+        });
+      }
+    }
+
+    if (!downloadResult) {
+      throw lastDownloadError || createError(ERROR_CODES.API, 'Falha ao baixar o arquivo localmente.', {
+        endpoint: YTDLS_ENDPOINTS.download,
+        requestId,
+      });
+    }
 
     filePath = downloadResult.filePath;
     const deliveredType = downloadResult.mediaType || type;
@@ -1370,6 +1454,7 @@ const processPlayRequest = async ({ sock, remoteJid, messageInfo, expirationMess
       deliveredType,
       fallbackToAudio,
       endpoint: YTDLS_ENDPOINTS.download,
+      selectedLink: selectedLink || null,
       elapsedMs: Date.now() - startTime,
       bytes: downloadResult.bytes || 0,
     });
