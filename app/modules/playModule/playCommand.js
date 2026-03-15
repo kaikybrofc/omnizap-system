@@ -1,31 +1,35 @@
 import http from 'node:http';
 import https from 'node:https';
-import { URL } from 'node:url';
+import { URL, fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { Transform } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import logger from '#logger';
 import { sendAndStore } from '../../services/messaging/messagePersistenceService.js';
 import { getAdminJid } from '../../config/index.js';
 import { getPlayUsageText } from './playConfigRuntime.js';
+import { DEFAULT_YTDLP_BINARY_PATH, installYtDlpBinary } from './local/ytDlpInstaller.js';
 
 const adminJid = getAdminJid();
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
-const YTDLS_BASE_URL = (process.env.YTDLS_BASE_URL || process.env.YT_DLS_BASE_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
 
-const DEFAULT_TIMEOUT_MS = Number.parseInt(process.env.PLAY_API_TIMEOUT_MS || '900000', 10);
-const DOWNLOAD_API_TIMEOUT_MS = Number.parseInt(process.env.PLAY_API_DOWNLOAD_TIMEOUT_MS || '1800000', 10);
-const QUEUE_STATUS_TIMEOUT_MS = Number.parseInt(process.env.PLAY_QUEUE_STATUS_TIMEOUT_MS || '8000', 10);
+const DEFAULT_TIMEOUT_MS = Number.parseInt(process.env.PLAY_TIMEOUT_MS || '900000', 10);
+const DOWNLOAD_TIMEOUT_MS = Number.parseInt(process.env.PLAY_DOWNLOAD_TIMEOUT_MS || '1800000', 10);
+const YTDLP_INFO_TIMEOUT_MS = Number.parseInt(process.env.PLAY_YTDLP_INFO_TIMEOUT_MS || '120000', 10);
+const YTDLP_BINARY_PATH = (process.env.PLAY_YTDLP_BINARY_PATH || DEFAULT_YTDLP_BINARY_PATH).trim();
+const PLAY_MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const PLAY_LOCAL_DIR = path.join(PLAY_MODULE_DIR, 'local');
+const PLAY_DOWNLOADS_DIR = path.join(PLAY_LOCAL_DIR, 'downloads');
+const PROJECT_ROOT_DIR = path.resolve(PLAY_MODULE_DIR, '../../..');
+const DEFAULT_COOKIES_PATH = path.join(PROJECT_ROOT_DIR, '.secrets', 'cookies.txt');
+const MAX_SEARCH_RESULTS = Math.min(10, Math.max(1, Number.parseInt(process.env.PLAY_SEARCH_RESULTS || '5', 10)));
 
 const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '100', 10);
 const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB * 1024 * 1024 : 100 * 1024 * 1024;
 const MAX_MEDIA_MB_LABEL = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB : 100;
 
-const QUICK_QUEUE_LOOKUP_MS = 1500;
 const THUMBNAIL_TIMEOUT_MS = 15000;
 const MAX_THUMB_BYTES = 5 * 1024 * 1024;
 const VIDEO_PROCESS_TIMEOUT_MS = Number.parseInt(process.env.PLAY_VIDEO_PROCESS_TIMEOUT_MS || '420000', 10);
@@ -42,9 +46,10 @@ const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
 const TRANSIENT_NETWORK_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN']);
 
 const YTDLS_ENDPOINTS = {
-  search: '/search',
-  queueStatus: '/download/queue-status',
-  download: '/download',
+  search: 'local:search',
+  queueStatus: 'local:queue-status',
+  download: 'local:download',
+  install: 'local:install',
   thumbnail: 'thumbnail',
 };
 
@@ -243,7 +248,7 @@ const buildTempFilePath = (requestId, type) => {
     .replace(/[^a-z0-9-_]+/gi, '')
     .slice(0, 48);
   const ext = type === 'audio' ? 'mp3' : 'mp4';
-  return path.join(os.tmpdir(), `play-${safeId}-${Date.now()}.${ext}`);
+  return path.join(PLAY_DOWNLOADS_DIR, `play-${safeId}-${Date.now()}.${ext}`);
 };
 
 const safeUnlink = async (filePath) => {
@@ -278,8 +283,6 @@ const getHeaderValue = (headers, key) => {
   const raw = headers[lowerKey] ?? headers[key] ?? headers[key.toUpperCase()];
   return normalizeHeaderValue(raw);
 };
-
-const hasHeader = (headers, name) => (headers && typeof headers === 'object' ? Object.keys(headers).some((headerName) => headerName.toLowerCase() === name.toLowerCase()) : false);
 
 const normalizeMimeType = (value) => {
   if (typeof value !== 'string' || !value.trim()) return null;
@@ -465,22 +468,6 @@ const resolveHttpModule = (urlObj) => (urlObj.protocol === 'https:' ? https : ht
 
 const shouldFollowRedirect = (status, location, redirectCount, maxRedirects) => status >= 300 && status < 400 && Boolean(location) && redirectCount < maxRedirects;
 
-const preparePayload = (body, headers) => {
-  if (body === null || body === undefined) return null;
-
-  if (Buffer.isBuffer(body) || typeof body === 'string') {
-    headers['Content-Length'] = Buffer.byteLength(body);
-    return body;
-  }
-
-  const json = JSON.stringify(body);
-  if (!hasHeader(headers, 'Content-Type')) {
-    headers['Content-Type'] = 'application/json';
-  }
-  headers['Content-Length'] = Buffer.byteLength(json);
-  return json;
-};
-
 const readResponseBuffer = async (stream, { maxBytes = Infinity, tooBigMessage } = {}) => {
   const chunks = [];
   let total = 0;
@@ -500,86 +487,9 @@ const readResponseBuffer = async (stream, { maxBytes = Infinity, tooBigMessage }
   return Buffer.concat(chunks, total);
 };
 
-const readResponseText = async (stream, maxBytes = MAX_ERROR_BODY_BYTES) => {
-  const chunks = [];
-  let total = 0;
-  let truncated = false;
-
-  for await (const chunk of stream) {
-    const current = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-
-    if (total >= maxBytes) {
-      truncated = true;
-      continue;
-    }
-
-    if (total + current.length > maxBytes) {
-      const remaining = Math.max(0, maxBytes - total);
-      if (remaining > 0) {
-        chunks.push(current.subarray(0, remaining));
-        total += remaining;
-      }
-      truncated = true;
-      continue;
-    }
-
-    chunks.push(current);
-    total += current.length;
-  }
-
-  const text = Buffer.concat(chunks, total).toString('utf-8').trim();
-  return truncated ? `${text}...[truncated]` : text;
-};
-
-const buildApiErrorFromResponse = ({ status, bodyText, defaultMessage, endpoint }) => {
-  let message = defaultMessage;
-
-  if (bodyText) {
-    try {
-      const parsed = JSON.parse(bodyText);
-      if (typeof parsed?.mensagem === 'string' && parsed.mensagem.trim()) {
-        message = parsed.mensagem.trim();
-      }
-    } catch {
-      void bodyText;
-    }
-  }
-
-  return createError(ERROR_CODES.API, message, {
-    endpoint,
-    status,
-    body: truncateText(bodyText),
-  });
-};
-
-const createByteLimitTransform = (maxBytes, tooBigMessage) => {
-  let bytes = 0;
-  const limiter = new Transform({
-    transform(chunk, _encoding, callback) {
-      bytes += chunk.length;
-      if (bytes > maxBytes) {
-        callback(
-          createError(ERROR_CODES.TOO_BIG, tooBigMessage, {
-            bytes,
-          }),
-        );
-        return;
-      }
-      callback(null, chunk);
-    },
-  });
-
-  return {
-    stream: limiter,
-    getBytes: () => bytes,
-  };
-};
-
-const httpRequest = ({ method, url, headers = {}, body = null, timeoutMs = DEFAULT_TIMEOUT_MS, maxRedirects = 0, redirectCount = 0, endpoint = 'unknown', timeoutMessage = 'Timeout ao comunicar com a API yt-dls.', fallbackMessage = 'Falha ao comunicar com a API yt-dls.', onResponse }) =>
+const httpRequest = ({ url, timeoutMs = DEFAULT_TIMEOUT_MS, maxRedirects = 0, redirectCount = 0, endpoint = 'unknown', timeoutMessage = 'Timeout na requisição HTTP.', fallbackMessage = 'Falha na requisição HTTP.', onResponse }) =>
   new Promise((resolve, reject) => {
     const urlObj = new URL(url);
-    const requestHeaders = { ...headers };
-    const payload = preparePayload(body, requestHeaders);
     const httpModule = resolveHttpModule(urlObj);
     const { signal, cleanup } = createAbortSignal(timeoutMs);
 
@@ -597,8 +507,8 @@ const httpRequest = ({ method, url, headers = {}, body = null, timeoutMs = DEFAU
     const req = httpModule.request(
       urlObj,
       {
-        method,
-        headers: requestHeaders,
+        method: 'GET',
+        headers: { Accept: '*/*' },
         signal,
       },
       (res) => {
@@ -623,10 +533,7 @@ const httpRequest = ({ method, url, headers = {}, body = null, timeoutMs = DEFAU
           res.resume();
           settleResolve(
             httpRequest({
-              method,
               url: nextUrl,
-              headers,
-              body,
               timeoutMs,
               maxRedirects,
               redirectCount: redirectCount + 1,
@@ -667,54 +574,15 @@ const httpRequest = ({ method, url, headers = {}, body = null, timeoutMs = DEFAU
       settleReject(withErrorMeta(normalized, { endpoint }));
     });
 
-    if (payload) req.write(payload);
     req.end();
-  });
-
-const requestJson = async ({ method, url, body = null, timeoutMs = DEFAULT_TIMEOUT_MS, endpoint }) =>
-  httpRequest({
-    method,
-    url,
-    body,
-    timeoutMs,
-    endpoint,
-    headers: { Accept: 'application/json' },
-    timeoutMessage: 'Timeout ao comunicar com a API yt-dls.',
-    fallbackMessage: 'Falha ao comunicar com a API yt-dls.',
-    onResponse: async ({ res, status, endpoint: currentEndpoint }) => {
-      const raw = await readResponseText(res);
-
-      if (status < 200 || status >= 300) {
-        throw buildApiErrorFromResponse({
-          status,
-          bodyText: raw,
-          defaultMessage: 'Falha na API yt-dls.',
-          endpoint: currentEndpoint,
-        });
-      }
-
-      if (!raw) return {};
-
-      try {
-        return JSON.parse(raw);
-      } catch {
-        throw createError(ERROR_CODES.API, 'Resposta inválida da API yt-dls.', {
-          endpoint: currentEndpoint,
-          status,
-          body: truncateText(raw),
-        });
-      }
-    },
   });
 
 const requestBuffer = async ({ url, timeoutMs = THUMBNAIL_TIMEOUT_MS, maxBytes = MAX_THUMB_BYTES, endpoint = YTDLS_ENDPOINTS.thumbnail }) =>
   httpRequest({
-    method: 'GET',
     url,
     timeoutMs,
     endpoint,
     maxRedirects: MAX_REDIRECTS,
-    headers: { Accept: 'image/*' },
     timeoutMessage: 'Timeout ao baixar a thumbnail.',
     fallbackMessage: 'Falha ao baixar a thumbnail.',
     onResponse: async ({ res, status, headers, endpoint: currentEndpoint }) => {
@@ -744,8 +612,6 @@ const requestBuffer = async ({ url, timeoutMs = THUMBNAIL_TIMEOUT_MS, maxBytes =
   });
 
 const httpClient = {
-  request: httpRequest,
-  requestJson,
   requestBuffer,
 };
 
@@ -821,16 +687,229 @@ const setSearchCache = (queryKey, value) => {
   pruneSearchCache();
 };
 
-const buildYtdlsUrl = (endpoint, queryParams = null) => {
-  const url = new URL(`${YTDLS_BASE_URL}${endpoint}`);
-  if (queryParams && typeof queryParams === 'object') {
-    for (const [key, value] of Object.entries(queryParams)) {
-      if (value !== undefined && value !== null && value !== '') {
-        url.searchParams.set(key, String(value));
+let ytDlpInstallPromise = null;
+
+const ensurePlayLocalDirs = async () => {
+  await fs.promises.mkdir(PLAY_DOWNLOADS_DIR, { recursive: true });
+  await fs.promises.mkdir(path.dirname(YTDLP_BINARY_PATH), { recursive: true });
+};
+
+const hasLocalBinary = async () => {
+  const mode = os.platform() === 'win32' ? fs.constants.F_OK : fs.constants.X_OK;
+  try {
+    await fs.promises.access(YTDLP_BINARY_PATH, mode);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const ensureYtDlpReady = async () => {
+  await ensurePlayLocalDirs();
+
+  if (await hasLocalBinary()) {
+    return YTDLP_BINARY_PATH;
+  }
+
+  if (!ytDlpInstallPromise) {
+    ytDlpInstallPromise = installYtDlpBinary({ binaryPath: YTDLP_BINARY_PATH })
+      .then(() => {
+        logger.info('yt-dlp instalado para play local.', {
+          endpoint: YTDLS_ENDPOINTS.install,
+          binaryPath: YTDLP_BINARY_PATH,
+        });
+      })
+      .finally(() => {
+        ytDlpInstallPromise = null;
+      });
+  }
+
+  await ytDlpInstallPromise;
+  return YTDLP_BINARY_PATH;
+};
+
+let warnedInvalidCookiesPath = false;
+
+const resolveYtDlpCookiesPath = () => {
+  const configuredPath = (process.env.PLAY_YTDLP_COOKIES_PATH || '').trim();
+  const cookiePath = configuredPath || DEFAULT_COOKIES_PATH;
+
+  if (!cookiePath) return null;
+  if (!fs.existsSync(cookiePath)) {
+    if (configuredPath && !warnedInvalidCookiesPath) {
+      warnedInvalidCookiesPath = true;
+      logger.warn('Play local: arquivo de cookies configurado não encontrado.', {
+        endpoint: YTDLS_ENDPOINTS.download,
+        cookiePath,
+      });
+    }
+    return null;
+  }
+
+  return cookiePath;
+};
+
+const buildYtDlpArgsBase = () => {
+  const args = ['--ignore-config', '--no-playlist', '--no-warnings', '--js-runtimes', 'node', '--extractor-args', 'youtube:player_client=android,web'];
+  const cookiesPath = resolveYtDlpCookiesPath();
+  if (cookiesPath) {
+    args.push('--cookies', cookiesPath);
+  }
+  return args;
+};
+
+const parseJsonOutput = (stdout) => {
+  const text = String(stdout || '').trim();
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      const line = lines[index];
+      if (!line.startsWith('{') && !line.startsWith('[')) continue;
+      try {
+        return JSON.parse(line);
+      } catch {
+        continue;
       }
     }
   }
-  return url.toString();
+
+  return null;
+};
+
+const normalizeYoutubeWatchUrl = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const direct = ensureHttpUrl(trimmed);
+  if (direct) return direct;
+
+  if (/^[a-zA-Z0-9_-]{6,}$/.test(trimmed)) {
+    return `https://www.youtube.com/watch?v=${trimmed}`;
+  }
+
+  return null;
+};
+
+const extractYtDlpEntry = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+
+  if (Array.isArray(payload.entries)) {
+    const first = payload.entries.find((entry) => entry && typeof entry === 'object');
+    if (first) return first;
+  }
+
+  return payload;
+};
+
+const normalizeResolvedVideoInfo = (entry, fallbackUrl = null) => {
+  if (!entry || typeof entry !== 'object') return null;
+
+  const resolvedUrl =
+    normalizeYoutubeWatchUrl(entry.webpage_url) ||
+    normalizeYoutubeWatchUrl(entry.original_url) ||
+    normalizeYoutubeWatchUrl(entry.url) ||
+    normalizeYoutubeWatchUrl(entry.id) ||
+    normalizeYoutubeWatchUrl(fallbackUrl);
+
+  return {
+    ...entry,
+    id: pickFirstString(entry, ['id', 'video_id', 'videoId']),
+    title: pickFirstString(entry, ['title', 'fulltitle', 'name']) || 'Sem título',
+    channel: pickFirstString(entry, ['channel', 'uploader', 'uploader_id', 'uploader_name']),
+    uploader: pickFirstString(entry, ['uploader', 'channel', 'uploader_name']),
+    duration: toNumberOrNull(entry.duration) ?? entry.duration ?? null,
+    thumbnail: pickFirstString(entry, ['thumbnail']) || null,
+    thumbnails: Array.isArray(entry.thumbnails) ? entry.thumbnails : [],
+    url: resolvedUrl,
+    webpage_url: resolvedUrl || entry.webpage_url || null,
+  };
+};
+
+const normalizeYtDlpError = (error, { endpoint, requestId, input, timeoutMessage, fallbackMessage }) => {
+  if (KNOWN_ERROR_CODES.has(error?.code) && error?.message) return error;
+
+  const stderr = String(error?.stderr || '').trim();
+  const stdout = String(error?.stdout || '').trim();
+  const combined = `${stderr}\n${stdout}\n${error?.message || ''}`.trim();
+  const low = combined.toLowerCase();
+
+  if (error?.code === 'ETIMEDOUT') {
+    return createError(ERROR_CODES.TIMEOUT, timeoutMessage, {
+      endpoint,
+      requestId,
+      input: truncateText(input || ''),
+      rawCode: error?.code || null,
+    });
+  }
+
+  if (low.includes('no matches found') || low.includes('unsupported url')) {
+    return createError(ERROR_CODES.NOT_FOUND, 'Nenhum resultado encontrado para a busca.', {
+      endpoint,
+      requestId,
+      input: truncateText(input || ''),
+      cause: truncateText(combined),
+      rawCode: error?.code || null,
+    });
+  }
+
+  if (low.includes('sign in to confirm') || low.includes('private video') || low.includes('video unavailable')) {
+    return createError(ERROR_CODES.API, 'Não foi possível acessar este vídeo agora. Tente outro link.', {
+      endpoint,
+      requestId,
+      input: truncateText(input || ''),
+      cause: truncateText(combined),
+      rawCode: error?.code || null,
+    });
+  }
+
+  if (low.includes('ffmpeg') && low.includes('not found')) {
+    return createError(ERROR_CODES.API, 'ffmpeg não encontrado no servidor para processar esta mídia.', {
+      endpoint,
+      requestId,
+      input: truncateText(input || ''),
+      cause: truncateText(combined),
+      rawCode: error?.code || null,
+    });
+  }
+
+  return createError(ERROR_CODES.API, fallbackMessage, {
+    endpoint,
+    requestId,
+    input: truncateText(input || ''),
+    rawCode: error?.code || null,
+    exitCode: error?.exitCode ?? null,
+    signal: error?.signal || null,
+    cause: truncateText(combined || 'unknown'),
+  });
+};
+
+const isRequestedFormatUnavailableError = (error) => {
+  const stderr = String(error?.stderr || '').trim();
+  const stdout = String(error?.stdout || '').trim();
+  const message = String(error?.message || '').trim();
+  const combined = `${stderr}\n${stdout}\n${message}`.toLowerCase();
+  return combined.includes('requested format is not available');
+};
+
+const runYtDlp = async ({ args, endpoint, requestId, input, timeoutMs = DEFAULT_TIMEOUT_MS, timeoutMessage, fallbackMessage }) => {
+  const binaryPath = await ensureYtDlpReady();
+
+  try {
+    return await runBinaryCommand(binaryPath, args, { timeoutMs });
+  } catch (error) {
+    throw normalizeYtDlpError(error, {
+      endpoint,
+      requestId,
+      input,
+      timeoutMessage: timeoutMessage || 'Timeout ao processar mídia com yt-dlp.',
+      fallbackMessage: fallbackMessage || 'Falha ao processar mídia com yt-dlp.',
+    });
+  }
 };
 
 const fetchSearchResult = async (query) => {
@@ -846,27 +925,47 @@ const fetchSearchResult = async (query) => {
   }
 
   const endpoint = YTDLS_ENDPOINTS.search;
-  const url = buildYtdlsUrl(endpoint, { q: normalized });
+  const isUrlLookup = /^https?:\/\//i.test(normalized);
+  const lookup = isUrlLookup ? normalized : `ytsearch${MAX_SEARCH_RESULTS}:${normalized}`;
 
-  const result = await retryAsync(
+  const payload = await retryAsync(
     async () => {
-      const payload = await httpClient.requestJson({
-        method: 'GET',
-        url,
+      const args = isUrlLookup
+        ? [...buildYtDlpArgsBase(), '--dump-single-json', lookup]
+        : [...buildYtDlpArgsBase(), '--flat-playlist', '--ignore-errors', '--dump-single-json', lookup];
+
+      const { stdout } = await runYtDlp({
+        args,
         endpoint,
+        input: normalized,
+        timeoutMs: YTDLP_INFO_TIMEOUT_MS,
+        timeoutMessage: 'Timeout ao buscar metadados do vídeo.',
+        fallbackMessage: 'Não foi possível buscar o vídeo agora.',
       });
 
-      if (!payload?.sucesso) {
-        throw createError(ERROR_CODES.API, payload?.mensagem || 'Não foi possível buscar o vídeo agora.', { endpoint });
+      const parsed = parseJsonOutput(stdout);
+      let firstEntry = extractYtDlpEntry(parsed);
+
+      if (!firstEntry && Array.isArray(parsed?.entries)) {
+        firstEntry = parsed.entries.find((entry) => entry && typeof entry === 'object') || null;
       }
 
-      return payload;
+      const info = normalizeResolvedVideoInfo(firstEntry, isUrlLookup ? normalized : null);
+
+      if (!info?.url) {
+        throw createError(ERROR_CODES.NOT_FOUND, 'Nenhum resultado encontrado para a busca.', { endpoint });
+      }
+
+      return {
+        sucesso: true,
+        resultado: info,
+      };
     },
     {
       retries: 1,
       shouldRetry: isTransientError,
       onRetry: (error, attempt) => {
-        logger.warn('Play busca: retry acionado.', {
+        logger.warn('Play busca local: retry acionado.', {
           endpoint,
           attempt,
           code: error?.code,
@@ -876,8 +975,8 @@ const fetchSearchResult = async (query) => {
     },
   );
 
-  setSearchCache(cacheKey, result);
-  return result;
+  setSearchCache(cacheKey, payload);
+  return payload;
 };
 
 const resolveYoutubeLink = async (query) => {
@@ -926,154 +1025,238 @@ const fetchVideoInfo = async (query, fallback) => {
 };
 
 const fetchQueueStatus = async (requestId) => {
-  if (!requestId) return null;
+  void requestId;
+  return null;
+};
 
-  const endpointBase = YTDLS_ENDPOINTS.queueStatus;
-  const endpointFull = `${endpointBase}/${encodeURIComponent(requestId)}`;
-  const url = buildYtdlsUrl(endpointFull);
+const inferMimeFromFilePath = (filePath, type) => {
+  const ext = path.extname(filePath || '').toLowerCase();
+  if (type === 'audio') {
+    if (ext === '.m4a' || ext === '.mp4') return 'audio/mp4';
+    if (ext === '.ogg' || ext === '.opus') return 'audio/ogg';
+    if (ext === '.wav') return 'audio/wav';
+    return TYPE_CONFIG.audio.mimeFallback;
+  }
 
+  if (type === 'video') {
+    if (ext === '.webm') return 'video/webm';
+    return TYPE_CONFIG.video.mimeFallback;
+  }
+
+  return 'application/octet-stream';
+};
+
+const findDownloadedFileByBase = async (basePath, preferredExt) => {
+  const dir = path.dirname(basePath);
+  const baseName = path.basename(basePath);
+
+  let entries = [];
   try {
-    const result = await httpClient.requestJson({
-      method: 'GET',
-      url,
-      endpoint: endpointFull,
-      timeoutMs: QUEUE_STATUS_TIMEOUT_MS,
-    });
-    if (!result?.sucesso || !result?.fila) return null;
-    return result;
+    entries = await fs.promises.readdir(dir);
   } catch {
     return null;
   }
+
+  const candidates = entries.filter((name) => name.startsWith(`${baseName}.`));
+  if (!candidates.length) return null;
+
+  if (preferredExt) {
+    const preferred = candidates.find((name) => path.extname(name).toLowerCase() === `.${preferredExt.toLowerCase()}`);
+    if (preferred) {
+      return path.join(dir, preferred);
+    }
+  }
+
+  const stats = await Promise.all(
+    candidates.map(async (name) => {
+      const fullPath = path.join(dir, name);
+      try {
+        const stat = await fs.promises.stat(fullPath);
+        return { fullPath, mtimeMs: stat.mtimeMs };
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  const existing = stats.filter(Boolean);
+  if (!existing.length) return null;
+
+  existing.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return existing[0].fullPath;
+};
+
+const cleanupDownloadedArtifacts = async (basePath) => {
+  const dir = path.dirname(basePath);
+  const baseName = path.basename(basePath);
+
+  let entries = [];
+  try {
+    entries = await fs.promises.readdir(dir);
+  } catch {
+    return;
+  }
+
+  const targets = entries.filter((name) => name.startsWith(`${baseName}.`));
+  await Promise.allSettled(targets.map((name) => safeUnlink(path.join(dir, name))));
 };
 
 const requestDownloadToFile = async (link, type, requestId) => {
   const endpoint = YTDLS_ENDPOINTS.download;
-  const url = buildYtdlsUrl(endpoint);
-  const filePath = buildTempFilePath(requestId, type);
-  const fallbackMime = type === 'audio' ? 'audio/mpeg' : 'video/mp4';
-  let writeStream = null;
+  const safeId = String(requestId || 'req')
+    .replace(/[^a-z0-9-_]+/gi, '')
+    .slice(0, 48);
+  const basePath = path.join(PLAY_DOWNLOADS_DIR, `play-${safeId}-${Date.now()}`);
+  const outputTemplate = `${basePath}.%(ext)s`;
+  const preferredExt = type === 'audio' ? 'mp3' : 'mp4';
+  let filePath = null;
+
+  const attemptArgsList =
+    type === 'audio'
+      ? [
+          ['--no-progress', '-o', outputTemplate, '-f', 'bestaudio/best', '-x', '--audio-format', 'mp3', '--audio-quality', '0', link],
+          ['--no-progress', '-o', outputTemplate, '-f', 'best', '-x', '--audio-format', 'mp3', '--audio-quality', '0', link],
+        ]
+      : [
+          ['--no-progress', '-o', outputTemplate, '-f', 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best', '--merge-output-format', 'mp4', link],
+          ['--no-progress', '-o', outputTemplate, '-f', 'bestvideo*+bestaudio/best', '--merge-output-format', 'mp4', link],
+          ['--no-progress', '-o', outputTemplate, '-f', 'best', '--merge-output-format', 'mp4', link],
+        ];
 
   try {
-    return await httpClient.request({
-      method: 'POST',
-      url,
-      endpoint,
-      timeoutMs: DOWNLOAD_API_TIMEOUT_MS,
-      headers: { Accept: '*/*', 'Content-Type': 'application/json' },
-      body: { link, type, request_id: requestId },
-      timeoutMessage: 'Timeout ao baixar o arquivo.',
-      fallbackMessage: 'Falha ao comunicar com a API yt-dls.',
-      onResponse: async ({ res, status, headers, endpoint: currentEndpoint }) => {
-        const contentType = getHeaderValue(headers, 'content-type') || '';
-        const safeMimeType = resolveMediaMimeType(type, contentType);
-        const normalizedContentType = normalizeMimeType(contentType);
-        const contentLength = toNumberOrNull(getHeaderValue(headers, 'content-length'));
+    let downloadCompleted = false;
+    let lastError = null;
 
-        if (normalizedContentType && normalizedContentType !== safeMimeType) {
-          logger.warn('Play download: content-type incompatível com tipo solicitado.', {
-            requestId,
-            type,
-            endpoint: currentEndpoint,
-            originalContentType: normalizedContentType,
-            appliedContentType: safeMimeType,
-          });
+    for (let index = 0; index < attemptArgsList.length; index += 1) {
+      const attemptArgs = attemptArgsList[index];
+      try {
+        if (index > 0) {
+          await cleanupDownloadedArtifacts(basePath);
         }
 
-        if (contentLength !== null && contentLength > MAX_MEDIA_BYTES) {
-          res.resume();
-          throw createError(ERROR_CODES.TOO_BIG, `O arquivo excede o limite permitido de ${MAX_MEDIA_MB_LABEL} MB.`, {
-            endpoint: currentEndpoint,
-            status,
-            bytes: contentLength,
-          });
+        await runYtDlp({
+          args: [...buildYtDlpArgsBase(), ...attemptArgs],
+          endpoint,
+          requestId,
+          input: link,
+          timeoutMs: DOWNLOAD_TIMEOUT_MS,
+          timeoutMessage: 'Timeout ao baixar o arquivo.',
+          fallbackMessage: 'Falha ao baixar o arquivo localmente.',
+        });
+        downloadCompleted = true;
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        const shouldRetryWithFallback = isRequestedFormatUnavailableError(error) && index < attemptArgsList.length - 1;
+
+        if (!shouldRetryWithFallback) {
+          throw error;
         }
 
-        if (status < 200 || status >= 300) {
-          const raw = await readResponseText(res);
-          throw buildApiErrorFromResponse({
-            status,
-            bodyText: raw,
-            defaultMessage: `Falha na API yt-dls (HTTP ${status}).`,
-            endpoint: currentEndpoint,
-          });
-        }
-
-        writeStream = fs.createWriteStream(filePath);
-        const limiter = createByteLimitTransform(MAX_MEDIA_BYTES, `O arquivo excede o limite permitido de ${MAX_MEDIA_MB_LABEL} MB.`);
-
-        try {
-          await pipeline(res, limiter.stream, writeStream);
-        } catch (error) {
-          throw normalizeRequestError(error, {
-            timeoutMessage: 'Timeout ao baixar o arquivo.',
-            fallbackMessage: 'Falha ao receber o arquivo da API yt-dls.',
-          });
-        }
-
-        let finalBytes = limiter.getBytes();
-        let finalMimeType = safeMimeType || fallbackMime;
-        let finalMediaType = type;
-
-        if (type === 'video') {
-          const streamInfo = await probeVideoStreams(filePath, requestId, currentEndpoint);
-
-          if (!streamInfo.hasVideo) {
-            if (streamInfo.hasAudio) {
-              finalMediaType = 'audio';
-              finalMimeType = normalizedContentType === 'video/mp4' ? 'audio/mp4' : resolveMediaMimeType('audio', contentType);
-
-              logger.warn('Play vídeo: fonte retornou somente áudio, fallback ativado.', {
-                requestId,
-                endpoint: currentEndpoint,
-                status,
-                bytes: finalBytes,
-                audioCodec: streamInfo.audioCodec || null,
-              });
-            } else {
-              throw createError(ERROR_CODES.API, 'Não foi possível enviar como vídeo: a mídia não possui faixa de vídeo nem áudio.', {
-                endpoint: currentEndpoint,
-                status,
-                requestId,
-                hasAudio: streamInfo.hasAudio,
-                videoCodec: streamInfo.videoCodec,
-                audioCodec: streamInfo.audioCodec,
-              });
-            }
-          }
-
-          if (finalMediaType === 'video') {
-            if (VIDEO_FORCE_TRANSCODE || streamInfo.videoCodec !== 'h264' || (streamInfo.hasAudio && streamInfo.audioCodec !== 'aac')) {
-              finalBytes = await transcodeVideoForWhatsapp(filePath, requestId, currentEndpoint);
-              finalMimeType = TYPE_CONFIG.video.mimeFallback;
-              logger.info('Play vídeo normalizado para compatibilidade.', {
-                requestId,
-                endpoint: currentEndpoint,
-                originalVideoCodec: streamInfo.videoCodec || null,
-                originalAudioCodec: streamInfo.audioCodec || null,
-                bytes: finalBytes,
-              });
-            } else {
-              finalMimeType = TYPE_CONFIG.video.mimeFallback;
-            }
-          }
-        }
-
-        return {
-          filePath,
-          contentType: finalMimeType,
-          bytes: finalBytes,
-          mediaType: finalMediaType,
-        };
-      },
-    });
-  } catch (error) {
-    if (writeStream) {
-      writeStream.destroy();
+        logger.warn('Play download: formato indisponível, tentando fallback.', {
+          requestId,
+          endpoint,
+          type,
+          attempt: index + 1,
+          nextAttempt: index + 2,
+          code: error?.code || null,
+          cause: truncateText(error?.meta?.cause || error?.message || ''),
+        });
+      }
     }
+
+    if (!downloadCompleted && lastError) {
+      throw lastError;
+    }
+
+    filePath = await findDownloadedFileByBase(basePath, preferredExt);
+    if (!filePath) {
+      throw createError(ERROR_CODES.API, 'Não foi possível localizar o arquivo baixado.', {
+        endpoint,
+        requestId,
+      });
+    }
+
+    let stat = await fs.promises.stat(filePath);
+    let finalBytes = Number(stat?.size || 0);
+    let finalMimeType = inferMimeFromFilePath(filePath, type);
+    let finalMediaType = type;
+
+    if (finalBytes <= 0) {
+      throw createError(ERROR_CODES.API, 'Falha ao baixar mídia válida.', {
+        endpoint,
+        requestId,
+        filePath,
+      });
+    }
+
+    if (finalBytes > MAX_MEDIA_BYTES) {
+      throw createError(ERROR_CODES.TOO_BIG, `O arquivo excede o limite permitido de ${MAX_MEDIA_MB_LABEL} MB.`, {
+        endpoint,
+        requestId,
+        bytes: finalBytes,
+      });
+    }
+
+    if (type === 'video') {
+      const streamInfo = await probeVideoStreams(filePath, requestId, endpoint);
+
+      if (!streamInfo.hasVideo) {
+        if (streamInfo.hasAudio) {
+          finalMediaType = 'audio';
+          finalMimeType = inferMimeFromFilePath(filePath, 'audio');
+
+          logger.warn('Play vídeo: fonte retornou somente áudio, fallback ativado.', {
+            requestId,
+            endpoint,
+            bytes: finalBytes,
+            audioCodec: streamInfo.audioCodec || null,
+          });
+        } else {
+          throw createError(ERROR_CODES.API, 'Não foi possível enviar como vídeo: a mídia não possui faixa de vídeo nem áudio.', {
+            endpoint,
+            requestId,
+            hasAudio: streamInfo.hasAudio,
+            videoCodec: streamInfo.videoCodec,
+            audioCodec: streamInfo.audioCodec,
+          });
+        }
+      }
+
+      if (finalMediaType === 'video') {
+        if (VIDEO_FORCE_TRANSCODE || streamInfo.videoCodec !== 'h264' || (streamInfo.hasAudio && streamInfo.audioCodec !== 'aac')) {
+          finalBytes = await transcodeVideoForWhatsapp(filePath, requestId, endpoint);
+          finalMimeType = TYPE_CONFIG.video.mimeFallback;
+          logger.info('Play vídeo normalizado para compatibilidade.', {
+            requestId,
+            endpoint,
+            originalVideoCodec: streamInfo.videoCodec || null,
+            originalAudioCodec: streamInfo.audioCodec || null,
+            bytes: finalBytes,
+          });
+        }
+      }
+    }
+
+    stat = await fs.promises.stat(filePath);
+    finalBytes = Number(stat?.size || finalBytes || 0);
+
+    return {
+      filePath,
+      contentType: finalMimeType || resolveMediaMimeType(finalMediaType, null),
+      bytes: finalBytes,
+      mediaType: finalMediaType,
+    };
+  } catch (error) {
+    await cleanupDownloadedArtifacts(basePath);
     const normalized =
       KNOWN_ERROR_CODES.has(error?.code) && error?.message
         ? error
-        : normalizeRequestError(error, {
+        : normalizeYtDlpError(error, {
+            endpoint,
+            requestId,
+            input: link,
             timeoutMessage: 'Timeout ao baixar o arquivo.',
             fallbackMessage: 'Falha ao baixar o arquivo.',
           });
@@ -1171,24 +1354,7 @@ const processPlayRequest = async ({ sock, remoteJid, messageInfo, expirationMess
 
   try {
     const link = await ytdlsClient.resolveYoutubeLink(text);
-
-    const queueStatusPromise = ytdlsClient.fetchQueueStatus(requestId);
-    const queueStatus = await Promise.race([queueStatusPromise, delay(QUICK_QUEUE_LOOKUP_MS)]);
-    const queueText = formatters.buildQueueStatusText(queueStatus);
-    const waitText = queueText ? `${config.queueWaitText || config.waitText}\n${queueText}` : config.waitText;
-
-    await sendAndStore(sock, remoteJid, { text: waitText }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
-
-    if (queueStatus?.fila) {
-      logger.info('Play fila consultada.', {
-        requestId,
-        remoteJid,
-        type,
-        endpoint: YTDLS_ENDPOINTS.queueStatus,
-        elapsedMs: Date.now() - startTime,
-        queue: queueStatus.fila,
-      });
-    }
+    await sendAndStore(sock, remoteJid, { text: config.waitText }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
 
     const [downloadResult, videoInfo] = await Promise.all([ytdlsClient.requestDownloadToFile(link, type, requestId), ytdlsClient.fetchVideoInfo(text, link)]);
 
@@ -1335,6 +1501,7 @@ const processPlayRequest = async ({ sock, remoteJid, messageInfo, expirationMess
       status: normalizedError?.meta?.status || null,
       elapsedMs: Date.now() - startTime,
       error: truncateText(normalizedError.message || ''),
+      cause: truncateText(normalizedError?.meta?.cause || ''),
       code: normalizedError.code,
     });
 
